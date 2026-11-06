@@ -32,15 +32,10 @@ Hexavara CRM ditujukan untuk perusahaan konstruksi dan bisnis kecil yang masih m
 
 ## Mulai Cepat
 
-Siapkan database MySQL 8.0, baik manual maupun lewat Docker:
+Siapkan database MySQL 8.0:
 
 ```bash
-# Manual: jalankan di MySQL yang sudah terpasang
 mysql -u root -p -e "CREATE DATABASE crm_engine"
-
-# Atau lewat Docker
-cp .env.example .env
-docker compose up -d db
 ```
 
 Siapkan backend:
@@ -50,7 +45,7 @@ cd backend
 npm install
 ```
 
-Salin konfigurasi, lalu ganti `JWT_SECRET` dengan nilai acak. Untuk MySQL manual, sesuaikan juga user dan password di `DATABASE_URL`:
+Salin konfigurasi, lalu ganti `JWT_SECRET` dengan nilai acak. Sesuaikan juga user dan password di `DATABASE_URL`:
 
 ```bash
 cp .env.example .env
