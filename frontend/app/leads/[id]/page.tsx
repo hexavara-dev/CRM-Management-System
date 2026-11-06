@@ -33,7 +33,13 @@ import {
 } from "@/lib/data";
 import { TaskFormData } from "@/schemas/deal.schema";
 import { LeadFormData, leadFormSchema } from "@/schemas/lead.schema";
-import { CallLog, LeadActivity, Note, Task } from "@/types/activity";
+import {
+  AttachmentRecord,
+  CallLog,
+  LeadActivity,
+  Note,
+  Task,
+} from "@/types/activity";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -125,8 +131,8 @@ export default function LeadDetailPage() {
           entityType: "lead",
           entityId: t.activityId,
           priority: t.priority,
-          assignedUserId: (t as any).assignedUserId,
-          assignedUser: (t as any).assignedUser,
+          assignedUserId: t.assignedUserId,
+          assignedUser: t.assignedUser,
           createdAt: new Date(t.createdAt || lead.createdAt),
           updatedAt: new Date(t.createdAt || lead.createdAt),
         }),
@@ -183,11 +189,11 @@ export default function LeadDetailPage() {
     );
 
     const mappedAttachments: Attachment[] = (lead.attachments || []).map(
-      (att: any) => ({
+      (att: AttachmentRecord) => ({
         id: att.id,
         entityType: "lead" as const,
         entityId: lead.id,
-        name: att.fileName || att.name,
+        name: att.fileName || att.name || "",
         fileUrl: att.fileUrl,
         fileType: att.fileType || "application/octet-stream",
         fileSize: att.fileSize || 0,

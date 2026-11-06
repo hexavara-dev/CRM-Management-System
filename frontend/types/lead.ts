@@ -1,4 +1,4 @@
-import { LeadActivity } from "@/types/activity";
+import { AttachmentRecord, LeadActivity } from "@/types/activity";
 import { Status } from "@/types/status";
 import { Stage } from "@/types/stage";
 import { Customer } from "@/types/customer";
@@ -22,7 +22,7 @@ export interface Lead {
   convertedDate?: string;
   createdAt: string;
   activities?: LeadActivity[];
-  attachments?: any[];
+  attachments?: AttachmentRecord[];
   locationId?: string;
   location?: Location;
   assignedUser?: User;

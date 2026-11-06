@@ -1,6 +1,7 @@
 import { Customer } from "./customer";
 import { Deal } from "./deal";
 import { Lead } from "./lead";
+import { User } from "./user";
 
 export interface Note {
   id: string;
@@ -23,6 +24,17 @@ export interface Task {
   priority: "low" | "normal" | "high" | "urgent";
   createdAt?: string;
   created_at?: string;
+  assignedUser?: User;
+}
+
+export interface AttachmentRecord {
+  id: string;
+  fileName?: string;
+  name?: string;
+  fileUrl: string;
+  fileType?: string;
+  fileSize?: number;
+  createdAt: string;
 }
 
 export interface CallLog {

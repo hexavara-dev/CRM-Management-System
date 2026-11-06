@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { usePathname } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,6 +114,7 @@ export function AppSidebar({
   collapsible = "offcanvas",
 }: AppSidebarProps) {
   const { user: authUser, logout } = useAuth();
+  const pathname = usePathname();
   const sidebarUser: SidebarUser = user || {
     name: authUser?.name || defaultUser.name,
     email: authUser?.email || defaultUser.email,
@@ -127,7 +129,6 @@ export function AppSidebar({
           title: "Dashboard",
           url: "/",
           icon: LayoutDashboard,
-          isActive: true,
           visible: isAdmin(),
         },
         { title: "Leads", url: "/leads", icon: Target, visible: true },
@@ -241,7 +242,11 @@ export function AppSidebar({
                       (item) =>
                         item.visible && (
                           <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild isActive={item.isActive}>
+                            <SidebarMenuButton asChild isActive={
+                                item.url === "/"
+                                  ? pathname === "/"
+                                  : pathname.startsWith(item.url)
+                              }>
                               <Link href={item.url}>
                                 <item.icon />
                                 <span>{item.title}</span>

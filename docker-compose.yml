@@ -27,7 +27,8 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: mysql://root:${DB_PASSWORD:-password}@db:3306/crm_engine
-      JWT_SECRET: ${JWT_SECRET:-supersecret}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET di file .env root}
+      ALLOW_PUBLIC_REGISTRATION: ${ALLOW_PUBLIC_REGISTRATION:-false}
       PORT: 3000
       DEV_BASE_URL: ${API_BASE_URL:-http://localhost:3000}
     depends_on:

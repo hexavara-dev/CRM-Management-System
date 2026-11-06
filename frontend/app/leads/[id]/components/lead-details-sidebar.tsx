@@ -4,7 +4,7 @@ import {
   Building,
   Calendar,
   Globe,
-  Infinity,
+  Infinity as InfinityIcon,
   Mail,
   Phone,
   User,
@@ -105,7 +105,7 @@ export function LeadDetailsSidebar({ lead }: LeadDetailsSidebarProps) {
               </div>
 
               <div className="flex items-start gap-3">
-                <Infinity className="size-4 text-muted-foreground mt-0.5" />
+                <InfinityIcon className="size-4 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="text-xs text-muted-foreground mb-0.5">
                     Stage Phase

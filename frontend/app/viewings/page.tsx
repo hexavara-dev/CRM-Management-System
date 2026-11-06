@@ -157,7 +157,8 @@ export default function ViewingsPage() {
     isDeleting,
   } = useViewings({
     additionalParams: activeQueryParams,
-    limit: viewMode === "calendar" ? 1000 : 100,
+    limit: 100,
+    fetchAllPages: viewMode === "calendar",
   });
 
 

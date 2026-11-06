@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { formatMillisecondsToDays, formatRupiah } from "@/lib/helper";
+import { Task } from "@/types/activity";
 import { Lead } from "@/types/lead";
 import { Deal } from "@/types/deal";
 
@@ -79,12 +80,17 @@ function SimpleBarChart({
   return (
     <div className="flex items-end justify-between gap-2 h-40">
       {data.map((item, index) => (
-        <div key={index} className="flex flex-col items-center gap-2 flex-1">
-          <div
-            className="w-full bg-primary rounded-t-md transition-all hover:bg-primary/80"
-            style={{ height: `${(item.value / maxValue) * 100}%` }}
-            title={formatRupiah(item.value)}
-          />
+        <div
+          key={index}
+          className="flex h-full flex-1 flex-col items-center gap-2"
+        >
+          <div className="flex min-h-0 w-full flex-1 items-end">
+            <div
+              className="w-full bg-primary rounded-t-md transition-all hover:bg-primary/80"
+              style={{ height: `${(item.value / maxValue) * 100}%` }}
+              title={formatRupiah(item.value)}
+            />
+          </div>
           <span className="text-xs text-muted-foreground">
             {item.month.split("-")[1]}
           </span>
@@ -317,7 +323,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {stats.pendingTasks.map((task: any) => (
+                    {stats.pendingTasks.map((task: Task) => (
                       <div
                         key={task.id}
                         className="flex items-center justify-between"

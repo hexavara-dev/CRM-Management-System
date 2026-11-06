@@ -1,0 +1,199 @@
+name: Deploy to VPS
+
+on:
+  # Deploy hanya dijalankan manual. Panduan: docs/CI_CD.md
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: "Skip tests (use for hotfixes)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  test:
+    name: Run CI
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    needs: test
+    if: |
+      always() &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
+
+    # Secrets dan variables diambil dari GitHub Environment yang dipilih.
+    environment:
+      name: ${{ github.event.inputs.environment }}
+      url: https://${{ vars.APP_DOMAIN }}
+
+    env:
+      APP_NAME: ${{ vars.APP_NAME }}
+      APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+      API_URL: ${{ vars.API_URL }}
+      API_PORT: ${{ vars.API_PORT || '3000' }}
+      WEB_PORT: ${{ vars.WEB_PORT || '3001' }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+
+    steps:
+      - name: Validate configuration
+        run: |
+          for name in APP_NAME APP_DOMAIN API_URL VPS_USER VPS_HOST; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name belum diatur di GitHub Environment"
+              exit 1
+            fi
+          done
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Build backend
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+
+      # NEXT_PUBLIC_* ditanam saat build, jadi perubahan API_URL perlu deploy ulang.
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL_DEV: ${{ vars.API_URL }}
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npm ci
+          npm run build
+
+      - name: Create release archive
+        run: |
+          mkdir -p release/backend release/frontend
+          cp -r backend/dist backend/prisma backend/prisma.config.ts \
+            backend/package.json backend/package-lock.json release/backend/
+          cp -r frontend/.next/standalone/. release/frontend/
+          cp -r frontend/.next/static release/frontend/.next/static
+          if [ -d frontend/public ]; then cp -r frontend/public release/frontend/public; fi
+          tar -czf release.tar.gz -C release .
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release to server
+        run: scp -i ~/.ssh/deploy_key release.tar.gz "$VPS_USER@$VPS_HOST:/tmp/$APP_NAME-release.tar.gz"
+
+      - name: Deploy on server
+        run: |
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" \
+            "APP_NAME='$APP_NAME' API_PORT='$API_PORT' WEB_PORT='$WEB_PORT' bash -s" << 'ENDSSH'
+          set -euo pipefail
+
+          APP_DIR="/var/www/$APP_NAME"
+          RELEASE_DIR="$APP_DIR/releases/$(date +%Y%m%d%H%M%S)"
+          SHARED_DIR="$APP_DIR/shared"
+
+          if [ ! -f "$SHARED_DIR/backend.env" ]; then
+            echo "Missing $SHARED_DIR/backend.env" >&2
+            exit 1
+          fi
+
+          echo "Extracting release..."
+          mkdir -p "$RELEASE_DIR" "$SHARED_DIR/uploads"
+          tar -xzf "/tmp/$APP_NAME-release.tar.gz" -C "$RELEASE_DIR"
+          rm "/tmp/$APP_NAME-release.tar.gz"
+
+          echo "Linking shared files..."
+          ln -s "$SHARED_DIR/backend.env" "$RELEASE_DIR/backend/.env"
+          ln -s "$SHARED_DIR/uploads" "$RELEASE_DIR/backend/uploads"
+
+          echo "Installing backend dependencies..."
+          cd "$RELEASE_DIR/backend"
+          npm ci --omit=dev
+
+          echo "Running migrations..."
+          npx prisma migrate deploy
+
+          echo "Updating symlink to current release..."
+          ln -sfn "$RELEASE_DIR" "$APP_DIR/current"
+
+          echo "Restarting API..."
+          pm2 delete "$APP_NAME-api" 2>/dev/null || true
+          NODE_ENV=production PORT="$API_PORT" pm2 start dist/index.js --name "$APP_NAME-api" --update-env
+
+          echo "Restarting web..."
+          cd "$RELEASE_DIR/frontend"
+          pm2 delete "$APP_NAME-web" 2>/dev/null || true
+          NODE_ENV=production PORT="$WEB_PORT" HOSTNAME=127.0.0.1 pm2 start server.js --name "$APP_NAME-web" --update-env
+          pm2 save
+
+          echo "Checking API health..."
+          for attempt in $(seq 1 15); do
+            if curl -fsS "http://127.0.0.1:$API_PORT/health" > /dev/null; then
+              healthy=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "${healthy:-false}" != "true" ]; then
+            echo "API health check failed" >&2
+            pm2 logs "$APP_NAME-api" --lines 30 --nostream --err || true
+            exit 1
+          fi
+
+          echo "Cleaning old releases (keeping last 5)..."
+          cd "$APP_DIR/releases"
+          ls -1t | tail -n +6 | xargs -r rm -rf
+
+          echo "Deployment complete!"
+          ENDSSH
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "   Environment: ${{ github.event.inputs.environment }}"
+          echo "   App: $APP_NAME"
+          echo "   Branch: ${{ github.ref_name }}"
+          echo "   URL: https://$APP_DOMAIN"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "   Environment: ${{ github.event.inputs.environment }}"
+          echo "   App: $APP_NAME"
+          echo "   Branch: ${{ github.ref_name }}"

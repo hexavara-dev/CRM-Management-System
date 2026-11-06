@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
+import type { Task } from "@/types/activity";
+import type { Deal } from "@/types/deal";
+import type { Lead } from "@/types/lead";
 
 export interface Statistics {
   totalLeads: number;
@@ -11,9 +14,9 @@ export interface Statistics {
   avgDealValue: number;
   avgWonValue: number;
   salesTrend: { month: string; count: number; value: number }[];
-  recentLeads: any[];
-  recentDeals: any[];
-  pendingTasks: any[];
+  recentLeads: Lead[];
+  recentDeals: Deal[];
+  pendingTasks: Task[];
 }
 
 export function useStatistics() {

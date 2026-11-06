@@ -56,3 +56,43 @@ describe('AuthController cookie session', () => {
     expect(response.status).toHaveBeenCalledWith(204);
   });
 });
+
+describe('AuthController public registration', () => {
+  const originalValue = process.env.ALLOW_PUBLIC_REGISTRATION;
+  const body = { tenantName: 'Acme', email: 'owner@example.com', password: 'password-123' };
+
+  afterEach(() => {
+    if (originalValue === undefined) delete process.env.ALLOW_PUBLIC_REGISTRATION;
+    else process.env.ALLOW_PUBLIC_REGISTRATION = originalValue;
+  });
+
+  it.each([undefined, '', 'false', '1'])('rejects onboarding when the flag is %s', async (value) => {
+    if (value === undefined) delete process.env.ALLOW_PUBLIC_REGISTRATION;
+    else process.env.ALLOW_PUBLIC_REGISTRATION = value;
+    const authUseCases = { onboard: jest.fn() };
+    const controller = new AuthController(authUseCases as any);
+    const response = createResponseMock();
+
+    await controller.onboard({ body } as Request, response);
+
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(authUseCases.onboard).not.toHaveBeenCalled();
+  });
+
+  it('allows onboarding when the flag is true', async () => {
+    process.env.ALLOW_PUBLIC_REGISTRATION = 'true';
+    const authUseCases = {
+      onboard: jest.fn().mockResolvedValue({
+        token: 'signed-jwt',
+        user: { id: 'user-1' },
+        tenant: { id: 'tenant-1' },
+      }),
+    };
+    const controller = new AuthController(authUseCases as any);
+    const response = createResponseMock();
+
+    await controller.onboard({ body } as Request, response);
+
+    expect(response.status).toHaveBeenCalledWith(201);
+  });
+});

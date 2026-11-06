@@ -1,3 +1,4 @@
+import { AttachmentRecord, LeadActivity } from "./activity";
 import { Lead } from "./lead";
 import { User } from "./user";
 
@@ -20,8 +21,8 @@ export interface Deal {
   lostNotes?: string;
   createdAt: string;
   confirmedAt?: string;
-  activities?: any[]; // DealActivity type could be added later
-  attachments?: any[];
+  activities?: LeadActivity[];
+  attachments?: AttachmentRecord[];
   location?: Location;
   stage?: {
     id: string;

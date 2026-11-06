@@ -189,7 +189,7 @@ export class StatisticsUseCases {
       orderBy: { createdAt: 'desc' },
       take: 5,
       include: {
-        customer: true,
+        customer: { include: { organization: true } },
         status: true,
         stage: true,
         sourceUser: { select: { name: true, email: true } },

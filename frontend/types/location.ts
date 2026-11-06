@@ -3,6 +3,6 @@ export type Location = {
   tenantId: string;
   name: string;
   description: string;
-  metadata: any;
+  metadata: unknown;
   createdAt: Date;
 };

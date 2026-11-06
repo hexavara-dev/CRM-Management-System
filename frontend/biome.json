@@ -13,8 +13,7 @@
     "ignore": [
       "**/.next",
       "**/node_modules",
-      "**/package.json",
-      "**/pnpm-lock.yaml"
+      "**/package.json"
     ]
   },
   "organizeImports": { "enabled": true },
