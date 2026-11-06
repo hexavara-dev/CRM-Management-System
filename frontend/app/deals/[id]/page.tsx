@@ -27,6 +27,7 @@ import type {
   Task as ActivityTask,
   LeadActivity,
 } from "@/types/activity";
+import type { AttachmentRecord } from "@/types/activity";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { DealDetailsSidebar } from "./components/deal-details-sidebar";
@@ -84,8 +85,8 @@ export default function DealDetailPage() {
         dueDate: t.dueDate ? new Date(t.dueDate) : undefined,
         status: "pending" as const,
         priority: t.priority || "normal",
-        assignedUserId: (t as any).assignedUserId,
-        assignedUser: (t as any).assignedUser,
+        assignedUserId: t.assignedUserId,
+        assignedUser: t.assignedUser,
         createdAt: new Date(deal.createdAt),
         updatedAt: new Date(deal.createdAt),
       }));
@@ -131,11 +132,11 @@ export default function DealDetailPage() {
     );
 
     const mappedAttachments: Attachment[] = (deal.attachments || []).map(
-      (att: any) => ({
+      (att: AttachmentRecord) => ({
         id: att.id,
         entityType: "deal" as const,
         entityId: deal.id,
-        name: att.fileName || att.name,
+        name: att.fileName || att.name || "",
         fileUrl: att.fileUrl,
         fileType: att.fileType || "application/octet-stream",
         fileSize: att.fileSize || 0,

@@ -16,7 +16,7 @@ export const navigationMenus: MenuSection[] = [
   {
     label: "Main",
     items: [
-      { title: "Dashboard", url: "/", icon: LayoutDashboard, isActive: true },
+      { title: "Dashboard", url: "/", icon: LayoutDashboard },
       { title: "Leads", url: "/leads", icon: Target },
       { title: "Deals", url: "/deals", icon: DollarSign },
       // { title: "Contacts", url: "/contacts", icon: Users },

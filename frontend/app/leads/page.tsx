@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLeadsTable } from "@/hooks/use-leads-table";
 import { useLocations } from "@/hooks/use-locations";
 import { useStatuses } from "@/hooks/use-statuses";
+import { ConvertDealFormData } from "@/schemas/convert.schema";
 import { LeadFormData, leadFormSchema } from "@/schemas/lead.schema";
 import { Lead } from "@/types/lead";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -286,7 +287,7 @@ export default function LeadsPage() {
     }
   };
 
-  const onSubmitConvert = async (data: any) => {
+  const onSubmitConvert = async (data: ConvertDealFormData) => {
     if (selectedLead) {
       try {
         await convertToDeal({

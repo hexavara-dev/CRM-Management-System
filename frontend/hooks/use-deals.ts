@@ -82,8 +82,9 @@ export function useDeals(options: UseDealsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ["deals"] });
       toast.success("Deal created successfully");
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || "Failed to create deal");
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || "Failed to create deal");
     },
   });
 
@@ -113,8 +114,9 @@ export function useDeals(options: UseDealsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ["deal", variables.id] });
       toast.success("Deal updated successfully");
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || "Failed to update deal");
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || "Failed to update deal");
     },
   });
 
@@ -127,8 +129,9 @@ export function useDeals(options: UseDealsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ["deals"] });
       toast.success("Deal deleted successfully");
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || "Failed to delete deal");
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || "Failed to delete deal");
     },
   });
 

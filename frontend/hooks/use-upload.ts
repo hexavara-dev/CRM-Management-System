@@ -2,11 +2,12 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import type { AttachmentRecord } from "@/types/activity";
 
 export interface UploadResponse {
   message: string;
   url: string;
-  attachment?: any;
+  attachment?: AttachmentRecord;
 }
 
 export function useUpload() {

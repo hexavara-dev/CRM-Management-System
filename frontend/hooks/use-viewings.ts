@@ -38,22 +38,38 @@ type UseViewingsOptions = {
   limit?: number;
   additionalParams?: Record<string, unknown>;
   enabled?: boolean;
+  fetchAllPages?: boolean;
 };
 
 export function useViewings(options: UseViewingsOptions = {}) {
-  const { page = 1, limit = 100, additionalParams = {}, enabled = true } =
-    options;
+  const {
+    page = 1,
+    limit = 100,
+    additionalParams = {},
+    enabled = true,
+    fetchAllPages = false,
+  } = options;
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const tenantId = user?.tenantId;
 
   const viewingsQuery = useQuery({
-    queryKey: ["viewings", { page, limit, ...additionalParams }],
+    queryKey: ["viewings", { page, limit, fetchAllPages, ...additionalParams }],
     queryFn: async () => {
       const response = await api.get("/api/viewing", {
         params: { page, limit, ...additionalParams },
       });
-      return response.data;
+      if (!fetchAllPages) return response.data;
+
+      const items = normalizeCollection<Viewing>(response.data);
+      const totalPages = response.data?.meta?.totalPages ?? 1;
+      for (let next = page + 1; next <= totalPages; next += 1) {
+        const nextResponse = await api.get("/api/viewing", {
+          params: { page: next, limit, ...additionalParams },
+        });
+        items.push(...normalizeCollection<Viewing>(nextResponse.data));
+      }
+      return { data: items };
     },
     enabled,
   });

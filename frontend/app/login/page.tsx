@@ -14,6 +14,7 @@ import { loginSchema, LoginFormData } from "@/schemas/auth.schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FormProvider, useForm } from "react-hook-form";
 import { LogIn } from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const { login, isLoading } = useAuth();
@@ -71,14 +72,14 @@ export default function LoginPage() {
               </Button>
             </form>
           </FormProvider>
-          {/* <div className="mt-4 text-center text-sm">
+          <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">
               Don&apos;t have an account?{" "}
             </span>
             <Link href="/register" className="text-primary hover:underline">
-              Contact Admin
+              Register
             </Link>
-          </div> */}
+          </div>
         </CardContent>
       </Card>
     </div>

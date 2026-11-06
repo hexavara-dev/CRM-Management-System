@@ -54,8 +54,9 @@ export function useActivities() {
               : "Activity";
       toast.success(`${type} added successfully`);
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || "Failed to add activity");
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || "Failed to add activity");
     },
   });
 

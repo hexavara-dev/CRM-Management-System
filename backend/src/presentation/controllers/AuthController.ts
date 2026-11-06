@@ -41,6 +41,11 @@ export class AuthController {
 
   async onboard(req: Request, res: Response) {
     try {
+      if (process.env.ALLOW_PUBLIC_REGISTRATION !== 'true') {
+        return res
+          .status(403)
+          .json({ error: 'Public registration is disabled. Please contact your administrator.' });
+      }
       const { tenantName, email, password, name } = req.body;
       const result = await this.authUseCases.onboard(tenantName, email, password, name);
       this.setAuthCookie(res, result.token);
