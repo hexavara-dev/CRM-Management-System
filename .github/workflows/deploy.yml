@@ -128,10 +128,9 @@ jobs:
             exit 1
           fi
 
-          echo "Cleaning old releases and images (keeping last 5 releases)..."
+          echo "Cleaning old releases (keeping last 5)..."
           cd "$APP_DIR/releases"
           ls -1t | tail -n +6 | xargs -r rm -rf
-          docker image prune -f > /dev/null
 
           echo "Deployment complete!"
           ENDSSH
