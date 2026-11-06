@@ -16,12 +16,12 @@ Berjalan otomatis pada pull request ke `main` dan push ke `main`.
 Deploy hanya berjalan manual dan tidak pernah otomatis saat push. Alurnya:
 
 1. Menjalankan CI, kecuali `skip_tests` dicentang untuk hotfix.
-2. Mem-build backend dan frontend di runner GitHub.
-3. Mengirim hasilnya ke VPS lewat SSH ke `/var/www/<APP_NAME>/releases/<timestamp>`.
-4. Di server: `npm ci --omit=dev`, `prisma migrate deploy`, mengarahkan symlink `current`, dan me-restart proses PM2.
-5. Mengecek `/health` dan menyimpan 5 release terakhir.
+2. Mengirim kode dari commit yang dipilih ke VPS lewat SSH, ke `/var/www/<APP_NAME>/releases/<timestamp>`.
+3. Di server: menjalankan `docker compose up --build -d` dengan konfigurasi `/var/www/<APP_NAME>/.env`, lalu mengarahkan symlink `current` ke release baru.
+4. Backend menerapkan migrasi saat start.
+5. Mengecek `/health`, lalu menyimpan 5 release terakhir.
 
-Migrasi berjalan sebelum proses baru dinyalakan dan tidak ikut dibatalkan jika deploy gagal setelahnya. Pastikan migrasi kompatibel dengan versi sebelumnya.
+Migrasi tidak ikut dibatalkan jika deploy gagal setelahnya. Pastikan migrasi kompatibel dengan versi sebelumnya.
 
 ### Menjalankan deploy
 
@@ -36,53 +36,45 @@ Buat environment `staging` dan `production` di **Settings > Environments**, lalu
 | Secret | `SSH_PRIVATE_KEY` | Private key khusus deploy |
 | Secret | `VPS_HOST` | Host atau IP server |
 | Secret | `VPS_USER` | User SSH di server |
-| Variable | `APP_NAME` | Nama aplikasi, misalnya `crm-staging`. Hanya huruf, angka, dan tanda hubung. |
+| Variable | `APP_NAME` | Nama aplikasi, misalnya `crm-staging`. Hanya huruf kecil, angka, dan tanda hubung. |
 | Variable | `APP_DOMAIN` | Domain frontend |
-| Variable | `API_URL` | URL publik API yang diakses browser |
-| Variable | `API_PORT` | Opsional. Default `3000`. |
-| Variable | `WEB_PORT` | Opsional. Default `3001`. |
+
+Konfigurasi aplikasi tidak disimpan di GitHub, melainkan di file `.env` pada server.
 
 ### Persiapan server (sekali saja)
 
-Server membutuhkan Node.js 20, PM2, dan MySQL 8.0. Sediakan juga reverse proxy dengan HTTPS, yang tidak diatur oleh workflow ini. Arahkan `APP_DOMAIN` ke `WEB_PORT` dan host dari `API_URL` ke `API_PORT`.
+Server membutuhkan Docker dengan Compose, dan `VPS_USER` harus bisa menjalankan `docker` tanpa `sudo`. Sediakan juga reverse proxy dengan HTTPS, yang tidak diatur oleh workflow ini. Arahkan domain frontend ke `127.0.0.1:3001` dan domain API ke `127.0.0.1:3000`.
 
-HTTPS wajib karena cookie login memakai atribut `Secure` saat `NODE_ENV=production`.
+HTTPS wajib karena cookie login memakai atribut `Secure`.
 
 ```bash
-sudo mkdir -p /var/www/<APP_NAME>/shared
+sudo mkdir -p /var/www/<APP_NAME>
 sudo chown -R <VPS_USER> /var/www/<APP_NAME>
-nano /var/www/<APP_NAME>/shared/backend.env
-chmod 600 /var/www/<APP_NAME>/shared/backend.env
+nano /var/www/<APP_NAME>/.env
+chmod 600 /var/www/<APP_NAME>/.env
 ```
 
-Isi `backend.env`:
+Isi `.env` mengikuti [`.env.example`](../.env.example). Penjelasan tiap variabelnya ada di [panduan instalasi](INSTALLATION.md#deploy-ke-server-dengan-docker).
 
-```env
-DATABASE_URL=mysql://<user>:<password>@127.0.0.1:3306/<database>
-JWT_SECRET=<nilai acak yang panjang>
-CORS_ORIGINS=https://<APP_DOMAIN>
-DEV_BASE_URL=<API_URL>
-ALLOW_PUBLIC_REGISTRATION=false
+Satu server hanya bisa menjalankan satu environment, karena nama container dan port di `docker-compose.yml` bernilai tetap.
+
+### Akun pertama
+
+Set `ALLOW_PUBLIC_REGISTRATION=true` di `.env`, lalu jalankan perintah ini agar nilainya terbaca:
+
+```bash
+cd /var/www/<APP_NAME>/current
+docker compose -p <APP_NAME> --env-file /var/www/<APP_NAME>/.env up -d backend
 ```
 
-Pendaftaran tertutup selama `ALLOW_PUBLIC_REGISTRATION` bukan `true`. Untuk membuat akun pertama, set sementara ke `true`, jalankan `pm2 restart <APP_NAME>-api --update-env`, daftar di `/register`, lalu kembalikan ke `false` dan restart lagi.
-
-File `backend.env` dan folder `uploads` berada di `shared`, sehingga tetap ada di setiap release.
+Daftar di `/register`, kembalikan nilainya ke `false`, lalu jalankan perintah yang sama.
 
 ### Rollback
 
-Masuk ke server, arahkan `current` ke release sebelumnya, lalu jalankan ulang kedua proses dari folder release tersebut. Rollback ini tidak membatalkan migrasi database.
+Masuk ke server, lalu jalankan release sebelumnya. Rollback ini tidak membatalkan migrasi database, dan data tetap ada karena volume tidak ikut terhapus.
 
 ```bash
-ln -sfn /var/www/<APP_NAME>/releases/<timestamp> /var/www/<APP_NAME>/current
-
-cd /var/www/<APP_NAME>/current/backend
-pm2 delete <APP_NAME>-api
-NODE_ENV=production PORT=<API_PORT> pm2 start dist/index.js --name <APP_NAME>-api --update-env
-
-cd /var/www/<APP_NAME>/current/frontend
-pm2 delete <APP_NAME>-web
-NODE_ENV=production PORT=<WEB_PORT> HOSTNAME=127.0.0.1 pm2 start server.js --name <APP_NAME>-web --update-env
-
-pm2 save
+cd /var/www/<APP_NAME>/releases/<timestamp>
+docker compose -p <APP_NAME> --env-file /var/www/<APP_NAME>/.env up --build -d
+ln -sfn "$PWD" /var/www/<APP_NAME>/current
 ```

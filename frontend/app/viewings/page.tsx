@@ -566,7 +566,7 @@ export default function ViewingsPage() {
               onSubmit={editForm.handleSubmit(onSubmitEdit)}
               className="grid grid-cols-2 gap-4"
             >
-              {user?.role === "admin" && (
+              {user?.role === "owner" && (
                 <FormSelect
                   name="leadId"
                   label="Lead Name"

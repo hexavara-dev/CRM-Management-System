@@ -9,7 +9,7 @@ export interface CreateUserData {
   email: string;
   name?: string;
   password: string;
-  role: "admin" | "member";
+  role: "member";
 }
 
 export function useUsers() {

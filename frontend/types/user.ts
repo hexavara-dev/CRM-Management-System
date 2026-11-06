@@ -6,4 +6,4 @@ export type User = {
   createdAt: string;
 };
 
-export type UserRole = "owner" | "user";
+export type UserRole = "owner" | "member";
