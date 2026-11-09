@@ -33,7 +33,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -77,6 +77,11 @@ export default function LeadsPage() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const router = useRouter();
+
+  const handleDelete = useCallback((id: string) => {
+    setLeadToDelete(id);
+    setIsDeleteDialogOpen(true);
+  }, []);
 
   const columns = useMemo<ColumnDef<Lead>[]>(
     () => [
@@ -189,7 +194,7 @@ export default function LeadsPage() {
         },
       },
     ],
-    [router],
+    [router, handleDelete],
   );
 
   const locationOptions = useMemo(
@@ -331,11 +336,6 @@ export default function LeadsPage() {
   //   });
   //   setIsConvertDialogOpen(true);
   // };
-
-  const handleDelete = (id: string) => {
-    setLeadToDelete(id);
-    setIsDeleteDialogOpen(true);
-  };
 
   const onConfirmDelete = async () => {
     if (leadToDelete) {

@@ -21,25 +21,37 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
 import {
   Bell,
+  Building,
   Building2,
   CalendarCheck2,
+  Barcode,
+  ChartColumn,
   CheckSquare,
   ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  CreditCard,
   DollarSign,
+  FileClock,
   FileText,
-  LayoutDashboard,
   LogOut,
+  MapPinned,
   Search,
   Settings,
   Target,
+  TextAlignStart,
   User2,
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
+import { Collapsible } from "radix-ui";
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "./auth/auth-provider";
@@ -56,10 +68,12 @@ export type MenuItem = {
   badge?: string | number;
   isActive?: boolean;
   visible?: boolean;
+  /** Submenu items. When set, the item toggles instead of navigating. */
+  children?: Omit<MenuItem, "children">[];
 };
 
 export type MenuSection = {
-  label: string;
+  label?: string;
   items: MenuItem[];
   visible?: boolean;
 };
@@ -100,37 +114,122 @@ const defaultUser: SidebarUser = {
   email: "john@hexavara.com",
 };
 
-export function AppSidebar({
-  // menuSections = defaultMenuSections,
-  user,
-  logo,
-  logoText = "Hexavara",
-  enableSearch = true,
-  searchPlaceholder = "Search CRM...",
-  headerContent,
-  footerContent,
-  variant = "sidebar",
-  side = "left",
-  collapsible = "offcanvas",
-}: AppSidebarProps) {
-  const { user: authUser, logout } = useAuth();
-  const pathname = usePathname();
-  const sidebarUser: SidebarUser = user || {
-    name: authUser?.name || defaultUser.name,
-    email: authUser?.email || defaultUser.email,
-  };
+// Measured from the design mockup: 31px rows, 14px text, #1980C0 active bar.
+const NAV_BUTTON_CLASS =
+  "h-[31px] whitespace-nowrap rounded-md pl-5 pr-3 text-sm font-medium text-[#4f4f4f] hover:bg-[#e9e8ec] hover:text-[#4f4f4f] data-[active=true]:!bg-[#1980c0] data-[active=true]:!text-white [&>svg]:size-4";
 
-  const menuSections: MenuSection[] = [
+const NAV_SUB_BUTTON_CLASS =
+  "h-[31px] whitespace-nowrap rounded-md pl-[44px] pr-3 text-sm font-medium text-[#4f4f4f] hover:bg-[#e9e8ec] hover:text-[#4f4f4f] data-[active=true]:!bg-[#1980c0] data-[active=true]:!text-white [&>svg]:size-4";
+
+function isPathActive(pathname: string, url: string) {
+  return url === "/" ? pathname === "/" : pathname.startsWith(url);
+}
+
+function NavParentItem({
+  item,
+  pathname,
+}: {
+  item: MenuItem;
+  pathname: string;
+}) {
+  const children = item.children ?? [];
+  const hasActiveChild = children.some((child) =>
+    isPathActive(pathname, child.url),
+  );
+  const [open, setOpen] = React.useState(hasActiveChild);
+
+  return (
+    <Collapsible.Root open={open} onOpenChange={setOpen} asChild>
+      <SidebarMenuItem>
+        <Collapsible.Trigger asChild>
+          <SidebarMenuButton className={NAV_BUTTON_CLASS}>
+            <item.icon />
+            <span>{item.title}</span>
+            <ChevronRight
+              className={`ml-auto transition-transform ${open ? "rotate-90" : ""}`}
+            />
+          </SidebarMenuButton>
+        </Collapsible.Trigger>
+        <Collapsible.Content>
+          <SidebarMenuSub className="mx-0 mt-1 border-l-0 px-0 py-0">
+            {children.map((child) => (
+              <SidebarMenuSubItem key={child.title}>
+                <SidebarMenuSubButton
+                  asChild
+                  className={NAV_SUB_BUTTON_CLASS}
+                  isActive={isPathActive(pathname, child.url)}
+                >
+                  <Link href={child.url}>
+                    <child.icon />
+                    <span>{child.title}</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </Collapsible.Content>
+      </SidebarMenuItem>
+    </Collapsible.Root>
+  );
+}
+
+/** Single source of truth for the sidebar menu and the page breadcrumb. */
+export function buildMenuSections(admin: boolean): MenuSection[] {
+  return [
     {
-      label: "Main",
       visible: true,
       items: [
         {
           title: "Dashboard",
           url: "/",
-          icon: LayoutDashboard,
-          visible: isAdmin(),
+          icon: ChartColumn,
+          visible: admin,
         },
+        {
+          title: "Product Management",
+          url: "/projects",
+          icon: CreditCard,
+          visible: true,
+          children: [
+            { title: "Projects", url: "/projects", icon: TextAlignStart },
+            { title: "Types", url: "/types", icon: Barcode },
+            {
+              title: "Specifications & Media",
+              url: "/specifications",
+              icon: ClipboardList,
+            },
+            { title: "Siteplans", url: "/siteplans", icon: MapPinned },
+          ],
+        },
+        {
+          title: "Availability & Reservation",
+          url: "/availability",
+          icon: Building,
+          visible: true,
+          children: [
+            { title: "Availability", url: "/availability", icon: Building },
+            {
+              title: "Reservations",
+              url: "/reservations",
+              icon: CalendarCheck2,
+            },
+          ],
+        },
+        {
+          title: "Pricing Management",
+          url: "/pricing",
+          icon: FileClock,
+          visible: true,
+          children: [
+            { title: "Pricing", url: "/pricing", icon: DollarSign },
+          ],
+        },
+      ],
+    },
+    {
+      label: "CRM",
+      visible: true,
+      items: [
         { title: "Leads", url: "/leads", icon: Target, visible: true },
         { title: "Deals", url: "/deals", icon: DollarSign, visible: true },
         {
@@ -157,18 +256,41 @@ export function AppSidebar({
     },
     {
       label: "Settings",
-      visible: isAdmin(),
+      visible: admin,
       items: [
-        { title: "Team", url: "/team", icon: UserPlus, visible: isAdmin() },
+        { title: "Team", url: "/team", icon: UserPlus, visible: admin },
         {
           title: "Settings",
           url: "/settings",
           icon: Settings,
-          visible: isAdmin(),
+          visible: admin,
         },
       ],
     },
   ];
+}
+
+export function AppSidebar({
+  // menuSections = defaultMenuSections,
+  user,
+  logo,
+  logoText = "Hexavara",
+  enableSearch = true,
+  searchPlaceholder = "Search CRM...",
+  headerContent,
+  footerContent,
+  variant = "sidebar",
+  side = "left",
+  collapsible = "offcanvas",
+}: AppSidebarProps) {
+  const { user: authUser, logout } = useAuth();
+  const pathname = usePathname();
+  const sidebarUser: SidebarUser = user || {
+    name: authUser?.name || defaultUser.name,
+    email: authUser?.email || defaultUser.email,
+  };
+
+  const menuSections = buildMenuSections(isAdmin());
 
   const { register, handleSubmit } = useForm<SearchFormData>({
     defaultValues: {
@@ -234,19 +356,28 @@ export function AppSidebar({
         {menuSections.map(
           (section) =>
             section.visible && (
-              <SidebarGroup key={section.label}>
-                <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+              <SidebarGroup key={section.label ?? "primary"}>
+                {section.label && (
+                  <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+                )}
                 <SidebarGroupContent>
-                  <SidebarMenu>
+                  <SidebarMenu className="gap-[11px]">
                     {section.items.map(
                       (item) =>
-                        item.visible && (
+                        item.visible &&
+                        (item.children ? (
+                          <NavParentItem
+                            key={item.title}
+                            item={item}
+                            pathname={pathname}
+                          />
+                        ) : (
                           <SidebarMenuItem key={item.title}>
-                            <SidebarMenuButton asChild isActive={
-                                item.url === "/"
-                                  ? pathname === "/"
-                                  : pathname.startsWith(item.url)
-                              }>
+                            <SidebarMenuButton
+                              asChild
+                              className={NAV_BUTTON_CLASS}
+                              isActive={isPathActive(pathname, item.url)}
+                            >
                               <Link href={item.url}>
                                 <item.icon />
                                 <span>{item.title}</span>
@@ -261,7 +392,7 @@ export function AppSidebar({
                               </Link>
                             </SidebarMenuButton>
                           </SidebarMenuItem>
-                        ),
+                        )),
                     )}
                   </SidebarMenu>
                 </SidebarGroupContent>
