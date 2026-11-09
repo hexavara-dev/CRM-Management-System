@@ -106,7 +106,8 @@ Tidak ada perubahan fitur pada fase ini.
 
 Tulis test lebih dulu pada setiap langkah.
 
-- [ ] Test: kategori dengan parent milik company lain ditolak, dan siklus parent ditolak.
+- [ ] Test: kategori dengan parent milik company lain ditolak, siklus parent ditolak, dan level keenam ditolak.
+- [ ] Test: filter kategori menyertakan seluruh turunannya.
 - [ ] Test: nilai atribut divalidasi sesuai `data_type`.
 - [ ] Test: master yang sudah dipakai hanya bisa dinonaktifkan.
 - [ ] Test: `member` tidak bisa menulis.
@@ -118,6 +119,7 @@ Tulis test lebih dulu pada setiap langkah.
 - [ ] Test: produk baru tanpa varian otomatis mendapat varian `Default`, dalam satu transaksi.
 - [ ] Test: `QUANTITY` wajib punya satuan.
 - [ ] Test: varian dan atribut lintas produk atau lintas company ditolak.
+- [ ] Test: satu atribut paling banyak punya satu nilai di tingkat produk dan satu di setiap varian.
 - [ ] Implementasikan use case dan route, termasuk penguncian `tracking_type` yang dilengkapi pengecekan saldo dan unit pada Fase 3.
 - [ ] Jalankan verifikasi backend.
 
@@ -165,6 +167,7 @@ Tulis test lebih dulu pada setiap langkah.
 - [ ] Test: semua transisi status pada dokumen desain, valid dan tidak valid, serta riwayat tercatat.
 - [ ] Test: unit `SOLD` tidak bisa dipindah atau dihapus.
 - [ ] Test: karakteristik dan lokasi lintas company ditolak.
+- [ ] Test: nilai atribut unit diambil dari unit, lalu varian, lalu produk, beserta asal nilainya.
 - [ ] Implementasikan API dan halaman `/inventory/units`.
 
 ### Task 3.3: Penguncian dan availability
@@ -176,7 +179,7 @@ Tulis test lebih dulu pada setiap langkah.
 
 ---
 
-## Fase 4: Harga dan validasi akhir (PR 4)
+## Fase 4: Harga, media, dan validasi akhir (PR 4)
 
 ### Task 4.1: Harga
 
@@ -187,10 +190,23 @@ Tulis test lebih dulu pada setiap langkah.
 - [ ] Implementasikan `PriceResolver` dan `GET /product-prices/resolve`.
 - [ ] Buat halaman `/pricing`.
 
-### Task 4.2: Validasi skenario dan penyelesaian
+### Task 4.2: Media
 
-- [ ] Smoke test skenario trading sesuai dokumen desain, sampai saldo dan availability cocok.
-- [ ] Smoke test skenario properti sesuai dokumen desain, dengan harga berbeda per proyek dan penyesuaian unit hook.
+**File:** `schema.prisma`, migrasi baru, `backend/src/usecases/product/`, `presentation/controllers/UploadController.ts`, `frontend/app/products/[id]/`, `frontend/hooks/`
+
+- [ ] Tambahkan `product_media`.
+- [ ] Test: hanya satu media utama per produk, varian, atau unit, dan penggantiannya terjadi dalam satu transaksi.
+- [ ] Test: tipe file selain JPEG, PNG, WebP, dan PDF ditolak, dan `VIDEO_LINK` non-`https` ditolak.
+- [ ] Test: varian atau unit yang bukan milik produk ditolak, dan media company lain tidak bisa dibuka.
+- [ ] Test: menghapus media juga menghapus filenya.
+- [ ] Implementasikan dengan memakai ulang penyimpanan `uploads` dan middleware akses yang sudah ada.
+- [ ] Tambahkan galeri pada detail produk dan detail unit.
+
+### Task 4.3: Validasi skenario dan penyelesaian
+
+- [ ] Siapkan data sesuai bagian "Contoh data" di dokumen desain.
+- [ ] Smoke test skenario trading sampai saldo dan availability cocok.
+- [ ] Smoke test skenario properti: harga berbeda per proyek, penyesuaian unit hook, luas tanah GR-A03 100 m² dari nilai unit, dan GR-A01 72 m² dari nilai varian.
 - [ ] Pastikan kedua skenario berjalan tanpa kode khusus, dan tidak ada label khusus satu industri di UI.
 - [ ] Uji isolasi: akun company lain tidak bisa membaca atau memakai ID apa pun di atas.
 - [ ] Perbarui `README.md` dan `docs/`.

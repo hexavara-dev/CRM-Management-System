@@ -420,6 +420,45 @@
 <text x="1879" y="1839" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">date</text>
 <text x="1674" y="1865" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">end_date</text>
 <text x="1879" y="1865" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">date, null</text>
+<text x="1080" y="1545" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#7a3e9d" font-weight="bold">MEDIA</text>
+<rect x="1080" y="1560" width="440" height="400" fill="#fff" stroke="#222" stroke-width="1.5"/>
+<line x1="1080" y1="1590" x2="1520" y2="1590" stroke="#222" stroke-width="1.5"/>
+<text x="1300" y="1581" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111" text-anchor="middle">product_media</text>
+<line x1="1126" y1="1590" x2="1126" y2="1960" stroke="#222"/>
+<line x1="1331" y1="1590" x2="1331" y2="1960" stroke="#222"/>
+<text x="1103" y="1609" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111" text-anchor="middle">PK</text>
+<text x="1134" y="1609" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">id</text>
+<text x="1339" y="1609" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">uuid</text>
+<text x="1103" y="1635" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111" text-anchor="middle">FK</text>
+<text x="1134" y="1635" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">company_id</text>
+<text x="1339" y="1635" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">uuid</text>
+<text x="1103" y="1661" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111" text-anchor="middle">FK</text>
+<text x="1134" y="1661" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">product_id</text>
+<text x="1339" y="1661" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">uuid → products</text>
+<text x="1103" y="1687" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111" text-anchor="middle">FK</text>
+<text x="1134" y="1687" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">variant_id</text>
+<text x="1339" y="1687" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">uuid, null → variants</text>
+<text x="1103" y="1713" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111" text-anchor="middle">FK</text>
+<text x="1134" y="1713" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">product_unit_id</text>
+<text x="1339" y="1713" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">uuid, null → units</text>
+<text x="1134" y="1739" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">media_type</text>
+<text x="1339" y="1739" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">enum(IMAGE, DOCUMENT,</text>
+<text x="1134" y="1765" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111"></text>
+<text x="1339" y="1765" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">VIDEO_LINK)</text>
+<text x="1134" y="1791" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">file_name</text>
+<text x="1339" y="1791" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">varchar, null</text>
+<text x="1134" y="1817" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">file_url</text>
+<text x="1339" y="1817" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">varchar</text>
+<text x="1134" y="1843" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">file_type</text>
+<text x="1339" y="1843" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">varchar, null</text>
+<text x="1134" y="1869" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">file_size</text>
+<text x="1339" y="1869" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">int, null</text>
+<text x="1134" y="1895" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">title</text>
+<text x="1339" y="1895" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">varchar, null</text>
+<text x="1134" y="1921" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">sort_order</text>
+<text x="1339" y="1921" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">int</text>
+<text x="1134" y="1947" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#111">is_primary</text>
+<text x="1339" y="1947" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111">boolean</text>
 <path d="M950 405 H976 V431 H950" fill="none" stroke="#222" stroke-width="1.3"/>
 <line x1="960" y1="397" x2="960" y2="413" stroke="#222" stroke-width="1.3"/>
 <line x1="950" y1="423" x2="964" y2="431" stroke="#222" stroke-width="1.3"/>
@@ -497,7 +536,7 @@
 <line x1="2992" y1="1570" x2="3000" y2="1584" stroke="#222" stroke-width="1.3"/>
 <line x1="3008" y1="1570" x2="3000" y2="1584" stroke="#222" stroke-width="1.3"/>
 <line x1="3000" y1="1570" x2="3000" y2="1584" stroke="#222" stroke-width="1.3"/>
-<path d="M1100 924 V1060 H1030 V1530 H780 V1560" fill="none" stroke="#222" stroke-width="1.3"/>
+<path d="M1100 924 V1060 H1030 V1515 H780 V1560" fill="none" stroke="#222" stroke-width="1.3"/>
 <line x1="1092" y1="934" x2="1108" y2="934" stroke="#222" stroke-width="1.3"/>
 <line x1="772" y1="1560" x2="780" y2="1546" stroke="#222" stroke-width="1.3"/>
 <line x1="788" y1="1560" x2="780" y2="1546" stroke="#222" stroke-width="1.3"/>
@@ -559,51 +598,55 @@
 <text x="60" y="2050" font-family="Arial, Helvetica, sans-serif" font-size="26" fill="#111" font-weight="bold">Contoh data</text>
 <text x="60" y="2082" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#555">ID ditulis angka agar mudah dibaca. Aslinya UUID, dan setiap baris punya company_id.</text>
 <text x="60" y="2130" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#1f5fa8" font-weight="bold">Skenario A — Trading (QUANTITY)</text>
-<rect x="60" y="2145" width="300" height="134" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<rect x="60" y="2145" width="300" height="160" fill="#fff" stroke="#222" stroke-width="1.3"/>
 <text x="210" y="2166" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">product_categories</text>
 <line x1="60" y1="2175" x2="360" y2="2175" stroke="#222"/>
 <line x1="60" y1="2201" x2="360" y2="2201" stroke="#222"/>
 <line x1="60" y1="2227" x2="360" y2="2227" stroke="#222"/>
 <line x1="60" y1="2253" x2="360" y2="2253" stroke="#222"/>
+<line x1="60" y1="2279" x2="360" y2="2279" stroke="#222"/>
 <text x="90" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">id</text>
 <text x="90" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">1</text>
 <text x="90" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
 <text x="90" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">3</text>
-<line x1="120" y1="2175" x2="120" y2="2279" stroke="#222"/>
+<text x="90" y="2298" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">4</text>
+<line x1="120" y1="2175" x2="120" y2="2305" stroke="#222"/>
 <text x="170" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">parent_id</text>
 <text x="170" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">NULL</text>
 <text x="170" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">1</text>
-<text x="170" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">1</text>
-<line x1="220" y1="2175" x2="220" y2="2279" stroke="#222"/>
+<text x="170" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
+<text x="170" y="2298" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">1</text>
+<line x1="220" y1="2175" x2="220" y2="2305" stroke="#222"/>
 <text x="290" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">name</text>
 <text x="290" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Sembako</text>
 <text x="290" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Beras</text>
-<text x="290" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Minyak</text>
-<rect x="60" y="2299" width="380" height="134" fill="#fff" stroke="#222" stroke-width="1.3"/>
-<text x="250" y="2320" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">location</text>
-<line x1="60" y1="2329" x2="440" y2="2329" stroke="#222"/>
+<text x="290" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Beras Premium</text>
+<text x="290" y="2298" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Minyak</text>
+<rect x="60" y="2325" width="380" height="134" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<text x="250" y="2346" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">location</text>
 <line x1="60" y1="2355" x2="440" y2="2355" stroke="#222"/>
 <line x1="60" y1="2381" x2="440" y2="2381" stroke="#222"/>
 <line x1="60" y1="2407" x2="440" y2="2407" stroke="#222"/>
-<text x="85" y="2348" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">id</text>
-<text x="85" y="2374" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">1</text>
-<text x="85" y="2400" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
-<text x="85" y="2426" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">3</text>
-<line x1="110" y1="2329" x2="110" y2="2433" stroke="#222"/>
-<text x="155" y="2348" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">parent_id</text>
-<text x="155" y="2374" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">NULL</text>
-<text x="155" y="2400" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">1</text>
-<text x="155" y="2426" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
-<line x1="200" y1="2329" x2="200" y2="2433" stroke="#222"/>
-<text x="260" y="2348" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">name</text>
-<text x="260" y="2374" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Gudang A</text>
-<text x="260" y="2400" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Rak 01</text>
-<text x="260" y="2426" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Bin 01</text>
-<line x1="320" y1="2329" x2="320" y2="2433" stroke="#222"/>
-<text x="380" y="2348" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">type</text>
-<text x="380" y="2374" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">WAREHOUSE</text>
-<text x="380" y="2400" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">RACK</text>
-<text x="380" y="2426" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">BIN</text>
+<line x1="60" y1="2433" x2="440" y2="2433" stroke="#222"/>
+<text x="85" y="2374" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">id</text>
+<text x="85" y="2400" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">1</text>
+<text x="85" y="2426" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
+<text x="85" y="2452" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">3</text>
+<line x1="110" y1="2355" x2="110" y2="2459" stroke="#222"/>
+<text x="155" y="2374" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">parent_id</text>
+<text x="155" y="2400" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">NULL</text>
+<text x="155" y="2426" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">1</text>
+<text x="155" y="2452" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
+<line x1="200" y1="2355" x2="200" y2="2459" stroke="#222"/>
+<text x="260" y="2374" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">name</text>
+<text x="260" y="2400" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Gudang A</text>
+<text x="260" y="2426" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Rak 01</text>
+<text x="260" y="2452" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Bin 01</text>
+<line x1="320" y1="2355" x2="320" y2="2459" stroke="#222"/>
+<text x="380" y="2374" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">type</text>
+<text x="380" y="2400" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">WAREHOUSE</text>
+<text x="380" y="2426" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">RACK</text>
+<text x="380" y="2452" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">BIN</text>
 <rect x="480" y="2145" width="470" height="108" fill="#fff" stroke="#222" stroke-width="1.3"/>
 <text x="715" y="2166" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">products</text>
 <line x1="480" y1="2175" x2="950" y2="2175" stroke="#222"/>
@@ -614,8 +657,8 @@
 <text x="505" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
 <line x1="530" y1="2175" x2="530" y2="2253" stroke="#222"/>
 <text x="580" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">category_id</text>
-<text x="580" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
-<text x="580" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">3</text>
+<text x="580" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">3</text>
+<text x="580" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">4</text>
 <line x1="630" y1="2175" x2="630" y2="2253" stroke="#222"/>
 <text x="680" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">name</text>
 <text x="680" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Beras</text>
@@ -681,7 +724,38 @@
 <line x1="810" y1="2595" x2="810" y2="2647" stroke="#222"/>
 <text x="880" y="2614" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">effective_date</text>
 <text x="880" y="2640" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2026-01-01</text>
-<text x="60" y="2700" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111" font-weight="bold">Availability Beras 5 kg di Bin 01 = 500 − 0 − 0 = 500 pcs.</text>
+<rect x="60" y="2685" width="410" height="108" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<text x="265" y="2706" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">product_attribute_values</text>
+<line x1="60" y1="2715" x2="470" y2="2715" stroke="#222"/>
+<line x1="60" y1="2741" x2="470" y2="2741" stroke="#222"/>
+<line x1="60" y1="2767" x2="470" y2="2767" stroke="#222"/>
+<text x="130" y="2734" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">tingkat</text>
+<text x="130" y="2760" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Produk Beras</text>
+<text x="130" y="2786" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian 5 kg</text>
+<line x1="200" y1="2715" x2="200" y2="2793" stroke="#222"/>
+<text x="280" y="2734" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">atribut</text>
+<text x="280" y="2760" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Merek</text>
+<text x="280" y="2786" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Berat Bersih (kg)</text>
+<line x1="360" y1="2715" x2="360" y2="2793" stroke="#222"/>
+<text x="415" y="2734" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">value</text>
+<text x="415" y="2760" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Rojolele</text>
+<text x="415" y="2786" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">5</text>
+<rect x="480" y="2685" width="450" height="82" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<text x="705" y="2706" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">product_media</text>
+<line x1="480" y1="2715" x2="930" y2="2715" stroke="#222"/>
+<line x1="480" y1="2741" x2="930" y2="2741" stroke="#222"/>
+<text x="545" y="2734" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">ditautkan ke</text>
+<text x="545" y="2760" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Produk Beras</text>
+<line x1="610" y1="2715" x2="610" y2="2767" stroke="#222"/>
+<text x="660" y="2734" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">media_type</text>
+<text x="660" y="2760" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">IMAGE</text>
+<line x1="710" y1="2715" x2="710" y2="2767" stroke="#222"/>
+<text x="775" y="2734" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">title</text>
+<text x="775" y="2760" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Foto kemasan</text>
+<line x1="840" y1="2715" x2="840" y2="2767" stroke="#222"/>
+<text x="885" y="2734" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">is_primary</text>
+<text x="885" y="2760" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">true</text>
+<text x="60" y="2850" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111" font-weight="bold">Availability Beras 5 kg di Bin 01 = 500 − 0 − 0 = 500 pcs.</text>
 <text x="1500" y="2130" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#1f7a3e" font-weight="bold">Skenario B — Properti (UNIT)</text>
 <rect x="1500" y="2145" width="400" height="212" fill="#fff" stroke="#222" stroke-width="1.3"/>
 <text x="1700" y="2166" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">location</text>
@@ -884,6 +958,138 @@
 <line x1="2310" y1="2590" x2="2310" y2="2642" stroke="#222"/>
 <text x="2385" y="2609" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">reason</text>
 <text x="2385" y="2635" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Posisi hook</text>
-<text x="2020" y="2720" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111" font-weight="bold">Harga akhir GR-A03 = 350.000.000 (harga di Block A naik ke proyek Green) + 25.000.000 = 375.000.000</text>
-<text x="2020" y="2748" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111">Availability Type 36 di Green Residence = 2 unit (GR-A01, GR-A03). GH-B01 dan GH-B02 tidak dihitung.</text>
+<rect x="3060" y="2145" width="370" height="160" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<text x="3245" y="2166" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">product_attributes</text>
+<line x1="3060" y1="2175" x2="3430" y2="2175" stroke="#222"/>
+<line x1="3060" y1="2201" x2="3430" y2="2201" stroke="#222"/>
+<line x1="3060" y1="2227" x2="3430" y2="2227" stroke="#222"/>
+<line x1="3060" y1="2253" x2="3430" y2="2253" stroke="#222"/>
+<line x1="3060" y1="2279" x2="3430" y2="2279" stroke="#222"/>
+<text x="3090" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">code</text>
+<text x="3090" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">LT</text>
+<text x="3090" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">LB</text>
+<text x="3090" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">KT</text>
+<text x="3090" y="2298" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">SRT</text>
+<line x1="3120" y1="2175" x2="3120" y2="2305" stroke="#222"/>
+<text x="3195" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">name</text>
+<text x="3195" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Luas Tanah</text>
+<text x="3195" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Luas Bangunan</text>
+<text x="3195" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Kamar Tidur</text>
+<text x="3195" y="2298" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Sertifikat</text>
+<line x1="3270" y1="2175" x2="3270" y2="2305" stroke="#222"/>
+<text x="3320" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">data_type</text>
+<text x="3320" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">NUMBER</text>
+<text x="3320" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">NUMBER</text>
+<text x="3320" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">NUMBER</text>
+<text x="3320" y="2298" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">STRING</text>
+<line x1="3370" y1="2175" x2="3370" y2="2305" stroke="#222"/>
+<text x="3400" y="2194" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">unit</text>
+<text x="3400" y="2220" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">m²</text>
+<text x="3400" y="2246" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">m²</text>
+<text x="3400" y="2272" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle"></text>
+<text x="3400" y="2298" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle"></text>
+<rect x="3060" y="2340" width="380" height="238" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<text x="3250" y="2361" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">product_attribute_values</text>
+<line x1="3060" y1="2370" x2="3440" y2="2370" stroke="#222"/>
+<line x1="3060" y1="2396" x2="3440" y2="2396" stroke="#222"/>
+<line x1="3060" y1="2422" x2="3440" y2="2422" stroke="#222"/>
+<line x1="3060" y1="2448" x2="3440" y2="2448" stroke="#222"/>
+<line x1="3060" y1="2474" x2="3440" y2="2474" stroke="#222"/>
+<line x1="3060" y1="2500" x2="3440" y2="2500" stroke="#222"/>
+<line x1="3060" y1="2526" x2="3440" y2="2526" stroke="#222"/>
+<line x1="3060" y1="2552" x2="3440" y2="2552" stroke="#222"/>
+<text x="3145" y="2389" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">tingkat</text>
+<text x="3145" y="2415" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Produk Rumah Tapak</text>
+<text x="3145" y="2441" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian T36</text>
+<text x="3145" y="2467" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian T36</text>
+<text x="3145" y="2493" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian T36</text>
+<text x="3145" y="2519" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian T45</text>
+<text x="3145" y="2545" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian T45</text>
+<text x="3145" y="2571" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian T45</text>
+<line x1="3230" y1="2370" x2="3230" y2="2578" stroke="#222"/>
+<text x="3300" y="2389" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">atribut</text>
+<text x="3300" y="2415" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Sertifikat</text>
+<text x="3300" y="2441" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Luas Tanah</text>
+<text x="3300" y="2467" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Luas Bangunan</text>
+<text x="3300" y="2493" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Kamar Tidur</text>
+<text x="3300" y="2519" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Luas Tanah</text>
+<text x="3300" y="2545" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Luas Bangunan</text>
+<text x="3300" y="2571" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Kamar Tidur</text>
+<line x1="3370" y1="2370" x2="3370" y2="2578" stroke="#222"/>
+<text x="3405" y="2389" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">value</text>
+<text x="3405" y="2415" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">SHM</text>
+<text x="3405" y="2441" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">72</text>
+<text x="3405" y="2467" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">36</text>
+<text x="3405" y="2493" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">2</text>
+<text x="3405" y="2519" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">90</text>
+<text x="3405" y="2545" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">45</text>
+<text x="3405" y="2571" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">3</text>
+<rect x="3060" y="2620" width="320" height="82" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<text x="3220" y="2641" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">unit_attribute_values</text>
+<line x1="3060" y1="2650" x2="3380" y2="2650" stroke="#222"/>
+<line x1="3060" y1="2676" x2="3380" y2="2676" stroke="#222"/>
+<text x="3125" y="2669" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">product_unit_id</text>
+<text x="3125" y="2695" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">3 (GR-A03)</text>
+<line x1="3190" y1="2650" x2="3190" y2="2702" stroke="#222"/>
+<text x="3250" y="2669" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">atribut</text>
+<text x="3250" y="2695" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Luas Tanah</text>
+<line x1="3310" y1="2650" x2="3310" y2="2702" stroke="#222"/>
+<text x="3345" y="2669" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">value</text>
+<text x="3345" y="2695" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">100</text>
+<rect x="3060" y="2740" width="420" height="160" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<text x="3270" y="2761" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">product_media</text>
+<line x1="3060" y1="2770" x2="3480" y2="2770" stroke="#222"/>
+<line x1="3060" y1="2796" x2="3480" y2="2796" stroke="#222"/>
+<line x1="3060" y1="2822" x2="3480" y2="2822" stroke="#222"/>
+<line x1="3060" y1="2848" x2="3480" y2="2848" stroke="#222"/>
+<line x1="3060" y1="2874" x2="3480" y2="2874" stroke="#222"/>
+<text x="3120" y="2789" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">ditautkan ke</text>
+<text x="3120" y="2815" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Produk</text>
+<text x="3120" y="2841" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian T36</text>
+<text x="3120" y="2867" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Varian T36</text>
+<text x="3120" y="2893" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Unit GR-A03</text>
+<line x1="3180" y1="2770" x2="3180" y2="2900" stroke="#222"/>
+<text x="3235" y="2789" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">media_type</text>
+<text x="3235" y="2815" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">IMAGE</text>
+<text x="3235" y="2841" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">DOCUMENT</text>
+<text x="3235" y="2867" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">VIDEO_LINK</text>
+<text x="3235" y="2893" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">IMAGE</text>
+<line x1="3290" y1="2770" x2="3290" y2="2900" stroke="#222"/>
+<text x="3350" y="2789" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">title</text>
+<text x="3350" y="2815" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Tampak depan</text>
+<text x="3350" y="2841" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Denah T36</text>
+<text x="3350" y="2867" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Video tur</text>
+<text x="3350" y="2893" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">Progres</text>
+<line x1="3410" y1="2770" x2="3410" y2="2900" stroke="#222"/>
+<text x="3445" y="2789" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">primary</text>
+<text x="3445" y="2815" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">true</text>
+<text x="3445" y="2841" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">false</text>
+<text x="3445" y="2867" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">false</text>
+<text x="3445" y="2893" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">true</text>
+<rect x="2020" y="2700" width="540" height="108" fill="#fff" stroke="#222" stroke-width="1.3"/>
+<text x="2290" y="2721" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#111" text-anchor="middle">Hasil yang dilihat sales: Type 36 di Green Residence</text>
+<line x1="2020" y1="2730" x2="2560" y2="2730" stroke="#222"/>
+<line x1="2020" y1="2756" x2="2560" y2="2756" stroke="#222"/>
+<line x1="2020" y1="2782" x2="2560" y2="2782" stroke="#222"/>
+<text x="2065" y="2749" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">unit</text>
+<text x="2065" y="2775" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">GR-A01</text>
+<text x="2065" y="2801" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">GR-A03</text>
+<line x1="2110" y1="2730" x2="2110" y2="2808" stroke="#222"/>
+<text x="2160" y="2749" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">luas tanah</text>
+<text x="2160" y="2775" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">72 m²</text>
+<text x="2160" y="2801" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">100 m²</text>
+<line x1="2210" y1="2730" x2="2210" y2="2808" stroke="#222"/>
+<text x="2260" y="2749" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">asal nilai</text>
+<text x="2260" y="2775" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">varian</text>
+<text x="2260" y="2801" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">unit</text>
+<line x1="2310" y1="2730" x2="2310" y2="2808" stroke="#222"/>
+<text x="2380" y="2749" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">harga akhir</text>
+<text x="2380" y="2775" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">350.000.000</text>
+<text x="2380" y="2801" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">375.000.000</text>
+<line x1="2450" y1="2730" x2="2450" y2="2808" stroke="#222"/>
+<text x="2505" y="2749" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" font-weight="bold" text-anchor="middle">status</text>
+<text x="2505" y="2775" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">AVAILABLE</text>
+<text x="2505" y="2801" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#111" text-anchor="middle">AVAILABLE</text>
+<text x="2020" y="2850" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111" font-weight="bold">GR-A03 = 350.000.000 (Block A naik ke proyek Green) + 25.000.000 penyesuaian hook.</text>
+<text x="2020" y="2878" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#111">Availability Type 36 di Green Residence = 2 unit. GH-B01 dan GH-B02 tidak dihitung.</text>
 </svg>
