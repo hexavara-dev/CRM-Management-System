@@ -43,7 +43,7 @@ Konfigurasi aplikasi tidak disimpan di GitHub, melainkan di file `.env` pada ser
 
 ### Persiapan server (sekali saja)
 
-Server membutuhkan Docker dengan Compose, dan `VPS_USER` harus bisa menjalankan `docker` tanpa `sudo`. Sediakan juga reverse proxy dengan HTTPS, yang tidak diatur oleh workflow ini. Arahkan domain frontend ke `127.0.0.1:3001` dan domain API ke `127.0.0.1:3000`.
+Server membutuhkan Docker dengan Compose, dan `VPS_USER` harus bisa menjalankan `docker` tanpa `sudo`. Sediakan juga reverse proxy dengan HTTPS, yang tidak diatur oleh workflow ini. Contoh Nginx ada di [Reverse proxy](#reverse-proxy).
 
 HTTPS wajib karena cookie login memakai atribut `Secure`.
 
@@ -57,6 +57,48 @@ chmod 600 /var/www/<APP_NAME>/.env
 Isi `.env` mengikuti [`.env.example`](../.env.example). Penjelasan tiap variabelnya ada di [panduan instalasi](INSTALLATION.md#deploy-ke-server-dengan-docker).
 
 Satu server hanya bisa menjalankan satu environment, karena nama container dan port di `docker-compose.yml` bernilai tetap.
+
+Workflow tidak menghapus image Docker lama, karena server bisa dipakai aplikasi lain. Periksa pemakaian disk sesekali dengan `docker system df`, dan hapus image lama project ini secara manual.
+
+### Reverse proxy
+
+Frontend dan API cukup memakai satu subdomain. Nginx meneruskan `/api` dan `/uploads` ke backend, dan sisanya ke frontend. Isi `CORS_ORIGINS` dan `API_URL` di `.env` server dengan alamat yang sama, misalnya `https://crm.example.com`.
+
+Buat `/etc/nginx/sites-available/crm.example.com`:
+
+```nginx
+server {
+    listen 80;
+    server_name crm.example.com;
+    client_max_body_size 20m;
+
+    location ~ ^/(api|uploads)/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Setelah DNS mengarah ke server, aktifkan site dan pasang sertifikat:
+
+```bash
+ln -s /etc/nginx/sites-available/crm.example.com /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+certbot --nginx -d crm.example.com
+```
+
+Sampai deploy pertama selesai, domain ini menampilkan 502.
 
 ### Akun pertama
 
