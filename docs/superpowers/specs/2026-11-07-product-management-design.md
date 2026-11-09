@@ -20,7 +20,8 @@ Perumahan dan beras pada dokumen ini hanya contoh untuk menguji konsep.
 4. Inventory unit: registrasi, lokasi, karakteristik, dan status.
 5. Availability yang dihitung otomatis, bukan diinput manual.
 6. Harga dasar dan penyesuaian harga per unit.
-7. Semua data terisolasi per company.
+7. Media produk: foto, dokumen, dan link video.
+8. Semua data terisolasi per company.
 
 ## Di luar cakupan
 
@@ -49,6 +50,9 @@ Desain P1 harus menyiapkan P2 tanpa membangunnya. Karena itu `qty_reserved`, `qt
 | 10 | Tidak ada tabel detail per industri | `property_unit_details` dari dokumen sumber diganti atribut dan karakteristik. |
 | 11 | Endpoint baru bersifat khusus, bukan CRUD generik | Aturan stok tidak bisa ditegakkan lewat CRUD generik. |
 | 12 | Hak akses P1: `owner` menulis, `member` membaca | Role lengkap baru dibutuhkan bersama approval di P2. |
+| 13 | Media produk disimpan di tabel `product_media`, terpisah dari `Attachment` | `Attachment` untuk dokumen transaksi CRM. Galeri produk butuh urutan dan foto sampul. |
+| 14 | Video disimpan sebagai link, bukan file | Batas upload 10 MB, dan disk server dipakai bersama aplikasi lain. |
+| 15 | Kedalaman kategori dan lokasi tidak disimpan sebagai kolom `level` | Selalu bisa dihitung dari `parent_id`, sehingga tidak perlu diperbarui saat induk dipindah. |
 
 ## Perubahan dari skema dan ERD lama
 
@@ -84,7 +88,7 @@ Tabel CRM lainnya tidak berubah. Ikut dibersihkan: daftar model di `backend/src/
 | `promotions` | Tunda | Belum direncanakan |
 | `deals`, `leads` | Tidak dibuat | Memakai tabel CRM yang ada. Relasi deal ke unit dibuat saat P2. |
 
-Tabel baru: `units_of_measure`, `product_attributes`, `product_attribute_values`, `characteristic_groups`, `characteristics`, `unit_characteristics`, `unit_attribute_values`, `inventory_transactions`, `unit_status_history`, `product_prices`, dan `unit_price_adjustments`.
+Tabel baru: `units_of_measure`, `product_attributes`, `product_attribute_values`, `characteristic_groups`, `characteristics`, `unit_characteristics`, `unit_attribute_values`, `inventory_transactions`, `unit_status_history`, `product_prices`, `unit_price_adjustments`, dan `product_media`.
 
 Perbaikan lain dari ERD: harga memakai `decimal`, bukan `int`. `company_id` ada di semua tabel. Contoh data unit memakai lokasi blok, bukan proyek. Kategori minyak memakai induk sembako, bukan beras.
 
@@ -132,6 +136,10 @@ erDiagram
     product_variants ||--o{ product_prices : "harga dasar"
     location |o--o{ product_prices : "konteks harga"
     product_units ||--o{ unit_price_adjustments : "penyesuaian"
+
+    products ||--o{ product_media : "galeri"
+    product_variants |o--o{ product_media : "galeri varian"
+    product_units |o--o{ product_media : "galeri unit"
 
     company {
         uuid id PK
@@ -287,6 +295,21 @@ erDiagram
         date effective_date
         date end_date "nullable"
     }
+    product_media {
+        uuid id PK
+        uuid company_id FK
+        uuid product_id FK
+        uuid variant_id FK "nullable"
+        uuid product_unit_id FK "nullable"
+        enum media_type "IMAGE DOCUMENT VIDEO_LINK"
+        varchar file_name "nullable"
+        varchar file_url
+        varchar file_type "nullable"
+        int file_size "nullable"
+        varchar title "nullable"
+        int sort_order
+        boolean is_primary
+    }
 ```
 
 Penanda `UK` berarti unik per company, kecuali `characteristics.code` yang unik per grup. Semua tabel di diagram selain `company` terhubung ke `company` lewat `company_id`, tetapi garisnya hanya digambar untuk empat tabel agar diagram tetap terbaca.
@@ -297,7 +320,7 @@ Semua tabel memiliki `id` (UUID), `company_id` (wajib, foreign key ke `company`)
 
 ### Master data
 
-**`product_categories`**: `parent_id` (nullable, tanpa siklus), `code` (unik per company), `name`, `sort_order`, `is_active`.
+**`product_categories`**: `parent_id` (nullable, tanpa siklus), `code` (unik per company), `name`, `sort_order`, `is_active`. Aturan hierarkinya ada di [Hierarki kategori dan lokasi](#hierarki-kategori-dan-lokasi).
 
 **`units_of_measure`**: `code` (unik per company), `name`, `description` (nullable).
 
@@ -403,12 +426,60 @@ Pencatatan transaksi dan riwayat status sudah berjalan sejak P1 karena wajib men
 
 Harga tidak ditimpa. Revisi harga dibuat sebagai baris baru dengan periode baru. `price_log` dari ERD tidak dibuat karena tabel ini sudah menyimpan riwayatnya.
 
+### Media
+
+**`product_media`**: foto, dokumen, dan link video untuk produk, varian, atau unit.
+
+| Kolom | Tipe | Aturan |
+| --- | --- | --- |
+| `product_id` | UUID | Wajib |
+| `variant_id` | UUID, nullable | Diisi jika media khusus varian. Harus milik `product_id`. |
+| `product_unit_id` | UUID, nullable | Diisi jika media khusus unit. Unit harus milik varian dan produk yang sama. |
+| `media_type` | ENUM | `IMAGE`, `DOCUMENT`, `VIDEO_LINK` |
+| `file_name`, `file_type`, `file_size` | | Nullable. Diisi untuk file yang diunggah. |
+| `file_url` | VARCHAR(500) | Path di `uploads` untuk file, atau URL untuk `VIDEO_LINK` |
+| `title` | VARCHAR(150), nullable | Misalnya "Denah Type 36" |
+| `sort_order` | INT | Default 0 |
+| `is_primary` | BOOLEAN | Default false |
+
+File diunggah lewat mekanisme yang sudah ada: disimpan di folder `uploads`, dibatasi 10 MB, dan hanya bisa dibuka user dari company yang sama.
+
 ### Perubahan tabel lain
 
 - `viewing.slot_id` dihapus, karena `InventorySlot` dihapus dan tidak ada form yang mengisinya.
 - `company` mendapat kolom `address` yang nullable.
 
 ## Aturan bisnis
+
+### Hierarki kategori dan lokasi
+
+- Jumlah level tidak ditentukan oleh struktur tabel, tetapi dibatasi paling dalam 5 level agar tampilan tetap terbaca.
+- Level dihitung dari `parent_id` saat dibutuhkan, dan tidak disimpan.
+- Induk harus milik company yang sama dan tidak boleh membentuk siklus.
+- Produk boleh ditautkan ke kategori di level mana pun.
+- Filter berdasarkan kategori atau lokasi ikut menyertakan seluruh turunannya. Memilih "Sembako" juga menampilkan produk di "Beras Premium".
+- Untuk lokasi berlaku aturan tambahan: saldo dan unit hanya boleh berada di lokasi tanpa turunan.
+
+### Nilai atribut
+
+Atribut didefinisikan sekali di `product_attributes`, lalu nilainya diisi pada tingkat yang sesuai:
+
+| Tingkat | Tabel | Dipakai untuk |
+| --- | --- | --- |
+| Produk | `product_attribute_values` dengan `variant_id` null | Nilai yang sama untuk semua varian |
+| Varian | `product_attribute_values` dengan `variant_id` terisi | Nilai standar satu varian |
+| Unit | `unit_attribute_values` | Nilai aktual satu unit yang berbeda dari standar |
+
+Nilai yang ditampilkan untuk sebuah unit diambil dari tingkat paling spesifik yang terisi: unit, lalu varian, lalu produk. API dan layar unit juga menampilkan asal nilainya. Untuk produk `QUANTITY`, hanya tingkat produk dan varian yang dipakai.
+
+Setiap atribut paling banyak punya satu nilai pada setiap tingkat. Artinya kombinasi produk, varian, dan atribut unik, begitu juga kombinasi unit dan atribut.
+
+### Media
+
+- Satu produk, varian, atau unit paling banyak punya satu media `is_primary`. Menandai media baru sebagai utama melepas tanda pada media sebelumnya dalam satu transaksi.
+- `IMAGE` hanya menerima JPEG, PNG, dan WebP. `DOCUMENT` hanya menerima PDF.
+- `VIDEO_LINK` harus berupa URL `https`.
+- Menghapus media juga menghapus filenya dari `uploads`.
 
 ### Availability
 
@@ -475,13 +546,14 @@ Semua endpoint berada di `/api` dan membutuhkan autentikasi.
 | Unit | CRUD `/product-units`, `POST /product-units/bulk`, `POST /product-units/:id/status`, `POST /product-units/:id/move` |
 | Availability | `GET /availability?productId&variantId&locationId&status` |
 | Harga | CRUD `/product-prices`, `/unit-price-adjustments`, `GET /product-prices/resolve?variantId&unitId&locationId&date` |
+| Media | `GET /products/:id/media`, `POST /products/:id/media` (file atau link), `PATCH /product-media/:id`, `DELETE /product-media/:id` |
 
 ## Frontend
 
 Mengikuti pola yang ada: TanStack Query, React Hook Form, Zod, dan komponen `components/ui`. Modul mengikuti navigasi brief, dengan nama yang netral dari industri.
 
 - **Master Data:** kategori, satuan, hierarki lokasi, atribut, karakteristik.
-- **Products:** `/products`, `/products/[id]`, dengan varian dan atribut.
+- **Products:** `/products`, `/products/[id]`, dengan varian, atribut, dan galeri media.
 - **Inventory:** `/inventory/quantity` untuk saldo dan transaksi, `/inventory/units` untuk daftar, registrasi, dan status.
 - **Availability:** `/availability`, dengan filter produk, lokasi, dan status.
 - **Pricing:** `/pricing`, dengan harga dasar, penyesuaian unit, dan alat cek harga.
@@ -493,6 +565,9 @@ Form produk menampilkan isian sesuai `tracking_type`. Setiap layar menangani kon
 - Unit test harga: setiap tingkat lokasi, periode, overlap, tidak ada harga, dan penyesuaian.
 - Unit test inventory: semua jenis transaksi, stok tidak cukup, alasan wajib, dan aturan lokasi.
 - Unit test status: transisi valid dan tidak valid, serta riwayat tercatat.
+- Unit test atribut: nilai unit menggantikan nilai varian, nilai varian menggantikan nilai produk, dan validasi `data_type`.
+- Unit test hierarki: batas 5 level, siklus, dan filter yang menyertakan turunan.
+- Unit test media: satu media utama, tipe file yang ditolak, link non-`https` ditolak, dan file ikut terhapus.
 - Isolasi company: ID milik company lain ditolak di setiap endpoint.
 - Konkurensi: dua stock out bersamaan pada stok terakhir, diuji dengan database sungguhan.
 - Migrasi: dijalankan pada database kosong dan salinan database dev.
@@ -503,6 +578,127 @@ Skenario validasi browser, untuk membuktikan model yang sama melayani kedua bisn
 - **Properti:** dua proyek dengan masing-masing dua blok, satu tipe rumah dipakai bersama, harga berbeda per proyek, dan unit hook dengan penyesuaian harga.
 
 Bagian "reserved quantity" pada skenario brief divalidasi saat P2.
+
+## Contoh data
+
+ID ditulis angka agar mudah dibaca. Aslinya UUID, dan setiap baris punya `company_id`. Contoh yang sama ada di gambar ERD.
+
+### Skenario A: Trading
+
+**`product_categories`**
+
+| id | parent_id | name |
+| --- | --- | --- |
+| 1 | NULL | Sembako |
+| 2 | 1 | Beras |
+| 3 | 2 | Beras Premium |
+| 4 | 1 | Minyak |
+
+**`location`**
+
+| id | parent_id | name | type |
+| --- | --- | --- | --- |
+| 1 | NULL | Gudang A | WAREHOUSE |
+| 2 | 1 | Rak 01 | RACK |
+| 3 | 2 | Bin 01 | BIN |
+
+**`products`** dan **`product_variants`**
+
+| Produk | category_id | tracking_type | base_uom | Varian |
+| --- | --- | --- | --- | --- |
+| Beras | 3 (Beras Premium) | QUANTITY | PCS | 5 kg (`BRS-5KG`) |
+| Minyak | 4 | QUANTITY | PCS | 1 L (`MYK-1L`) |
+
+**`product_attributes`** dan **`product_attribute_values`**
+
+| Atribut | data_type | unit | Tingkat | Nilai |
+| --- | --- | --- | --- | --- |
+| Merek | STRING | | Produk Beras | Rojolele |
+| Berat Bersih | NUMBER | kg | Varian 5 kg | 5 |
+
+**`inventory_balances`**: varian 5 kg di Bin 01, `qty_on_hand` 500, `qty_reserved` 0, `qty_allocated` 0. Availability = 500 pcs.
+
+**`product_prices`**: varian 5 kg, `location_id` NULL, 120.000, berlaku mulai 2026-01-01.
+
+**`product_media`**: foto kemasan Beras sebagai media utama produk.
+
+### Skenario B: Properti
+
+**`location`**
+
+| id | parent_id | name | type |
+| --- | --- | --- | --- |
+| 10 | NULL | Green Residence | PROJECT |
+| 11 | 10 | Block A | BLOCK |
+| 12 | 10 | Block B | BLOCK |
+| 20 | NULL | Grand Harmoni | PROJECT |
+| 21 | 20 | Block A | BLOCK |
+| 22 | 20 | Block B | BLOCK |
+
+**`products`**: Rumah Tapak, `tracking_type` UNIT, dengan varian Type 36 (`T36`) dan Type 45 (`T45`).
+
+**`product_attributes`**
+
+| code | name | data_type | unit |
+| --- | --- | --- | --- |
+| LT | Luas Tanah | NUMBER | m² |
+| LB | Luas Bangunan | NUMBER | m² |
+| KT | Kamar Tidur | NUMBER | |
+| SRT | Sertifikat | STRING | |
+
+**`product_attribute_values`**
+
+| Tingkat | Atribut | Nilai |
+| --- | --- | --- |
+| Produk Rumah Tapak | Sertifikat | SHM |
+| Varian Type 36 | Luas Tanah | 72 |
+| Varian Type 36 | Luas Bangunan | 36 |
+| Varian Type 36 | Kamar Tidur | 2 |
+| Varian Type 45 | Luas Tanah | 90 |
+| Varian Type 45 | Luas Bangunan | 45 |
+| Varian Type 45 | Kamar Tidur | 3 |
+
+**`characteristics`**: grup Posisi berisi Standard, Hook, dan Corner.
+
+**`product_units`**
+
+| unit_code | Varian | Lokasi | status | Karakteristik |
+| --- | --- | --- | --- | --- |
+| GR-A01 | Type 36 | Green Residence > Block A | AVAILABLE | Standard |
+| GR-A02 | Type 45 | Green Residence > Block A | AVAILABLE | Standard |
+| GR-A03 | Type 36 | Green Residence > Block A | AVAILABLE | Hook |
+| GH-B01 | Type 45 | Grand Harmoni > Block B | BLOCKED | Corner |
+| GH-B02 | Type 36 | Grand Harmoni > Block B | SOLD | Standard |
+
+**`unit_attribute_values`**: GR-A03, Luas Tanah 100. Unit lain tidak punya baris di tabel ini karena sama dengan standar variannya.
+
+**`product_prices`**
+
+| Varian | Lokasi | Harga |
+| --- | --- | --- |
+| Type 36 | Green Residence | 350.000.000 |
+| Type 36 | Grand Harmoni | 310.000.000 |
+| Type 45 | NULL (default) | 450.000.000 |
+
+**`unit_price_adjustments`**: GR-A03, +25.000.000, alasan posisi hook.
+
+**`product_media`**
+
+| Ditautkan ke | media_type | title | is_primary |
+| --- | --- | --- | --- |
+| Produk Rumah Tapak | IMAGE | Tampak depan | true |
+| Varian Type 36 | DOCUMENT | Denah Type 36 | false |
+| Varian Type 36 | VIDEO_LINK | Video tur Type 36 | false |
+| Unit GR-A03 | IMAGE | Progres pembangunan | true |
+
+**Hasil yang dilihat sales untuk Type 36 di Green Residence:**
+
+| Unit | Luas Tanah | Asal nilai | Harga akhir | Status |
+| --- | --- | --- | --- | --- |
+| GR-A01 | 72 m² | Varian | 350.000.000 | AVAILABLE |
+| GR-A03 | 100 m² | Unit | 375.000.000 | AVAILABLE |
+
+Harga GR-A03 diambil dari Block A, naik ke induknya Green Residence (350 juta), lalu ditambah penyesuaian 25 juta. Availability Type 36 di Green Residence adalah 2 unit.
 
 ## Risiko
 
