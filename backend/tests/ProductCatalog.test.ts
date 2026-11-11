@@ -1,0 +1,184 @@
+import { jest } from '@jest/globals';
+import { ProductUseCase } from '../src/usecases/product/ProductUseCase.js';
+import { ProductCategoryUseCase } from '../src/usecases/product/ProductCategoryUseCase.js';
+import { ProductMediaUseCase } from '../src/usecases/product/ProductMediaUseCase.js';
+import { validateAttributeValue } from '../src/usecases/product/catalogRules.js';
+import { validateProduct, validateUploadFields } from '../src/presentation/validation/ProductRequestValidation.js';
+
+type Mock = jest.Mock<(...args: any[]) => any>;
+const fn = (value?: unknown): Mock => jest.fn<(...args: any[]) => any>().mockResolvedValue(value);
+
+const baseProduct = {
+  categoryId: 'cat-1',
+  name: 'Perumahan Green',
+  code: 'GREEN',
+  trackingType: 'UNIT' as const,
+  variants: [{ name: 'Type 36', code: 'G-T36', basePrice: 350000000 }],
+};
+
+function productPrisma(overrides: Record<string, unknown> = {}) {
+  return {
+    tenant: { findUnique: fn({ inventoryTrackingMode: 'BOTH' }) },
+    productCategory: { findFirst: fn({ id: 'cat-1', type: 'CATEGORY' }) },
+    product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
+    productVariant: { createMany: fn({ count: 1 }), findFirst: fn(null), count: fn(1) },
+    productAttribute: { findFirst: fn(null), create: fn({}) },
+    $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(overrides.tx ?? {})),
+    ...overrides,
+  };
+}
+
+describe('ProductUseCase', () => {
+  it('rejects a tracking type that the company mode does not allow', async () => {
+    const prisma = productPrisma({ tenant: { findUnique: fn({ inventoryTrackingMode: 'QUANTITY_ONLY' }) } });
+    const useCase = new ProductUseCase(prisma as never);
+    await expect(useCase.create('t-1', baseProduct)).rejects.toThrow(/inventory tracking mode/);
+  });
+
+  it('requires at least one variant', async () => {
+    const useCase = new ProductUseCase(productPrisma() as never);
+    await expect(useCase.create('t-1', { ...baseProduct, variants: [] })).rejects.toThrow(
+      'variants must contain at least one variant'
+    );
+  });
+
+  it('rejects a category that is not of type CATEGORY', async () => {
+    const prisma = productPrisma({ productCategory: { findFirst: fn({ id: 'cat-1', type: 'BLOCK' }) } });
+    const useCase = new ProductUseCase(prisma as never);
+    await expect(useCase.create('t-1', baseProduct)).rejects.toThrow('Category must be of type CATEGORY');
+  });
+
+  it('looks up the category inside the authenticated tenant only', async () => {
+    const prisma = productPrisma({ productCategory: { findFirst: fn(null) } });
+    const useCase = new ProductUseCase(prisma as never);
+    await expect(useCase.create('t-1', baseProduct)).rejects.toThrow('Category not found');
+    expect(prisma.productCategory.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'cat-1', tenantId: 't-1' } })
+    );
+  });
+
+  it('creates the product and its variants in one transaction', async () => {
+    const tx = { product: { create: fn({ id: 'p-1' }) }, productVariant: { createMany: fn({ count: 1 }) } };
+    const prisma = productPrisma({ tx, product: { findFirst: fn({ id: 'p-1', media: [] }) } });
+    const useCase = new ProductUseCase(prisma as never);
+    await useCase.create('t-1', baseProduct);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.productVariant.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ tenantId: 't-1', productId: 'p-1', code: 'G-T36' })],
+    });
+  });
+
+  it('keeps at least one variant', async () => {
+    const prisma = productPrisma({ productVariant: { findFirst: fn({ id: 'v-1' }), count: fn(1) } });
+    const useCase = new ProductUseCase(prisma as never);
+    await expect(useCase.removeVariant('p-1', 'v-1', 't-1')).rejects.toThrow(/at least one variant/);
+  });
+
+  it('rejects an attribute for a variant of another product', async () => {
+    const prisma = productPrisma({ product: { findFirst: fn({ id: 'p-1', media: [] }) } });
+    const useCase = new ProductUseCase(prisma as never);
+    await expect(
+      useCase.addAttribute('p-1', 't-1', {
+        variantId: 'v-other',
+        name: 'Luas Tanah',
+        code: 'LT',
+        dataType: 'NUMBER',
+        value: '72',
+      })
+    ).rejects.toThrow('Variant not found');
+  });
+});
+
+describe('validateAttributeValue', () => {
+  it('validates values by data type', () => {
+    expect(() => validateAttributeValue('NUMBER', '72')).not.toThrow();
+    expect(() => validateAttributeValue('NUMBER', 'abc')).toThrow(/must be a number/);
+    expect(() => validateAttributeValue('BOOLEAN', 'yes')).toThrow(/true or false/);
+    expect(() => validateAttributeValue('STRING', 'SHM')).not.toThrow();
+  });
+});
+
+describe('ProductCategoryUseCase', () => {
+  it('rejects moving a category under its own descendant', async () => {
+    const rows = [
+      { id: 'a', parentId: null },
+      { id: 'b', parentId: 'a' },
+    ];
+    const prisma = {
+      productCategory: {
+        findFirst: fn({ id: 'a', parentId: null }),
+        findMany: fn(rows),
+      },
+    };
+    const useCase = new ProductCategoryUseCase(prisma as never);
+    await expect(useCase.update('a', 't-1', { parentId: 'b' })).rejects.toThrow(/descendants/);
+  });
+
+  it('rejects a sixth level', async () => {
+    const chain: Record<string, string | null> = { l5: 'l4', l4: 'l3', l3: 'l2', l2: 'l1', l1: null };
+    const prisma = {
+      productCategory: {
+        findFirst: jest.fn(async ({ where }: { where: { id: string } }) => ({ parentId: chain[where.id] })),
+      },
+    };
+    const useCase = new ProductCategoryUseCase(prisma as never);
+    await expect(
+      useCase.create('t-1', { parentId: 'l5', name: 'Bin', code: 'BIN', type: 'BIN' })
+    ).rejects.toThrow(/at most 5 levels/);
+  });
+
+  it('refuses to delete a category that is still in use', async () => {
+    const prisma = {
+      productCategory: {
+        findFirst: fn({ id: 'a', _count: { children: 0, products: 2, projects: 0 } }),
+        delete: fn(),
+      },
+    };
+    const useCase = new ProductCategoryUseCase(prisma as never);
+    await expect(useCase.remove('a', 't-1')).rejects.toThrow(/in use/);
+    expect(prisma.productCategory.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProductMediaUseCase', () => {
+  const prisma = {
+    product: { findFirst: fn({ id: 'p-1' }) },
+    productVariant: { findFirst: fn({ id: 'v-1' }) },
+    $transaction: fn(),
+  };
+
+  it('accepts only https video links', async () => {
+    const useCase = new ProductMediaUseCase(prisma as never);
+    await expect(
+      useCase.addLink('p-1', 't-1', { fileUrl: 'http://example.com/video' })
+    ).rejects.toThrow(/https/);
+  });
+
+  it('rejects unsupported file types before storing anything', async () => {
+    const storage = { upload: fn(), getPublicUrl: jest.fn(), remove: fn() };
+    const useCase = new ProductMediaUseCase(prisma as never, storage as never);
+    const file = { mimetype: 'text/plain', originalname: 'a.txt', buffer: Buffer.from(''), size: 1 };
+    await expect(useCase.upload('p-1', 't-1', file as never, {})).rejects.toThrow('Unsupported file type');
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+});
+
+describe('product request validation', () => {
+  it('rejects variants on a partial update', () => {
+    expect(() => validateProduct({ variants: [] }, true)).toThrow(/variant endpoints/);
+  });
+
+  it('rejects a negative base price', () => {
+    expect(() =>
+      validateProduct({ ...baseProduct, variants: [{ name: 'A', code: 'A', basePrice: -1 }] })
+    ).toThrow(/basePrice must be at least 0/);
+  });
+
+  it('converts multipart upload fields', () => {
+    expect(validateUploadFields({ title: 'Denah', isPrimary: 'true', sortOrder: '2' })).toEqual({
+      title: 'Denah',
+      isPrimary: true,
+      sortOrder: 2,
+    });
+  });
+});

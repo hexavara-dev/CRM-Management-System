@@ -11,7 +11,7 @@ import { DealController } from './presentation/controllers/DealController.js';
 import { DealUseCases } from './usecases/deal/DealUseCases.js';
 import { AuthController } from './presentation/controllers/AuthController.js';
 import { AuthUseCases } from './usecases/auth/AuthUseCases.js';
-import { authMiddleware } from './presentation/middlewares/AuthMiddleware.js';
+import { authMiddleware, requireRole } from './presentation/middlewares/AuthMiddleware.js';
 import { uploadTenantAccessMiddleware } from './presentation/middlewares/UploadAccessMiddleware.js';
 import { StatisticsUseCases } from './usecases/statistics/StatisticsUseCases.js';
 import { StatisticsController } from './presentation/controllers/StatisticsController.js';
@@ -31,6 +31,11 @@ import { StatusController } from './presentation/controllers/StatusController.js
 import { StageUseCase } from './usecases/stage/StageUseCase.js';
 import { StageController } from './presentation/controllers/StageController.js';
 import { respondWithError } from './infrastructure/utils/HttpErrorMapper.js';
+import { ProductCategoryUseCase } from './usecases/product/ProductCategoryUseCase.js';
+import { ProductUseCase } from './usecases/product/ProductUseCase.js';
+import { CharacteristicUseCase } from './usecases/product/CharacteristicUseCase.js';
+import { ProductMediaUseCase } from './usecases/product/ProductMediaUseCase.js';
+import { ProductController } from './presentation/controllers/ProductController.js';
 
 const app = express();
 app.use(express.json());
@@ -284,6 +289,41 @@ models.forEach((modelName) => {
   app.put(`/api/${routeName}/:id`, authMiddleware, (req, res) => controller.update(req, res));
   app.delete(`/api/${routeName}/:id`, authMiddleware, (req, res) => controller.delete(req, res));
 });
+
+// Product catalog. Owner menulis, member hanya membaca.
+const productController = new ProductController(
+  new ProductCategoryUseCase(prisma),
+  new ProductUseCase(prisma),
+  new CharacteristicUseCase(prisma),
+  new ProductMediaUseCase(prisma)
+);
+const ownerOnly = requireRole('owner');
+const pc = productController;
+app.get('/api/product-categories', authMiddleware, pc.listCategories);
+app.get('/api/product-categories/:id', authMiddleware, pc.getCategory);
+app.post('/api/product-categories', authMiddleware, ownerOnly, pc.createCategory);
+app.put('/api/product-categories/:id', authMiddleware, ownerOnly, pc.updateCategory);
+app.delete('/api/product-categories/:id', authMiddleware, ownerOnly, pc.deleteCategory);
+app.get('/api/products', authMiddleware, pc.listProducts);
+app.get('/api/products/:id', authMiddleware, pc.getProduct);
+app.post('/api/products', authMiddleware, ownerOnly, pc.createProduct);
+app.put('/api/products/:id', authMiddleware, ownerOnly, pc.updateProduct);
+app.delete('/api/products/:id', authMiddleware, ownerOnly, pc.deleteProduct);
+app.post('/api/products/:id/variants', authMiddleware, ownerOnly, pc.createVariant);
+app.put('/api/products/:id/variants/:variantId', authMiddleware, ownerOnly, pc.updateVariant);
+app.delete('/api/products/:id/variants/:variantId', authMiddleware, ownerOnly, pc.deleteVariant);
+app.post('/api/products/:id/attributes', authMiddleware, ownerOnly, pc.createAttribute);
+app.put('/api/products/:id/attributes/:attributeId', authMiddleware, ownerOnly, pc.updateAttribute);
+app.delete('/api/products/:id/attributes/:attributeId', authMiddleware, ownerOnly, pc.deleteAttribute);
+app.get('/api/products/:id/media', authMiddleware, pc.listMedia);
+app.post('/api/products/:id/media', authMiddleware, ownerOnly, upload.single('file'), pc.uploadMedia);
+app.post('/api/products/:id/media-links', authMiddleware, ownerOnly, pc.addMediaLink);
+app.patch('/api/product-media/:id', authMiddleware, ownerOnly, pc.updateMedia);
+app.delete('/api/product-media/:id', authMiddleware, ownerOnly, pc.deleteMedia);
+app.get('/api/characteristics', authMiddleware, pc.listCharacteristics);
+app.post('/api/characteristics', authMiddleware, ownerOnly, pc.createCharacteristic);
+app.put('/api/characteristics/:id', authMiddleware, ownerOnly, pc.updateCharacteristic);
+app.delete('/api/characteristics/:id', authMiddleware, ownerOnly, pc.deleteCharacteristic);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hexavara CRM API is running' });
