@@ -1,19 +1,18 @@
 # Rencana Implementasi Product & Availability Management (P1)
 
-**Tujuan:** Membangun P1 sesuai [dokumen desain](../specs/2026-11-07-product-management-design.md), setelah `Tenant` diganti menjadi `Company`.
+**Tujuan:** Membangun P1 sesuai [dokumen desain](../specs/2026-11-07-product-management-design.md) dan ERD tim.
 
-**Arsitektur:** Express dengan alur `presentation -> usecases -> infrastructure -> Prisma/MySQL`, serta Next.js dengan TanStack Query. Aturan stok dan harga berada di use case khusus, bukan CRUD generik. Tidak boleh ada kode, kolom, atau label yang khusus untuk satu industri.
+**Arsitektur:** Express dengan alur `presentation -> usecases -> infrastructure -> Prisma/MySQL`, serta Next.js dengan TanStack Query. Aturan stok dan harga berada di use case khusus, bukan CRUD generik.
 
 **Stack:** Prisma 7, MySQL 8.0, Jest, Next.js 16, React Hook Form, Zod.
 
 ## Sebelum mulai
 
-- [x] Keputusan P1 pada dokumen desain sudah disepakati.
-- [ ] Pembuat dokumen `Universal_Product_Master` sudah diberi tahu perbedaan desainnya.
-- [ ] Jumlah baris tabel lama sudah dicek di setiap environment dengan query di bawah. Jika ada isinya, putuskan dulu nasib datanya.
+- [ ] Tim menyetujui `products.project_category_id` dan satu karakteristik per unit.
+- [ ] Jumlah baris tabel lama sudah dicek di setiap environment dengan query di bawah.
 - [ ] Backup database server dev tersedia sebelum migrasi diterapkan.
 
-Query pengecekan tabel lama di server Docker. Semua hasil harus `0` sebelum Fase 2 di-deploy:
+Semua hasil harus `0` sebelum Fase 2 di-deploy:
 
 ```bash
 docker exec crm_db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" crm_engine -e "
@@ -30,12 +29,32 @@ SELECT \"viewing.slot_id\", COUNT(*) FROM viewing WHERE slot_id IS NOT NULL;"'
 
 Setiap task berakhir dengan commit tersendiri, dan setiap fase adalah satu PR. Jangan menjalankan `migrate reset` atau SQL destruktif pada database bersama tanpa izin eksplisit.
 
-Verifikasi standar yang disebut di bawah:
+Verifikasi standar:
 
 ```bash
 cd backend && npm run lint && npm run build && npm test -- --runInBand
 cd frontend && npm run lint && npx tsc --noEmit && npm run build
 ```
+
+## Urutan dan Jira
+
+| Fase | Isi | Jira | Bergantung pada |
+| --- | --- | --- | --- |
+| 1 | `Tenant` menjadi `Company` | Belum ada kartu | |
+| 2 | Backend produk, varian (unit type), atribut, karakteristik | CRM-31, CRM-32, CRM-33 | Kategori sementara |
+| 3 | Backend media produk | CRM-34 | Fase 2 |
+| 4 | Inventory kuantitas | CRM-30 | Fase 2 |
+| 5 | Unit, price log, availability | Belum ada kartu | Fase 2 |
+
+CRM-31 sampai CRM-34 hanya backend. Layarnya, termasuk langkah 2 "List Unit Type" di wizard Create Project, dikerjakan di epic CRM-2.
+
+**Status:** Fase 2 dan 3 sudah dibuat di branch `feat/product-catalog`. Karena rename belum dikerjakan, tabel baru masih memakai `tenant_id`, dan `inventory_tracking_mode` sementara berada di tabel `tenant`.
+
+**Kategori sementara:** migrasi `20261110085900_add_product_categories` hanya ada agar backend produk bisa berjalan sebelum PR CRM-2 masuk. Setelah PR CRM-2 masuk:
+
+1. Hapus folder migrasi tersebut.
+2. Pastikan migrasi `add_product_catalog` memiliki timestamp setelah migrasi kategori CRM-2.
+3. Cocokkan nama tabel dan kolom kategori dengan relasi di `products`.
 
 ---
 
@@ -45,172 +64,70 @@ Tidak ada perubahan fitur pada fase ini.
 
 ### Task 1.1: Schema dan migrasi
 
-**File:** `backend/prisma/schema.prisma`, `backend/prisma/migrations/<timestamp>_rename_tenant_to_company/migration.sql`
-
 - [ ] Ganti model `Tenant` menjadi `Company` dan `tenantId` menjadi `companyId` di semua model.
-- [ ] Buat migrasi dengan `npx prisma migrate dev --create-only`.
-- [ ] Tinjau SQL-nya. Ganti setiap drop dan create dengan `RENAME TABLE`, `RENAME COLUMN`, dan penggantian nama constraint.
-- [ ] Terapkan pada salinan database yang berisi data, lalu pastikan jumlah baris semua tabel sama.
-- [ ] Pastikan `npx prisma migrate diff` tidak menemukan perbedaan antara schema dan database.
+- [ ] Tambahkan `address` (nullable) dan `inventory_tracking_mode` (default `BOTH`) pada `company`.
+- [ ] Buat migrasi dengan `npx prisma migrate dev --create-only`, lalu ganti drop dan create dengan `RENAME TABLE` dan `RENAME COLUMN`.
+- [ ] Terapkan pada salinan database berisi data, dan pastikan jumlah baris sama.
 
-### Task 1.2: Backend
+### Task 1.2: Backend dan frontend
 
-**File:** seluruh `backend/src`, `backend/tests`, `backend/prisma/seed.ts`
-
-- [ ] Ganti `tenantId` menjadi `companyId`, termasuk klaim JWT di `AuthUseCases` dan pengecekan di `AuthMiddleware`.
-- [ ] Ganti `tenantName` menjadi `companyName` pada onboarding, beserta validasinya.
-- [ ] Pastikan token lama ditolak dengan 401, bukan error 500. Tambahkan test untuk kasus ini.
-- [ ] Jalankan verifikasi backend.
-
-### Task 1.3: Frontend
-
-**File:** `frontend/app`, `hooks`, `components`, `types`, `schemas`, `lib`
-
-- [ ] Ganti `tenantId` dan `tenantName`, termasuk `registerSchema` dan form `/register`.
-- [ ] Jalankan verifikasi frontend.
-
-### Task 1.4: Dokumentasi dan smoke test
-
-**File:** `AGENTS.md`, `README.md`, `docs/`
-
-- [ ] Perbarui istilah di `AGENTS.md` bagian 4 dan 5, serta docs lain.
-- [ ] Smoke test browser: register, login, lead, deal, kunjungan.
+- [ ] Ganti `tenantId` dan `tenantName` di `backend/src`, `backend/tests`, `prisma/seed.ts`, klaim JWT, dan frontend.
+- [ ] Token lama ditolak dengan 401, bukan 500. Tambahkan test.
+- [ ] Perbarui istilah di `AGENTS.md`, `README.md`, dan `docs/`.
+- [ ] Smoke test: register, login, lead, deal, kunjungan.
 - [ ] Pastikan `grep -ri tenant backend/src backend/tests frontend/app frontend/hooks` kosong.
 
 ---
 
-## Fase 2: Master data dan katalog (PR 2)
+## Fase 2: Backend katalog (PR 2, CRM-31 sampai CRM-33)
 
-### Task 2.1: Hapus tabel lama
-
-**File:** `schema.prisma`, `backend/src/index.ts`, `usecases/GenericUseCases.ts`, `usecases/viewing/ViewingUseCase.ts`, `presentation/dtos/ViewingDTO.ts`, `presentation/validation/CrmRequestValidation.ts`, `frontend/types/viewing.ts`, test terkait
-
-- [ ] Hapus model yang tercantum pada keputusan 2 dan relasinya.
-- [ ] Hapus `slotId` dari Viewing beserta validasi dan tipenya.
-- [ ] Hapus model tersebut dari daftar route generik dan aturan `GenericUseCases`.
-- [ ] Pastikan route lama membalas 404.
-- [ ] Jalankan verifikasi standar, dan uji flow kunjungan.
-
-### Task 2.2: Schema master dan katalog
-
-**File:** `schema.prisma`, migrasi baru
-
-- [ ] Tambahkan `product_categories`, `units_of_measure`, `product_attributes`, `characteristic_groups`, `characteristics`, `products`, `product_variants`, dan `product_attribute_values`.
-- [ ] Tambahkan `parent_id` dan `type` pada `location`, serta `address` pada `company`.
-- [ ] Tambahkan unique index per company dan index untuk foreign key.
-- [ ] Pastikan migrasi berjalan pada database kosong dan salinan database dev.
-
-### Task 2.3: API master data
-
-**File:** `backend/src/usecases/product/`, `presentation/controllers/`, `presentation/validation/`, `tests/`
-
-Tulis test lebih dulu pada setiap langkah.
-
-- [ ] Test: kategori dengan parent milik company lain ditolak, siklus parent ditolak, dan level keenam ditolak.
-- [ ] Test: filter kategori menyertakan seluruh turunannya.
-- [ ] Test: nilai atribut divalidasi sesuai `data_type`.
-- [ ] Test: master yang sudah dipakai hanya bisa dinonaktifkan.
-- [ ] Test: `member` tidak bisa menulis.
-- [ ] Implementasikan CRUD setiap resource, dengan `companyId` dari JWT.
-- [ ] Jalankan verifikasi backend.
-
-### Task 2.4: API produk dan varian
-
-- [ ] Test: produk baru tanpa varian otomatis mendapat varian `Default`, dalam satu transaksi.
-- [ ] Test: `QUANTITY` wajib punya satuan.
-- [ ] Test: varian dan atribut lintas produk atau lintas company ditolak.
-- [ ] Test: satu atribut paling banyak punya satu nilai di tingkat produk dan satu di setiap varian.
-- [ ] Implementasikan use case dan route, termasuk penguncian `tracking_type` yang dilengkapi pengecekan saldo dan unit pada Fase 3.
-- [ ] Jalankan verifikasi backend.
-
-### Task 2.5: Hierarki lokasi
-
-**File:** use case atau route `location`, `frontend/hooks/use-locations.ts`, `frontend/types/location.ts`
-
-- [ ] Test: parent lintas company dan siklus ditolak, serta lokasi lama tanpa parent tetap valid.
-- [ ] Perbarui API dan tipe frontend dengan tetap menjaga bentuk respons yang dipakai Lead dan Viewing.
-- [ ] Jalankan flow lead dan kunjungan untuk memastikan tidak ada regresi.
-
-### Task 2.6: Layar master dan produk
-
-**File:** `frontend/app/products/`, `frontend/app/settings/components/`, `frontend/hooks/`, `frontend/schemas/`, `frontend/constants/navigation-menu.tsx`, `frontend/components/Sidebar.tsx`
-
-- [ ] Buat hook dan schema Zod untuk setiap resource, dengan query key yang memuat parameter dan invalidasi list serta detail.
-- [ ] Buat layar master data dan halaman `/products`, `/products/[id]`.
-- [ ] Sembunyikan aksi tulis dari `member`, dan pastikan API tetap menolaknya.
-- [ ] Jalankan verifikasi frontend, lalu smoke test: buat produk kuantitas dan produk unit.
+- [x] Tambahkan `products`, `product_variants`, `product_attributes`, `characteristics`, dan `product_categories` sementara.
+- [x] Test: `category_id` harus `CATEGORY`, `project_category_id` harus `PROJECT`, dan kategori dicari di tenant yang sama.
+- [x] Test: `tracking_type` ditolak jika tidak diizinkan `inventory_tracking_mode`.
+- [x] Test: produk dibuat bersama minimal satu varian dalam satu transaksi, dan varian terakhir tidak bisa dihapus.
+- [x] Test: `variant_id` atribut harus milik produk, dan `value` sesuai `data_type`.
+- [x] Test: kategori dengan siklus atau lebih dari 5 level ditolak, dan kategori yang dipakai tidak bisa dihapus.
+- [x] Endpoint `/products`, varian, atribut, `/characteristics`, dan `/product-categories`.
+- [ ] Hapus tabel lama (`Item`, `Entry`, dan seterusnya) di PR terpisah setelah isinya dicek.
+- [ ] Smoke test API dengan database lokal.
 
 ---
 
-## Fase 3: Inventory (PR 3)
+## Fase 3: Backend media (PR 2, CRM-34)
 
-### Task 3.1: Inventory kuantitas
+- [x] Tambahkan `product_media`.
+- [x] Test: tipe file selain JPEG, PNG, WebP, dan PDF ditolak sebelum disimpan, dan link non-`https` ditolak.
+- [x] Satu media utama per produk atau varian, diganti dalam satu transaksi.
+- [x] Menghapus media atau produk juga menghapus filenya.
+- [x] Pakai ulang penyimpanan `uploads` dan middleware akses per tenant.
+- [ ] Tambahkan `unit_id` saat `product_units` dibuat di Fase 5.
 
-**File:** `schema.prisma`, migrasi baru, `backend/src/usecases/inventory/`, `tests/`
+---
+
+## Fase 4: Inventory kuantitas (PR 4, CRM-30)
 
 - [ ] Tambahkan `inventory_balances` dan `inventory_transactions`.
-- [ ] Test: stock in, stock out, adjustment, dan opname mencatat transaksi dengan nilai sebelum dan sesudah.
-- [ ] Test: stock out dan transfer melebihi availability ditolak.
-- [ ] Test: transfer atomik dan kedua barisnya punya `transfer_ref` yang sama.
+- [ ] Test: setiap jenis transaksi mencatat nilai sebelum dan sesudah.
+- [ ] Test: stock out dan transfer melebihi availability ditolak, transfer atomik dengan `transfer_ref` sama.
 - [ ] Test: alasan wajib untuk adjustment dan opname.
-- [ ] Test: saldo di lokasi yang punya turunan ditolak, dan lokasi bersaldo tidak bisa diberi turunan.
-- [ ] Test: produk selain `QUANTITY` ditolak.
-- [ ] Test integrasi dengan MySQL: dua stock out bersamaan pada stok terakhir, dan hanya satu yang berhasil.
+- [ ] Test: saldo hanya di lokasi tanpa turunan, dan produk `UNIT` ditolak.
+- [ ] Test integrasi MySQL: dua stock out bersamaan pada stok terakhir, hanya satu berhasil.
+- [ ] Test: `tracking_type` terkunci setelah ada saldo atau transaksi.
 - [ ] Implementasikan `InventoryUseCases` sebagai satu-satunya jalur perubahan saldo.
-- [ ] Buat halaman `/inventory/quantity`.
-
-### Task 3.2: Inventory unit
-
-- [ ] Tambahkan `product_units`, `unit_characteristics`, `unit_attribute_values`, dan `unit_status_history`.
-- [ ] Test: unit hanya untuk produk `UNIT`, dan `unit_code` unik per company.
-- [ ] Test: registrasi massal gagal seluruhnya jika ada kode yang bentrok.
-- [ ] Test: semua transisi status pada dokumen desain, valid dan tidak valid, serta riwayat tercatat.
-- [ ] Test: unit `SOLD` tidak bisa dipindah atau dihapus.
-- [ ] Test: karakteristik dan lokasi lintas company ditolak.
-- [ ] Test: nilai atribut unit diambil dari unit, lalu varian, lalu produk, beserta asal nilainya.
-- [ ] Implementasikan API dan halaman `/inventory/units`.
-
-### Task 3.3: Penguncian dan availability
-
-- [ ] Test: `tracking_type` terkunci setelah produk punya saldo, transaksi, atau unit.
-- [ ] Test: availability kuantitas, availability unit, dan penjumlahan pada lokasi induk.
-- [ ] Implementasikan `GET /availability` dan halaman `/availability`.
-- [ ] Jalankan verifikasi standar.
+- [ ] Halaman `/inventory/quantity`.
 
 ---
 
-## Fase 4: Harga, media, dan validasi akhir (PR 4)
+## Fase 5: Unit, harga, dan availability (PR 5)
 
-### Task 4.1: Harga
-
-- [ ] Tambahkan `product_prices` dan `unit_price_adjustments`.
-- [ ] Test: overlap periode ditolak, harga negatif ditolak, dan `end_date` sebelum `effective_date` ditolak.
-- [ ] Test pemilihan harga: lokasi sendiri, naik ke induk, default varian, tanggal di luar periode, dan tidak ada harga.
-- [ ] Test harga akhir unit: 350 juta + 25 juta = 375 juta, serta hasil negatif ditolak.
-- [ ] Implementasikan `PriceResolver` dan `GET /product-prices/resolve`.
-- [ ] Buat halaman `/pricing`.
-
-### Task 4.2: Media
-
-**File:** `schema.prisma`, migrasi baru, `backend/src/usecases/product/`, `presentation/controllers/UploadController.ts`, `frontend/app/products/[id]/`, `frontend/hooks/`
-
-- [ ] Tambahkan `product_media`.
-- [ ] Test: hanya satu media utama per produk, varian, atau unit, dan penggantiannya terjadi dalam satu transaksi.
-- [ ] Test: tipe file selain JPEG, PNG, WebP, dan PDF ditolak, dan `VIDEO_LINK` non-`https` ditolak.
-- [ ] Test: varian atau unit yang bukan milik produk ditolak, dan media company lain tidak bisa dibuka.
-- [ ] Test: menghapus media juga menghapus filenya.
-- [ ] Implementasikan dengan memakai ulang penyimpanan `uploads` dan middleware akses yang sudah ada.
-- [ ] Tambahkan galeri pada detail produk dan detail unit.
-
-### Task 4.3: Validasi skenario dan penyelesaian
-
-- [ ] Siapkan data sesuai bagian "Contoh data" di dokumen desain.
-- [ ] Smoke test skenario trading sampai saldo dan availability cocok.
-- [ ] Smoke test skenario properti: harga berbeda per proyek, penyesuaian unit hook, luas tanah GR-A03 100 m² dari nilai unit, dan GR-A01 72 m² dari nilai varian.
-- [ ] Pastikan kedua skenario berjalan tanpa kode khusus, dan tidak ada label khusus satu industri di UI.
-- [ ] Uji isolasi: akun company lain tidak bisa membaca atau memakai ID apa pun di atas.
-- [ ] Perbarui `README.md` dan `docs/`.
-- [ ] Jalankan verifikasi standar untuk kedua sisi.
+- [ ] Tambahkan `product_units` dan `product_variant_price_logs`.
+- [ ] Test: unit hanya untuk produk `UNIT`, `category_id` harus `BLOCK` di bawah proyek produk, dan kode unik.
+- [ ] Test: registrasi massal gagal seluruhnya jika ada kode bentrok.
+- [ ] Test: transisi status valid dan tidak valid.
+- [ ] Test harga: log semua unit, log blok, log terjadwal, adjustment unit. GR-A03 = 380 juta, GR-B01 = 460 juta pada 2026-11-10.
+- [ ] Test availability: kuantitas, unit, dan penjumlahan lokasi induk.
+- [ ] Halaman `/inventory/units`, price log, dan `/availability`.
+- [ ] Uji isolasi company dan jalankan verifikasi standar.
 
 ---
 
