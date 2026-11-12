@@ -35,6 +35,11 @@ export class ProductCategoryUseCase {
   }
 
   private async assertParent(tenantId: string, parentId: string, selfId?: string) {
+    const parent = await this.prisma.productCategory.findFirst({
+      where: { id: parentId, tenantId },
+      select: { id: true },
+    });
+    if (!parent) throw new Error('Parent category not found');
     if (selfId) {
       const subtree = await categoryWithDescendants(this.prisma, tenantId, selfId);
       if (subtree.includes(parentId)) {
