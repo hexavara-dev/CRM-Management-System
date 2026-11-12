@@ -25,7 +25,7 @@ async function main() {
   const authUseCases = new AuthUseCases(
     new PrismaGenericRepository(db.user, 'user'),
     new PrismaGenericRepository(db.invite, 'invite'),
-    new PrismaGenericRepository(db.tenant, 'tenant'),
+    new PrismaGenericRepository(db.company, 'company'),
     new PrismaGenericRepository(db.status, 'status'),
     prisma
   );

@@ -6,51 +6,55 @@ datasource db {
   provider = "mysql"
 }
 
-model Tenant {
-  id             String          @id @default(uuid()) @db.VarChar(36)
-  name           String          @db.VarChar(150)
-  plan           String          @default("free") @db.VarChar(30)
-  createdAt      DateTime        @default(now()) @map("created_at") @db.DateTime(6)
-  customers      Customer[]
-  deals          Deal[]
-  dealActivities DealActivity[]
-  inventorySlots InventorySlot[]
-  invites        Invite[]
-  items          Item[]
-  itemCategories ItemCategory[]
-  leads          Lead[]
-  leadActivities LeadActivity[]
-  locations      Location[]
-  operations     Operation[]
-  organizations  Organization[]
-  stages         Stage[]
-  statuses       Status[]
-  users          User[]
-  viewings       Viewing[]
-  attachments    Attachment[]
-  leadItems      LeadItem[]
-  notes          Note[]
-  tasks          Task[]
-  callLogs       CallLog[]
-  gridConfigs    GridConfig[]
-  entries        Entry[]
-  records        Record[]
-  auditLogs      AuditLog[]
-  Source         Source[]
-  inventoryTrackingMode InventoryTrackingMode @default(BOTH) @map("inventory_tracking_mode")
-  productCategories     ProductCategory[]
-  products              Product[]
-  productVariants       ProductVariant[]
-  productAttributes     ProductAttribute[]
-  characteristics       Characteristic[]
-  productMedia          ProductMedia[]
+model Company {
+  id                      String                   @id @default(uuid()) @db.VarChar(36)
+  name                    String                   @db.VarChar(150)
+  plan                    String                   @default("free") @db.VarChar(30)
+  address                 String?                  @db.VarChar(255)
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.DateTime(6)
+  customers               Customer[]
+  deals                   Deal[]
+  dealActivities          DealActivity[]
+  inventorySlots          InventorySlot[]
+  invites                 Invite[]
+  items                   Item[]
+  itemCategories          ItemCategory[]
+  leads                   Lead[]
+  leadActivities          LeadActivity[]
+  locations               Location[]
+  operations              Operation[]
+  organizations           Organization[]
+  stages                  Stage[]
+  statuses                Status[]
+  users                   User[]
+  viewings                Viewing[]
+  attachments             Attachment[]
+  leadItems               LeadItem[]
+  notes                   Note[]
+  tasks                   Task[]
+  callLogs                CallLog[]
+  gridConfigs             GridConfig[]
+  entries                 Entry[]
+  records                 Record[]
+  auditLogs               AuditLog[]
+  Source                  Source[]
+  trackingType            TrackingType             @default(UNIT) @map("tracking_type")
+  productCategories       ProductCategory[]
+  products                Product[]
+  productVariants         ProductVariant[]
+  productAttributes       ProductAttribute[]
+  attributes              Attribute[]
+  characteristics         Characteristic[]
+  productMedia            ProductMedia[]
+  productUnits            ProductUnit[]
+  productVariantPriceLogs ProductVariantPriceLog[]
 
-  @@map("tenant")
+  @@map("company")
 }
 
 model User {
   id             String         @id @default(uuid()) @db.VarChar(36)
-  tenantId       String         @map("tenant_id") @db.VarChar(36)
+  tenantId       String         @map("company_id") @db.VarChar(36)
   email          String         @unique @db.VarChar(255)
   name           String?        @db.VarChar(150)
   role           String         @default("member") @db.VarChar(20)
@@ -64,7 +68,7 @@ model User {
   leadActivities LeadActivity[]
   operations     Operation[]
   tasks          Task[]         @relation("UserAssignedTasks")
-  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   viewings       Viewing[]      @relation("ActorViewings")
   auditLogs      AuditLog[]
 
@@ -73,7 +77,7 @@ model User {
 
 model Invite {
   id         String    @id @default(uuid()) @db.VarChar(36)
-  tenantId   String    @map("tenant_id") @db.VarChar(36)
+  tenantId   String    @map("company_id") @db.VarChar(36)
   hostUserId String    @map("host_user_id") @db.VarChar(36)
   email      String    @db.VarChar(255)
   name       String?   @db.VarChar(150)
@@ -82,14 +86,14 @@ model Invite {
   invitedAt  DateTime  @default(now()) @map("invited_at") @db.DateTime(6)
   expiresAt  DateTime  @default(dbgenerated("(now() + interval 7 day)")) @map("expires_at") @db.DateTime(6)
   hostUser   User      @relation("HostUserInvites", fields: [hostUserId], references: [id], onDelete: Cascade)
-  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("invite")
 }
 
 model Stage {
   id              String  @id @default(uuid()) @db.VarChar(36)
-  tenantId        String  @map("tenant_id") @db.VarChar(36)
+  tenantId        String  @map("company_id") @db.VarChar(36)
   name            String  @db.VarChar(100)
   position        Int     @default(0)
   color           String?
@@ -100,7 +104,7 @@ model Stage {
   defaultGuard    String? @map("default_guard") @db.VarChar(10)
   deals           Deal[]
   leads           Lead[]
-  tenant          Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant          Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, terminalGuard])
   @@unique([tenantId, defaultGuard])
@@ -109,7 +113,7 @@ model Stage {
 
 model Status {
   id              String    @id @default(uuid()) @db.VarChar(36)
-  tenantId        String    @map("tenant_id") @db.VarChar(36)
+  tenantId        String    @map("company_id") @db.VarChar(36)
   name            String    @db.VarChar(100)
   priority        Int       @default(0)
   color           String?   @db.VarChar(7)
@@ -123,7 +127,7 @@ model Status {
   deals           Deal[]
   leads           Lead[]
   viewings        Viewing[]
-  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant          Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, defaultGuard])
   @@unique([tenantId, closingGuard])
@@ -132,18 +136,18 @@ model Status {
 
 model Organization {
   id        String     @id @default(uuid()) @db.VarChar(36)
-  tenantId  String     @map("tenant_id") @db.VarChar(36)
+  tenantId  String     @map("company_id") @db.VarChar(36)
   name      String     @db.VarChar(150)
   location  String?
   customers Customer[]
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Company    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("organization")
 }
 
 model Customer {
   id               String         @id @default(uuid()) @db.VarChar(36)
-  tenantId         String         @map("tenant_id") @db.VarChar(36)
+  tenantId         String         @map("company_id") @db.VarChar(36)
   organizationId   String?        @map("organization_id") @db.VarChar(36)
   firstName        String         @map("first_name") @db.VarChar(100)
   lastName         String?        @map("last_name") @db.VarChar(100)
@@ -155,7 +159,7 @@ model Customer {
   location         String?
   createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(6)
   organization     Organization?  @relation(fields: [organizationId], references: [id])
-  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant           Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   dealActivities   DealActivity[]
   leads            Lead[]
   leadActivities   LeadActivity[]
@@ -165,7 +169,7 @@ model Customer {
 
 model Lead {
   id             String         @id @default(uuid()) @db.VarChar(36)
-  tenantId       String         @map("tenant_id") @db.VarChar(36)
+  tenantId       String         @map("company_id") @db.VarChar(36)
   customerId     String         @map("customer_id") @db.VarChar(36)
   sourceUserId   String?        @map("source_user_id") @db.VarChar(36)
   assignedUserId String?        @map("assigned_user_id") @db.VarChar(36)
@@ -182,7 +186,7 @@ model Lead {
   sourceUser     User?          @relation("UserSourceLeads", fields: [sourceUserId], references: [id])
   stage          Stage?         @relation(fields: [stageId], references: [id])
   status         Status?        @relation(fields: [statusId], references: [id])
-  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   activities     LeadActivity[]
   items          LeadItem[]
   viewings       Viewing[]
@@ -197,7 +201,7 @@ model Lead {
 
 model LeadItem {
   id        String         @id @default(uuid()) @db.VarChar(36)
-  tenantId  String?        @map("tenant_id") @db.VarChar(36)
+  tenantId  String?        @map("company_id") @db.VarChar(36)
   leadId    String         @map("lead_id") @db.VarChar(36)
   itemId    String         @map("item_id") @db.VarChar(36)
   slotId    String?        @map("slot_id") @db.VarChar(36)
@@ -206,14 +210,14 @@ model LeadItem {
   item      Item           @relation(fields: [itemId], references: [id], onDelete: Cascade)
   lead      Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
   slot      InventorySlot? @relation(fields: [slotId], references: [id])
-  tenant    Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Company?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("lead_item")
 }
 
 model Deal {
   id                  String         @id @default(uuid()) @db.VarChar(36)
-  tenantId            String         @map("tenant_id") @db.VarChar(36)
+  tenantId            String         @map("company_id") @db.VarChar(36)
   leadId              String?        @map("lead_id") @db.VarChar(36)
   assignedUserId      String?        @map("assigned_user_id") @db.VarChar(36)
   stageId             String?        @map("stage_id") @db.VarChar(36)
@@ -233,7 +237,7 @@ model Deal {
   lead                Lead?          @relation(fields: [leadId], references: [id])
   stage               Stage?         @relation(fields: [stageId], references: [id])
   status              Status?        @relation(fields: [statusId], references: [id])
-  tenant              Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant              Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   activities          DealActivity[]
   records             Record[]
   attachments         Attachment[]
@@ -245,7 +249,7 @@ model Deal {
 
 model LeadActivity {
   id           String    @id @default(uuid()) @db.VarChar(36)
-  tenantId     String    @map("tenant_id") @db.VarChar(36)
+  tenantId     String    @map("company_id") @db.VarChar(36)
   leadId       String    @map("lead_id") @db.VarChar(36)
   customerId   String?   @map("customer_id") @db.VarChar(36)
   actorId      String?   @map("actor_id") @db.VarChar(36)
@@ -255,7 +259,7 @@ model LeadActivity {
   actor        User?     @relation(fields: [actorId], references: [id])
   customer     Customer? @relation(fields: [customerId], references: [id])
   lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   notes        Note[]
   tasks        Task[]
 
@@ -264,7 +268,7 @@ model LeadActivity {
 
 model DealActivity {
   id           String    @id @default(uuid()) @db.VarChar(36)
-  tenantId     String    @map("tenant_id") @db.VarChar(36)
+  tenantId     String    @map("company_id") @db.VarChar(36)
   dealId       String    @map("deal_id") @db.VarChar(36)
   customerId   String?   @map("customer_id") @db.VarChar(36)
   actorId      String?   @map("actor_id") @db.VarChar(36)
@@ -274,7 +278,7 @@ model DealActivity {
   actor        User?     @relation(fields: [actorId], references: [id])
   customer     Customer? @relation(fields: [customerId], references: [id])
   deal         Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   notes        Note[]
   tasks        Task[]
 
@@ -283,21 +287,21 @@ model DealActivity {
 
 model Note {
   id             String        @id @default(uuid()) @db.VarChar(36)
-  tenantId       String?       @map("tenant_id") @db.VarChar(36)
+  tenantId       String?       @map("company_id") @db.VarChar(36)
   leadActivityId String?       @map("lead_activity_id") @db.VarChar(36)
   dealActivityId String?       @map("deal_activity_id") @db.VarChar(36)
   title          String?       @db.VarChar(200)
   content        String?
   dealActivity   DealActivity? @relation(fields: [dealActivityId], references: [id], onDelete: Cascade)
   leadActivity   LeadActivity? @relation(fields: [leadActivityId], references: [id], onDelete: Cascade)
-  tenant         Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Company?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("note")
 }
 
 model Task {
   id             String        @id @default(uuid()) @db.VarChar(36)
-  tenantId       String?       @map("tenant_id") @db.VarChar(36)
+  tenantId       String?       @map("company_id") @db.VarChar(36)
   leadActivityId String?       @map("lead_activity_id") @db.VarChar(36)
   dealActivityId String?       @map("deal_activity_id") @db.VarChar(36)
   assignedUserId String?       @map("assigned_user_id") @db.VarChar(36)
@@ -309,14 +313,14 @@ model Task {
   assignedUser   User?         @relation("UserAssignedTasks", fields: [assignedUserId], references: [id])
   dealActivity   DealActivity? @relation(fields: [dealActivityId], references: [id], onDelete: Cascade)
   leadActivity   LeadActivity? @relation(fields: [leadActivityId], references: [id], onDelete: Cascade)
-  tenant         Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Company?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("task")
 }
 
 model CallLog {
   id              String        @id @default(uuid()) @db.VarChar(36)
-  tenantId        String?       @map("tenant_id") @db.VarChar(36)
+  tenantId        String?       @map("company_id") @db.VarChar(36)
   leadActivityId  String?       @map("lead_activity_id") @db.VarChar(36)
   dealActivityId  String?       @map("deal_activity_id") @db.VarChar(36)
   title           String?       @db.VarChar(200)
@@ -328,27 +332,27 @@ model CallLog {
   duration        Int?
   dealActivity    DealActivity? @relation(fields: [dealActivityId], references: [id], onDelete: Cascade)
   leadActivity    LeadActivity? @relation(fields: [leadActivityId], references: [id], onDelete: Cascade)
-  tenant          Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant          Company?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("call_log")
 }
 
 model ItemCategory {
   id       String         @id @default(uuid()) @db.VarChar(36)
-  tenantId String         @map("tenant_id") @db.VarChar(36)
+  tenantId String         @map("company_id") @db.VarChar(36)
   name     String         @db.VarChar(150)
   parentId String?        @map("parent_id") @db.VarChar(36)
   items    Item[]
   parent   ItemCategory?  @relation("CategoryToCategory", fields: [parentId], references: [id])
   children ItemCategory[] @relation("CategoryToCategory")
-  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("item_category")
 }
 
 model Item {
   id         String        @id @default(uuid()) @db.VarChar(36)
-  tenantId   String        @map("tenant_id") @db.VarChar(36)
+  tenantId   String        @map("company_id") @db.VarChar(36)
   categoryId String?       @map("category_id") @db.VarChar(36)
   name       String        @db.VarChar(150)
   sku        String?       @unique @db.VarChar(80)
@@ -360,7 +364,7 @@ model Item {
   createdAt  DateTime      @default(now()) @map("created_at") @db.DateTime(6)
   entries    Entry[]
   category   ItemCategory? @relation(fields: [categoryId], references: [id])
-  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Company       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   leadItems  LeadItem[]
   records    Record[]
 
@@ -369,13 +373,13 @@ model Item {
 
 model Location {
   id          String          @id @default(uuid()) @db.VarChar(36)
-  tenantId    String          @map("tenant_id") @db.VarChar(36)
+  tenantId    String          @map("company_id") @db.VarChar(36)
   name        String          @db.VarChar(150)
   description String?
   metadata    Json?
   createdAt   DateTime        @default(now()) @map("created_at") @db.DateTime(6)
   slots       InventorySlot[]
-  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Company         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   records     Record[]
   leads       Lead[]
   viewings    Viewing[]
@@ -385,7 +389,7 @@ model Location {
 
 model InventorySlot {
   id          String          @id @default(uuid()) @db.VarChar(36)
-  tenantId    String          @map("tenant_id") @db.VarChar(36)
+  tenantId    String          @map("company_id") @db.VarChar(36)
   locationId  String          @map("location_id") @db.VarChar(36)
   parentId    String?         @map("parent_id") @db.VarChar(36)
   label       String          @db.VarChar(50)
@@ -396,7 +400,7 @@ model InventorySlot {
   location    Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
   parent      InventorySlot?  @relation("SlotToSlot", fields: [parentId], references: [id])
   children    InventorySlot[] @relation("SlotToSlot")
-  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Company         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   leadItems   LeadItem[]
   recordsFrom Record[]        @relation("RecordFromSlot")
   records     Record[]        @relation("RecordSlot")
@@ -408,14 +412,14 @@ model InventorySlot {
 
 model GridConfig {
   id       String        @id @default(uuid()) @db.VarChar(36)
-  tenantId String?       @map("tenant_id") @db.VarChar(36)
+  tenantId String?       @map("company_id") @db.VarChar(36)
   slotId   String        @unique @map("slot_id") @db.VarChar(36)
   gridRow  Int           @map("grid_row")
   gridCol  Int           @map("grid_col")
   rowLabel String?       @map("row_label") @db.VarChar(20)
   colLabel String?       @map("col_label") @db.VarChar(20)
   slot     InventorySlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  tenant   Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Company?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([slotId, gridRow, gridCol])
   @@map("grid_config")
@@ -423,7 +427,7 @@ model GridConfig {
 
 model Entry {
   id               String        @id @default(uuid()) @db.VarChar(36)
-  tenantId         String?       @map("tenant_id") @db.VarChar(36)
+  tenantId         String?       @map("company_id") @db.VarChar(36)
   slotId           String        @map("slot_id") @db.VarChar(36)
   itemId           String        @map("item_id") @db.VarChar(36)
   quantity         Int           @default(0)
@@ -433,7 +437,7 @@ model Entry {
   validUntil       DateTime?     @map("valid_until") @db.DateTime(6)
   item             Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
   slot             InventorySlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  tenant           Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant           Company?      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   records          Record[]
 
   @@unique([slotId, itemId])
@@ -442,12 +446,12 @@ model Entry {
 
 model Operation {
   id            String   @id @default(uuid()) @db.VarChar(36)
-  tenantId      String   @map("tenant_id") @db.VarChar(36)
+  tenantId      String   @map("company_id") @db.VarChar(36)
   userId        String?  @map("user_id") @db.VarChar(36)
   operationType String   @map("operation_type") @db.VarChar(30)
   notes         String?
   createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Company  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user          User?    @relation(fields: [userId], references: [id])
   records       Record[]
 
@@ -456,7 +460,7 @@ model Operation {
 
 model Record {
   id             String         @id @default(uuid()) @db.VarChar(36)
-  tenantId       String?        @map("tenant_id") @db.VarChar(36)
+  tenantId       String?        @map("company_id") @db.VarChar(36)
   entryId        String         @map("entry_id") @db.VarChar(36)
   dealId         String?        @map("deal_id") @db.VarChar(36)
   operationId    String?        @map("operation_id") @db.VarChar(36)
@@ -479,14 +483,14 @@ model Record {
   operation      Operation?     @relation(fields: [operationId], references: [id])
   slot           InventorySlot  @relation("RecordSlot", fields: [slotId], references: [id])
   toSlot         InventorySlot? @relation("RecordToSlot", fields: [toSlotId], references: [id])
-  tenant         Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Company?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("record")
 }
 
 model Viewing {
   id          String         @id @default(uuid()) @db.VarChar(36)
-  tenantId    String         @map("tenant_id") @db.VarChar(36)
+  tenantId    String         @map("company_id") @db.VarChar(36)
   slotId      String?        @map("slot_id") @db.VarChar(36)
   leadId      String?        @map("lead_id") @db.VarChar(36)
   locationId  String?        @map("location_id") @db.VarChar(36)
@@ -501,7 +505,7 @@ model Viewing {
   actor       User?          @relation("ActorViewings", fields: [actorId], references: [id])
   lead        Lead?          @relation(fields: [leadId], references: [id])
   slot        InventorySlot? @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   status      Status?        @relation(fields: [statusId], references: [id])
   location    Location?      @relation(fields: [locationId], references: [id])
   source      Source?        @relation(fields: [sourceId], references: [id])
@@ -512,7 +516,7 @@ model Viewing {
 
 model Attachment {
   id        String   @id @default(uuid()) @db.VarChar(36)
-  tenantId  String   @map("tenant_id") @db.VarChar(36)
+  tenantId  String   @map("company_id") @db.VarChar(36)
   leadId    String?  @map("lead_id") @db.VarChar(36)
   dealId    String?  @map("deal_id") @db.VarChar(36)
   fileName  String   @map("file_name")
@@ -522,7 +526,7 @@ model Attachment {
   createdAt DateTime @default(now()) @map("created_at") @db.DateTime(6)
   deal      Deal?    @relation(fields: [dealId], references: [id])
   lead      Lead?    @relation(fields: [leadId], references: [id])
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Company  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   Viewing   Viewing? @relation(fields: [viewingId], references: [id])
   viewingId String?  @db.VarChar(36)
 
@@ -531,7 +535,7 @@ model Attachment {
 
 model AuditLog {
   id         String   @id @default(uuid()) @db.VarChar(36)
-  tenantId   String   @map("tenant_id") @db.VarChar(36)
+  tenantId   String   @map("company_id") @db.VarChar(36)
   entityId   String   @map("entity_id") @db.VarChar(36)
   entityType String   @map("entity_type") @db.VarChar(50)
   actorId    String?  @map("actor_id") @db.VarChar(36)
@@ -539,7 +543,7 @@ model AuditLog {
   changes    Json?
   createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(6)
   actor      User?    @relation(fields: [actorId], references: [id])
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant     Company  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([entityId, entityType])
   @@map("audit_log")
@@ -547,10 +551,10 @@ model AuditLog {
 
 model Source {
   id        String    @id @default(uuid()) @db.VarChar(36)
-  tenantId  String    @map("tenant_id") @db.VarChar(36)
+  tenantId  String    @map("company_id") @db.VarChar(36)
   name      String    @db.VarChar(50)
   createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(6)
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   type      String    @default("lead") @db.VarChar(50)
   color     String?   @db.VarChar(7)
   leads     Lead[]
@@ -558,12 +562,6 @@ model Source {
   Deal      Deal[]
 
   @@map("source")
-}
-
-enum InventoryTrackingMode {
-  QUANTITY_ONLY
-  UNIT_ONLY
-  BOTH
 }
 
 enum ProductCategoryType {
@@ -574,6 +572,9 @@ enum ProductCategoryType {
   WAREHOUSE
   RACK
   BIN
+  ZONE
+  TOWER
+  FLOOR
 }
 
 enum TrackingType {
@@ -584,7 +585,20 @@ enum TrackingType {
 enum AttributeDataType {
   NUMBER
   STRING
-  BOOLEAN
+}
+
+enum PriceLogStatus {
+  IMPLEMENT
+  SCHEDULED
+  EXPIRED
+}
+
+enum ProductUnitStatus {
+  AVAILABLE
+  RESERVED
+  BOOKED
+  SOLD
+  BLOCKED
 }
 
 enum ProductMediaType {
@@ -594,26 +608,24 @@ enum ProductMediaType {
 }
 
 model ProductCategory {
-  id          String              @id @default(uuid()) @db.VarChar(36)
-  tenantId    String              @map("tenant_id") @db.VarChar(36)
-  parentId    String?             @map("parent_id") @db.VarChar(36)
-  name        String              @db.VarChar(150)
-  code        String              @db.VarChar(100)
-  slug        String              @db.VarChar(150)
+  id          String                   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String                   @map("company_id") @db.VarChar(36)
+  parentId    String?                  @map("parent_id") @db.VarChar(36)
+  name        String                   @db.VarChar(150)
+  code        String                   @db.VarChar(100)
   type        ProductCategoryType
-  siteplanImg String?             @map("siteplan_img") @db.Text
-  sortOrder   Int                 @default(0) @map("sort_order")
-  isActive    Boolean             @default(true) @map("is_active")
-  createdAt   DateTime            @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt   DateTime            @updatedAt @map("updated_at") @db.DateTime(6)
-  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  parent      ProductCategory?    @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  children    ProductCategory[]   @relation("CategoryTree")
-  products    Product[]           @relation("ProductCategory")
-  projects    Product[]           @relation("ProductProject")
+  siteplanImg String?                  @map("siteplan_img") @db.Text
+  isActive   Boolean                  @default(true) @map("is_active")
+  createdAt   DateTime                 @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt   DateTime                 @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant      Company                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent      ProductCategory?         @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  children    ProductCategory[]        @relation("CategoryTree")
+  products    Product[]                @relation("ProductCategory")
+  units       ProductUnit[]
+  priceLogs   ProductVariantPriceLog[]
 
   @@unique([tenantId, code])
-  @@unique([tenantId, slug])
   @@index([tenantId, type])
   @@index([parentId])
   @@map("product_categories")
@@ -621,78 +633,99 @@ model ProductCategory {
 
 model Product {
   id                String             @id @default(uuid()) @db.VarChar(36)
-  tenantId          String             @map("tenant_id") @db.VarChar(36)
+  tenantId          String             @map("company_id") @db.VarChar(36)
   categoryId        String             @map("category_id") @db.VarChar(36)
-  projectCategoryId String?            @map("project_category_id") @db.VarChar(36)
   name              String             @db.VarChar(200)
   code              String             @db.VarChar(100)
   description       String?            @db.Text
-  trackingType      TrackingType       @map("tracking_type")
-  isActive          Boolean            @default(true) @map("is_active")
+  province          String?            @db.VarChar(100)
+  city              String?            @db.VarChar(100)
+  subdistrict       String?            @db.VarChar(100)
+  village           String?            @db.VarChar(100)
+  address           String?            @db.VarChar(255)
+  postalCode        String?            @map("postal_code") @db.VarChar(10)
+  isActive         Boolean            @default(true) @map("is_active")
   createdAt         DateTime           @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt         DateTime           @updatedAt @map("updated_at") @db.DateTime(6)
-  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant            Company            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   category          ProductCategory    @relation("ProductCategory", fields: [categoryId], references: [id], onDelete: Restrict)
-  projectCategory   ProductCategory?   @relation("ProductProject", fields: [projectCategoryId], references: [id], onDelete: Restrict)
   variants          ProductVariant[]
   attributes        ProductAttribute[]
   media             ProductMedia[]
 
   @@unique([tenantId, code])
   @@index([categoryId])
-  @@index([projectCategoryId])
   @@map("products")
 }
 
 model ProductVariant {
-  id         String             @id @default(uuid()) @db.VarChar(36)
-  tenantId   String             @map("tenant_id") @db.VarChar(36)
-  productId  String             @map("product_id") @db.VarChar(36)
-  name       String             @db.VarChar(150)
-  code       String             @db.VarChar(100)
-  basePrice  Decimal            @map("base_price") @db.Decimal(18, 2)
-  createdAt  DateTime           @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt  DateTime           @updatedAt @map("updated_at") @db.DateTime(6)
-  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  product    Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id         String                   @id @default(uuid()) @db.VarChar(36)
+  tenantId   String                   @map("company_id") @db.VarChar(36)
+  productId  String                   @map("product_id") @db.VarChar(36)
+  name       String                   @db.VarChar(150)
+  basePrice    BigInt                 @map("base_price")
+  currentPrice BigInt                 @map("current_price")
+  stock        Int                    @default(0)
+  createdAt  DateTime                 @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt  DateTime                 @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant     Company                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product    Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
   attributes ProductAttribute[]
   media      ProductMedia[]
+  units      ProductUnit[]
+  priceLogs  ProductVariantPriceLog[]
 
-  @@unique([tenantId, code])
   @@index([productId])
   @@map("product_variants")
 }
 
 model ProductAttribute {
   id        String            @id @default(uuid()) @db.VarChar(36)
-  tenantId  String            @map("tenant_id") @db.VarChar(36)
+  tenantId  String            @map("company_id") @db.VarChar(36)
   productId String            @map("product_id") @db.VarChar(36)
   variantId String?           @map("variant_id") @db.VarChar(36)
-  name      String            @db.VarChar(150)
-  code      String            @db.VarChar(100)
-  dataType  AttributeDataType @map("data_type")
-  value     String            @db.VarChar(255)
-  unit      String?           @db.VarChar(30)
+  attributeId String          @map("attribute_id") @db.VarChar(36)
+  value     Int
   createdAt DateTime          @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt DateTime          @updatedAt @map("updated_at") @db.DateTime(6)
-  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Company           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
   variant   ProductVariant?   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  attribute Attribute         @relation(fields: [attributeId], references: [id], onDelete: Restrict)
 
   @@index([productId])
   @@index([variantId])
+  @@index([attributeId])
   @@map("product_attributes")
 }
 
+/// Master data of attribute definitions; product_attributes is the pivot that holds the values.
+model Attribute {
+  id         String             @id @default(uuid()) @db.VarChar(36)
+  tenantId   String             @map("company_id") @db.VarChar(36)
+  name       String             @db.VarChar(150)
+  code       String             @db.VarChar(100)
+  dataType   AttributeDataType  @map("data_type")
+  unit       String?            @db.VarChar(30)
+  createdAt  DateTime           @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt  DateTime           @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant     Company            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  values     ProductAttribute[]
+
+  @@unique([tenantId, code])
+  @@map("attributes")
+}
+
 model Characteristic {
-  id        String   @id @default(uuid()) @db.VarChar(36)
-  tenantId  String   @map("tenant_id") @db.VarChar(36)
-  group     String   @db.VarChar(100)
-  code      String   @db.VarChar(100)
-  name      String   @db.VarChar(150)
-  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(6)
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id        String        @id @default(uuid()) @db.VarChar(36)
+  tenantId  String        @map("company_id") @db.VarChar(36)
+  group     String        @db.VarChar(100)
+  code      String        @db.VarChar(100)
+  name      String        @db.VarChar(150)
+  createdAt DateTime      @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt DateTime      @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant    Company       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  units     ProductUnit[]
 
   @@unique([tenantId, code])
   @@map("characteristics")
@@ -700,9 +733,10 @@ model Characteristic {
 
 model ProductMedia {
   id        String           @id @default(uuid()) @db.VarChar(36)
-  tenantId  String           @map("tenant_id") @db.VarChar(36)
+  tenantId  String           @map("company_id") @db.VarChar(36)
   productId String           @map("product_id") @db.VarChar(36)
   variantId String?          @map("variant_id") @db.VarChar(36)
+  unitId    String?          @map("unit_id") @db.VarChar(36)
   title     String?          @db.VarChar(150)
   mediaType ProductMediaType @map("media_type")
   fileName  String?          @map("file_name") @db.VarChar(255)
@@ -713,11 +747,62 @@ model ProductMedia {
   isPrimary Boolean          @default(false) @map("is_primary")
   createdAt DateTime         @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt DateTime         @updatedAt @map("updated_at") @db.DateTime(6)
-  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Company          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   variant   ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  unit      ProductUnit?     @relation(fields: [unitId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@index([variantId])
+  @@index([unitId])
   @@map("product_media")
+}
+
+model ProductUnit {
+  id               String            @id @default(uuid()) @db.VarChar(36)
+  tenantId         String            @map("company_id") @db.VarChar(36)
+  variantId        String            @map("variant_id") @db.VarChar(36)
+  categoryId       String            @map("category_id") @db.VarChar(36)
+  characteristicId String?           @map("characteristic_id") @db.VarChar(36)
+  code             String            @db.VarChar(100)
+  name             String?           @db.VarChar(150)
+  status           ProductUnitStatus @default(AVAILABLE)
+  latitude         Decimal?          @db.Decimal(10, 7)
+  longitude        Decimal?          @db.Decimal(10, 7)
+  adjustmentAmount Decimal           @default(0) @map("adjustment_amount") @db.Decimal(18, 2)
+  adjustmentReason String?           @map("adjustment_reason") @db.VarChar(255)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant           Company           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  variant          ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  category         ProductCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  characteristic   Characteristic?   @relation(fields: [characteristicId], references: [id], onDelete: SetNull)
+  media            ProductMedia[]
+
+  @@unique([tenantId, code])
+  @@index([variantId])
+  @@index([categoryId])
+  @@index([characteristicId])
+  @@map("product_units")
+}
+
+model ProductVariantPriceLog {
+  id              String           @id @default(uuid()) @db.VarChar(36)
+  tenantId        String           @map("company_id") @db.VarChar(36)
+  variantId       String           @map("variant_id") @db.VarChar(36)
+  categoryId      String?          @map("category_id") @db.VarChar(36)
+  adjustmentPrice BigInt           @map("adjustment_price")
+  effectiveStart  DateTime         @map("effective_start") @db.Date
+  endDate         DateTime?        @map("end_date") @db.Date
+  status          PriceLogStatus   @default(IMPLEMENT)
+  reason         String           @db.Text
+  createdAt       DateTime         @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant          Company          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  variant         ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  category        ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([variantId])
+  @@index([categoryId])
+  @@map("product_variant_price_logs")
 }
