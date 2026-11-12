@@ -5,10 +5,14 @@ import type { ProductCategoryUseCase } from '../../usecases/product/ProductCateg
 import type { ProductUseCase } from '../../usecases/product/ProductUseCase.js';
 import type { CharacteristicUseCase } from '../../usecases/product/CharacteristicUseCase.js';
 import type { ProductMediaUseCase } from '../../usecases/product/ProductMediaUseCase.js';
+import type { AttributeUseCase } from '../../usecases/product/AttributeUseCase.js';
+import type { ProductUnitUseCase } from '../../usecases/product/ProductUnitUseCase.js';
 import {
   parseCategoryFilters,
   parseProductFilters,
+  parseUnitFilters,
   validateAttribute,
+  validateAttributeDefinition,
   validateCategory,
   validateCharacteristic,
   validateMediaLink,
@@ -44,7 +48,9 @@ export class ProductController {
     private categories: ProductCategoryUseCase,
     private products: ProductUseCase,
     private characteristics: CharacteristicUseCase,
-    private media: ProductMediaUseCase
+    private media: ProductMediaUseCase,
+    private units: ProductUnitUseCase,
+    private attributeDefinitions: AttributeUseCase
   ) {}
 
   // ---------- categories ----------
@@ -133,6 +139,38 @@ export class ProductController {
   deleteAttribute = handle(async (req, res, tenantId) => {
     await this.products.removeAttribute(param(req, 'id'), param(req, 'attributeId'), tenantId);
     res.status(204).send();
+  });
+
+  // ---------- attribute master data ----------
+  listAttributeDefinitions = handle(async (_req, res, tenantId) => {
+    res.json(await this.attributeDefinitions.list(tenantId));
+  });
+  createAttributeDefinition = handle(async (req, res, tenantId) => {
+    res
+      .status(201)
+      .json(await this.attributeDefinitions.create(tenantId, validateAttributeDefinition(req.body)));
+  });
+  updateAttributeDefinition = handle(async (req, res, tenantId) => {
+    res.json(
+      await this.attributeDefinitions.update(
+        param(req, 'id'),
+        tenantId,
+        validateAttributeDefinition(req.body, true)
+      )
+    );
+  });
+  deleteAttributeDefinition = handle(async (req, res, tenantId) => {
+    await this.attributeDefinitions.remove(param(req, 'id'), tenantId);
+    res.status(204).send();
+  });
+
+  // ---------- units ----------
+  listUnits = handle(async (req, res, tenantId) => {
+    const query = req.query as Record<string, unknown>;
+    const { page, limit } = parsePagination(query, 20);
+    res.json(
+      await this.units.list(tenantId, { page, limit, search: parseSearch(query), ...parseUnitFilters(query) })
+    );
   });
 
   // ---------- characteristics ----------

@@ -35,7 +35,15 @@ import { ProductCategoryUseCase } from './usecases/product/ProductCategoryUseCas
 import { ProductUseCase } from './usecases/product/ProductUseCase.js';
 import { CharacteristicUseCase } from './usecases/product/CharacteristicUseCase.js';
 import { ProductMediaUseCase } from './usecases/product/ProductMediaUseCase.js';
+import { ProductUnitUseCase } from './usecases/product/ProductUnitUseCase.js';
+import { AttributeUseCase } from './usecases/product/AttributeUseCase.js';
 import { ProductController } from './presentation/controllers/ProductController.js';
+
+// Prisma returns BigInt for price columns; JSON.stringify cannot serialize it.
+// Prices stay below Number.MAX_SAFE_INTEGER (enforced by request validation).
+(BigInt.prototype as unknown as { toJSON: () => number }).toJSON = function (this: bigint) {
+  return Number(this);
+};
 
 const app = express();
 app.use(express.json());
@@ -47,7 +55,15 @@ app.use(
   '/uploads',
   authMiddleware,
   uploadTenantAccessMiddleware,
-  express.static('uploads', { dotfiles: 'deny', index: false })
+  express.static('uploads', {
+    dotfiles: 'deny',
+    index: false,
+    setHeaders: (res, filePath) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      // Only raster images may render inline; everything else (e.g. stray .html) is forced to download.
+      if (!/\.(jpe?g|png|webp)$/i.test(filePath)) res.setHeader('Content-Disposition', 'attachment');
+    },
+  })
 );
 
 // Specialized Upload Setup
@@ -93,7 +109,7 @@ app.delete('/api/attachment/:id', authMiddleware, (req, res) =>
 
 // List of standard Prisma models from schema defined internally
 const models = [
-  'tenant',
+  'company',
   'user',
   'invite',
   'stage',
@@ -143,7 +159,7 @@ const requireRepository = (modelName: string): PrismaGenericRepository<any> => {
 const authUseCases = new AuthUseCases(
   requireRepository('user'),
   requireRepository('invite'),
-  requireRepository('tenant'),
+  requireRepository('company'),
   requireRepository('status'),
   prisma
 );
@@ -205,7 +221,7 @@ const modelIncludes: Record<string, any> = {
 
 models.forEach((modelName) => {
   // These models require dedicated authorization rules and must never receive generic CRUD routes.
-  if (['tenant', 'user', 'auditLog'].includes(modelName)) return;
+  if (['company', 'user', 'auditLog'].includes(modelName)) return;
   const repo = repositories[modelName];
   if (!repo) return;
 
@@ -295,15 +311,17 @@ const productController = new ProductController(
   new ProductCategoryUseCase(prisma),
   new ProductUseCase(prisma),
   new CharacteristicUseCase(prisma),
-  new ProductMediaUseCase(prisma)
+  new ProductMediaUseCase(prisma),
+  new ProductUnitUseCase(prisma),
+  new AttributeUseCase(prisma)
 );
 const ownerOnly = requireRole('owner');
 const pc = productController;
-app.get('/api/product-categories', authMiddleware, pc.listCategories);
-app.get('/api/product-categories/:id', authMiddleware, pc.getCategory);
-app.post('/api/product-categories', authMiddleware, ownerOnly, pc.createCategory);
-app.put('/api/product-categories/:id', authMiddleware, ownerOnly, pc.updateCategory);
-app.delete('/api/product-categories/:id', authMiddleware, ownerOnly, pc.deleteCategory);
+app.get('/api/categories', authMiddleware, pc.listCategories);
+app.get('/api/categories/:id', authMiddleware, pc.getCategory);
+app.post('/api/categories', authMiddleware, ownerOnly, pc.createCategory);
+app.put('/api/categories/:id', authMiddleware, ownerOnly, pc.updateCategory);
+app.delete('/api/categories/:id', authMiddleware, ownerOnly, pc.deleteCategory);
 app.get('/api/products', authMiddleware, pc.listProducts);
 app.get('/api/products/:id', authMiddleware, pc.getProduct);
 app.post('/api/products', authMiddleware, ownerOnly, pc.createProduct);
@@ -318,8 +336,13 @@ app.delete('/api/products/:id/attributes/:attributeId', authMiddleware, ownerOnl
 app.get('/api/products/:id/media', authMiddleware, pc.listMedia);
 app.post('/api/products/:id/media', authMiddleware, ownerOnly, upload.single('file'), pc.uploadMedia);
 app.post('/api/products/:id/media-links', authMiddleware, ownerOnly, pc.addMediaLink);
-app.patch('/api/product-media/:id', authMiddleware, ownerOnly, pc.updateMedia);
-app.delete('/api/product-media/:id', authMiddleware, ownerOnly, pc.deleteMedia);
+app.patch('/api/media/:id', authMiddleware, ownerOnly, pc.updateMedia);
+app.delete('/api/media/:id', authMiddleware, ownerOnly, pc.deleteMedia);
+app.get('/api/attributes', authMiddleware, pc.listAttributeDefinitions);
+app.post('/api/attributes', authMiddleware, ownerOnly, pc.createAttributeDefinition);
+app.put('/api/attributes/:id', authMiddleware, ownerOnly, pc.updateAttributeDefinition);
+app.delete('/api/attributes/:id', authMiddleware, ownerOnly, pc.deleteAttributeDefinition);
+app.get('/api/units', authMiddleware, pc.listUnits);
 app.get('/api/characteristics', authMiddleware, pc.listCharacteristics);
 app.post('/api/characteristics', authMiddleware, ownerOnly, pc.createCharacteristic);
 app.put('/api/characteristics/:id', authMiddleware, ownerOnly, pc.updateCharacteristic);

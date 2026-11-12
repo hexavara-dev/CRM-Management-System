@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { AuthUseCases } from '../../usecases/auth/AuthUseCases.js';
+import { AuthUseCases, SESSION_DAYS } from '../../usecases/auth/AuthUseCases.js';
 import { respondWithError } from '../../infrastructure/utils/HttpErrorMapper.js';
 import { validateAccountUpdate } from '../validation/CrmRequestValidation.js';
 
@@ -11,7 +11,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
+      maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000,
       path: '/',
     });
   }

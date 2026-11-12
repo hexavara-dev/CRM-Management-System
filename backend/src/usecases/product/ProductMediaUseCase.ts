@@ -5,6 +5,31 @@ import { localStorage } from '../../infrastructure/storage/localStorage.js';
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const DOCUMENT_TYPES = ['application/pdf'];
 
+// Extension comes from the validated MIME type, never from the client-supplied filename.
+const EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'application/pdf': 'pdf',
+};
+
+// The declared MIME type is client-controlled, so confirm the content really matches it.
+function matchesSignature(mime: string, buf: Buffer): boolean {
+  const startsWith = (sig: number[], offset = 0) => sig.every((b, i) => buf[offset + i] === b);
+  switch (mime) {
+    case 'image/jpeg':
+      return startsWith([0xff, 0xd8, 0xff]);
+    case 'image/png':
+      return startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    case 'image/webp':
+      return startsWith([0x52, 0x49, 0x46, 0x46]) && startsWith([0x57, 0x45, 0x42, 0x50], 8); // RIFF....WEBP
+    case 'application/pdf':
+      return startsWith([0x25, 0x50, 0x44, 0x46]); // %PDF
+    default:
+      return false;
+  }
+}
+
 export type MediaMetaInput = {
   title?: string | null;
   variantId?: string | null;
@@ -73,7 +98,9 @@ export class ProductMediaUseCase {
     else if (DOCUMENT_TYPES.includes(file.mimetype)) mediaType = 'DOCUMENT';
     else throw new Error('Unsupported file type');
 
-    const ext = (file.originalname.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!matchesSignature(file.mimetype, file.buffer)) throw new Error('Unsupported file type');
+
+    const ext = EXT_BY_MIME[file.mimetype];
     const filePath = `${tenantId}/product/${productId}/${randomUUID()}.${ext}`;
     await this.storage.upload(filePath, file.buffer);
     const { publicUrl } = this.storage.getPublicUrl(filePath);

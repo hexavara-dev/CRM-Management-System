@@ -353,7 +353,7 @@ export class GenericUseCases {
     const modelName = (this.repository as any).modelName;
 
     const modelsWithCreatedAt = [
-      'tenant',
+      'company',
       'user',
       'customer',
       'lead',

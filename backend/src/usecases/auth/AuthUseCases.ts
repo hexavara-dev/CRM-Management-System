@@ -3,6 +3,9 @@ import jwt from 'jsonwebtoken';
 import type { PrismaClient } from '@prisma/client';
 import type { IRepository } from '../../domain/repositories/IRepository.js';
 
+// Masa berlaku sesi: token JWT dan cookie memakai nilai yang sama (365 hari).
+export const SESSION_DAYS = 365;
+
 export class AuthUseCases {
   private jwtSecret: string;
 
@@ -80,7 +83,7 @@ export class AuthUseCases {
 
     if (this.prisma) {
       const result = await this.prisma.$transaction(async (tx) => {
-        const tenant = await tx.tenant.create({ data: { name: tenantName, plan: 'free' } });
+        const tenant = await tx.company.create({ data: { name: tenantName, plan: 'free' } });
         const user = await tx.user.create({
           data: {
             tenant: { connect: { id: tenant.id } },
@@ -127,7 +130,7 @@ export class AuthUseCases {
     const token = jwt.sign(
       { userId: newUser.id, tenantId: newUser.tenantId, role: newUser.role },
       this.jwtSecret,
-      { expiresIn: '1d' }
+      { expiresIn: `${SESSION_DAYS}d` }
     );
 
     return { token, user: this.publicUser(newUser), tenant: newTenant };
@@ -165,7 +168,7 @@ export class AuthUseCases {
     const token = jwt.sign(
       { userId: user.id, tenantId: user.tenantId, role: user.role },
       this.jwtSecret,
-      { expiresIn: '1d' }
+      { expiresIn: `${SESSION_DAYS}d` }
     );
 
     return {
