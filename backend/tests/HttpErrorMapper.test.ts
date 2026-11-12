@@ -24,9 +24,24 @@ describe('mapHttpError', () => {
     });
   });
 
-  it('does not expose raw Prisma validation details', () => {
+  it('explains schema mismatches without exposing raw Prisma details', () => {
     expect(
-      mapHttpError({ name: 'PrismaClientValidationError', message: 'Invalid `delegate.create()`' })
-    ).toEqual({ status: 500, message: 'A database operation failed.' });
+      mapHttpError({ name: 'PrismaClientValidationError', message: 'Invalid `delegate.create()`\nUnknown argument `province`' })
+    ).toEqual({
+      status: 500,
+      message: 'Struktur database belum sesuai dengan aplikasi. Jalankan migrasi (prisma migrate deploy) lalu restart server.',
+    });
+  });
+
+  it('names the missing field for null constraint violations', () => {
+    expect(
+      mapHttpError({ message: 'Invalid `prisma.product.create()` invocation\nNull constraint violation on the fields: (`code`)' })
+    ).toEqual({ status: 400, message: 'Field "code" wajib diisi.' });
+  });
+
+  it('explains foreign key violations in plain words', () => {
+    expect(
+      mapHttpError({ message: 'Invalid `prisma.product.create()`\nForeign key constraint violated on the fields: (`category_id`)' })
+    ).toEqual({ status: 409, message: 'Data terkait tidak ditemukan atau masih dipakai di tempat lain.' });
   });
 });

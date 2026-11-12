@@ -18,6 +18,39 @@ const validationPatterns = [
   /no supported fields/i,
 ];
 
+const SCHEMA_MISMATCH = 'Struktur database belum sesuai dengan aplikasi. Jalankan migrasi (prisma migrate deploy) lalu restart server.';
+
+/** Nama kolom dari pesan Prisma, mis. "fields: (`company_id`)". */
+function prismaFieldOf(message: string): string | null {
+  const match = message.match(/fields?:?\s*\(`([^`]+)`/i) ?? message.match(/Unknown argument `([^`]+)`/i);
+  return match?.[1] ?? null;
+}
+
+function mapPrismaError(code: string | undefined, name: string | undefined, message: string): MappedHttpError {
+  const field = prismaFieldOf(message);
+  const where = field ? ` "${field}"` : '';
+  switch (code) {
+    case 'P2011':
+    case 'P2012':
+      return { status: 400, message: `Field${where} wajib diisi.` };
+    case 'P2000':
+      return { status: 400, message: `Nilai terlalu panjang untuk field${where}.` };
+    case 'P2021':
+    case 'P2022':
+      return { status: 500, message: SCHEMA_MISMATCH };
+  }
+  if (name === 'PrismaClientValidationError' || /Unknown argument|Argument `\w+` is missing|Invalid value for argument/i.test(message)) {
+    return { status: 500, message: SCHEMA_MISMATCH };
+  }
+  if (/Null constraint violation/i.test(message)) {
+    return { status: 400, message: `Field${where} wajib diisi.` };
+  }
+  if (/Foreign key constraint violated/i.test(message)) {
+    return { status: 409, message: 'Data terkait tidak ditemukan atau masih dipakai di tempat lain.' };
+  }
+  return { status: 500, message: 'A database operation failed.' };
+}
+
 export function mapHttpError(error: unknown): MappedHttpError {
   const candidate = error as {
     code?: string;
@@ -51,8 +84,9 @@ export function mapHttpError(error: unknown): MappedHttpError {
     message.includes('invocation in') ||
     message.includes('this.delegate');
   if (isPrismaError) {
-    console.error('[Prisma Error]', candidate?.code || candidate?.name || 'unknown');
-    return { status: 500, message: 'A database operation failed.' };
+    // Pesan lengkap hanya ke log server; klien mendapat pesan yang bisa ditindaklanti.
+    console.error('[Prisma Error]', candidate?.code || candidate?.name || 'unknown', message);
+    return mapPrismaError(candidate?.code, candidate?.name, message);
   }
 
   if (/invalid email or password/i.test(message)) {

@@ -35,6 +35,9 @@ const adapter = new PrismaMariaDb({
   password: parsed.password ? decodeURIComponent(parsed.password) : '',
   database: dbName,
   connectionLimit: 10,
+  // MySQL 8 (caching_sha2_password) meminta kunci RSA setelah DB restart; tanpa ini semua koneksi gagal.
+  // Aman untuk jaringan Docker internal / localhost; untuk DB lintas jaringan publik, pakai ssl.
+  allowPublicKeyRetrieval: true,
 });
 
 export const prisma = new PrismaClient({ adapter });
