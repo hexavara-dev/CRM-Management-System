@@ -25,6 +25,8 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarRail,
+  SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   Bell,
@@ -114,7 +116,7 @@ const defaultUser: SidebarUser = {
   email: "john@hexavara.com",
 };
 
-// Measured from the design mockup: 31px rows, 14px text, #1980C0 active bar.
+
 const NAV_BUTTON_CLASS =
   "h-[31px] whitespace-nowrap rounded-md pl-5 pr-3 text-sm font-medium text-[#4f4f4f] hover:bg-[#e9e8ec] hover:text-[#4f4f4f] data-[active=true]:!bg-[#1980c0] data-[active=true]:!text-white [&>svg]:size-4";
 
@@ -270,6 +272,12 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
   ];
 }
 
+export function SidebarOpenTrigger() {
+  const { state, isMobile } = useSidebar();
+  if (!isMobile && state === "expanded") return null;
+  return <SidebarTrigger className="-ml-1" />;
+}
+
 export function AppSidebar({
   // menuSections = defaultMenuSections,
   user,
@@ -311,8 +319,8 @@ export function AppSidebar({
     <Sidebar variant={variant} side={side} collapsible={collapsible}>
       <SidebarHeader>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
+          <SidebarMenuItem className="flex items-center gap-1">
+            <SidebarMenuButton size="lg" asChild className="min-w-0 flex-1">
               <Link href="/">
                 <div className="flex items-center gap-2">
                   {logo || (
@@ -327,6 +335,7 @@ export function AppSidebar({
                 </div>
               </Link>
             </SidebarMenuButton>
+            <SidebarTrigger className="size-7 shrink-0 border border-[#E4E4E7] bg-white" />
           </SidebarMenuItem>
         </SidebarMenu>
 

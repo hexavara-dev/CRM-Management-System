@@ -40,15 +40,17 @@ export function getBreadcrumbTrail(pathname: string): string[] {
 type PageHeadingProps = {
   /** Overrides the title taken from the menu (e.g. a record name on a detail page). */
   title?: string;
-  /** Right-aligned content, such as an "Add" button. */
+  /** Appended as the last breadcrumb, e.g. a record name on a detail page. */
+  extraCrumb?: string;
+  /** Right-aligned content, such as an "Add" button or a search field. */
   actions?: React.ReactNode;
 };
 
-export function PageHeading({ title, actions }: PageHeadingProps) {
+export function PageHeading({ title, extraCrumb, actions }: PageHeadingProps) {
   const pathname = usePathname();
-  const trail = getBreadcrumbTrail(pathname);
+  const menuTrail = getBreadcrumbTrail(pathname);
+  const trail = extraCrumb ? [...menuTrail, extraCrumb] : menuTrail;
   const pageTitle = title ?? trail[trail.length - 1] ?? "";
-
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="space-y-1">
