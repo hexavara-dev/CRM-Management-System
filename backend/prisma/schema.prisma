@@ -48,6 +48,7 @@ model Company {
   productMedia            ProductMedia[]
   productUnits            ProductUnit[]
   productVariantPriceLogs ProductVariantPriceLog[]
+  unitPriceAdjustments    UnitPriceAdjustment[]
 
   @@map("company")
 }
@@ -71,6 +72,8 @@ model User {
   tenant         Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   viewings       Viewing[]      @relation("ActorViewings")
   auditLogs      AuditLog[]
+  requestedPriceAdjustments UnitPriceAdjustment[] @relation("PriceAdjustmentRequester")
+  reviewedPriceAdjustments  UnitPriceAdjustment[] @relation("PriceAdjustmentReviewer")
 
   @@map("user")
 }
@@ -665,6 +668,8 @@ model ProductVariant {
   name       String                   @db.VarChar(150)
   basePrice    BigInt                 @map("base_price")
   currentPrice BigInt                 @map("current_price")
+  /// Batas minimum harga jual unit. Null berarti tanpa batas.
+  minPrice     BigInt?                @map("min_price")
   stock        Int                    @default(0)
   createdAt  DateTime                 @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt  DateTime                 @updatedAt @map("updated_at") @db.DateTime(6)
@@ -778,6 +783,7 @@ model ProductUnit {
   category         ProductCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   characteristic   Characteristic?   @relation(fields: [characteristicId], references: [id], onDelete: SetNull)
   media            ProductMedia[]
+  priceAdjustments UnitPriceAdjustment[]
 
   @@unique([tenantId, code])
   @@index([variantId])
@@ -805,4 +811,37 @@ model ProductVariantPriceLog {
   @@index([variantId])
   @@index([categoryId])
   @@map("product_variant_price_logs")
+}
+
+enum PriceAdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Penyesuaian harga per unit. Hanya bisa ditambah dan sekaligus menjadi riwayat harga.
+model UnitPriceAdjustment {
+  id            String                @id @default(uuid()) @db.VarChar(36)
+  tenantId      String                @map("company_id") @db.VarChar(36)
+  unitId        String                @map("unit_id") @db.VarChar(36)
+  amount        BigInt
+  priceBefore   BigInt                @map("price_before")
+  priceAfter    BigInt                @map("price_after")
+  minPrice      BigInt?               @map("min_price")
+  reason        String                @db.Text
+  effectiveDate DateTime              @map("effective_date") @db.Date
+  status        PriceAdjustmentStatus
+  requestedById String                @map("requested_by") @db.VarChar(36)
+  approvedById  String?               @map("approved_by") @db.VarChar(36)
+  approvedAt    DateTime?             @map("approved_at") @db.DateTime(6)
+  reviewNote    String?               @map("review_note") @db.Text
+  createdAt     DateTime              @default(now()) @map("created_at") @db.DateTime(6)
+  tenant        Company               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unit          ProductUnit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  requestedBy   User                  @relation("PriceAdjustmentRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedBy    User?                 @relation("PriceAdjustmentReviewer", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, unitId, status, effectiveDate])
+  @@index([tenantId, status])
+  @@map("unit_price_adjustments")
 }
