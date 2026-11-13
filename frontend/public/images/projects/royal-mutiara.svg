@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Royal Mutiara</title><desc id="desc">Illustration of a premium residential neighborhood.</desc>
+  <rect width="1200" height="700" fill="#fef3c7"/><circle cx="975" cy="130" r="68" fill="#fb7185"/>
+  <path d="M0 540c200-96 390-88 580 0 230-96 392-94 620 0v160H0z" fill="#9fbe85"/>
+  <path d="m305 430 175-150 175 150v145H305z" fill="#fff" stroke="#7c3aed" stroke-width="18"/><path d="m280 430 200-174 200 174" fill="none" stroke="#7c3aed" stroke-width="28" stroke-linejoin="round"/>
+  <rect x="440" y="460" width="76" height="115" rx="8" fill="#f59e0b"/><rect x="345" y="440" width="52" height="52" rx="6" fill="#fde68a"/><rect x="565" y="440" width="52" height="52" rx="6" fill="#fde68a"/>
+  <path d="M820 535V410l80-70 80 70v125" fill="#fff" stroke="#7c3aed" stroke-width="18"/><path d="M792 415 900 320l108 95" fill="none" stroke="#7c3aed" stroke-width="18"/>
+</svg>
