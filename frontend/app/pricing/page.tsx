@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, Pencil, Search } from "lucide-react";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { PageHeading } from "@/components/PageHeading";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PendingAdjustments } from "./pending-adjustments";
 import { UNIT_STATUS_LABEL, UnitStatusBadge } from "./status-badge";
-import { UnitPriceSheet } from "./unit-price-sheet";
+import { AdjustPriceDialog, PriceHistoryDialog } from "./unit-price-dialogs";
 
 const PAGE_SIZE = 10;
 const ALL = "all";
@@ -83,7 +83,8 @@ export default function PricingPage() {
   const [categoryId, setCategoryId] = useState(ALL);
   const [variantId, setVariantId] = useState(ALL);
   const [status, setStatus] = useState(ALL);
-  const [selectedUnit, setSelectedUnit] = useState<string>();
+  const [adjustUnit, setAdjustUnit] = useState<string>();
+  const [historyUnit, setHistoryUnit] = useState<string>();
   const search = useDebouncedValue(query.trim());
 
   const pick = (value: string) => (value === ALL ? undefined : value);
@@ -255,15 +256,31 @@ export default function PricingPage() {
                           </TableCell>
                           <TableCell className="text-right font-semibold">{formatPrice(row.sellingPrice)}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 rounded-lg px-2 text-xs"
-                              onClick={() => setSelectedUnit(row.unitId)}
-                            >
-                              {canWrite ? "Atur harga" : "Detail"}
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 rounded-lg px-2 text-xs"
+                                onClick={() => setHistoryUnit(row.unitId)}
+                              >
+                                <History className="size-3.5" />
+                                Riwayat
+                              </Button>
+                              {canWrite && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-7 rounded-lg bg-[#1980C0] px-2 text-xs text-white hover:bg-[#166ea6]"
+                                  disabled={row.status === "SOLD"}
+                                  title={row.status === "SOLD" ? "Unit sudah terjual" : undefined}
+                                  onClick={() => setAdjustUnit(row.unitId)}
+                                >
+                                  <Pencil className="size-3.5" />
+                                  Atur harga
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -307,11 +324,10 @@ export default function PricingPage() {
         </div>
       </SidebarInset>
 
-      <UnitPriceSheet
-        unitId={selectedUnit}
-        canWrite={canWrite}
-        onOpenChange={(open) => !open && setSelectedUnit(undefined)}
-      />
+      {canWrite && (
+        <AdjustPriceDialog unitId={adjustUnit} onOpenChange={(open) => !open && setAdjustUnit(undefined)} />
+      )}
+      <PriceHistoryDialog unitId={historyUnit} onOpenChange={(open) => !open && setHistoryUnit(undefined)} />
     </SidebarProvider>
   );
 }
