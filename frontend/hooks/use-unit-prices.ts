@@ -4,6 +4,13 @@ import api from "@/lib/api";
 import { useAuth } from "@/components/auth/auth-provider";
 import { errorMessage } from "@/hooks/use-projects";
 
+/**
+ * Alur approval harga di bawah minimum. Dinonaktifkan pada tahap awal, harus sama
+ * dengan PRICE_APPROVAL_ENABLED di backend. Ubah ke true untuk menampilkan lagi
+ * tab, ringkasan, dan penanda approval.
+ */
+export const PRICE_APPROVAL_ENABLED = false;
+
 export type UnitStatus = "AVAILABLE" | "RESERVED" | "BOOKED" | "SOLD" | "BLOCKED";
 export type AdjustmentStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -29,7 +36,15 @@ export interface UnitPriceRow {
 export interface UnitPriceList {
   data: UnitPriceRow[];
   meta: Meta;
-  summary: { totalUnits: number; pendingAdjustments: number; date: string };
+  summary: {
+    totalUnits: number;
+    totalProjects: number;
+    byStatus: Record<UnitStatus, number>;
+    /** Jumlah harga jual unit yang belum terjual. */
+    unsoldValue: number;
+    pendingAdjustments: number;
+    date: string;
+  };
 }
 
 export interface PriceAdjustment {
@@ -106,6 +121,9 @@ export function useUnitPrice(unitId: string | undefined) {
   });
 }
 
+/** Jumlah card riwayat per halaman di modal. */
+export const HISTORY_PAGE_SIZE = 2;
+
 export function useUnitPriceHistory(unitId: string | undefined, page: number) {
   const { user } = useAuth();
   return useQuery({
@@ -113,7 +131,7 @@ export function useUnitPriceHistory(unitId: string | undefined, page: number) {
     queryFn: async () =>
       (
         await api.get<{ data: PriceAdjustment[]; meta: Meta }>(`/api/unit-prices/${unitId}/history`, {
-          params: { page, limit: 5 },
+          params: { page, limit: HISTORY_PAGE_SIZE },
         })
       ).data,
     enabled: !!user && !!unitId,
@@ -198,3 +216,9 @@ export const formatPrice = (value: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
 
 export const formatSigned = (value: number) => (value > 0 ? `+${formatPrice(value)}` : formatPrice(value));
+
+/** "2026-11-13" (atau ISO datetime) menjadi "13 November 2026". */
+export const formatDay = (value: string) =>
+  new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(
+    new Date(`${value.slice(0, 10)}T00:00:00Z`),
+  );

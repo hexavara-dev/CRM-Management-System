@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage } from "@/hooks/use-projects";
 import {
+  formatDay,
   formatPrice,
   formatSigned,
   usePendingAdjustments,
@@ -76,10 +77,10 @@ export function PendingAdjustments({ canWrite }: { canWrite: boolean }) {
                 <TableCell className="text-right">{formatPrice(row.priceBefore)}</TableCell>
                 <TableCell className="text-right">
                   <span className="font-medium text-[#D9822B]">{formatPrice(row.priceAfter)}</span>
-                  <span className="block text-[10px] text-[#6b6b6b]">{formatSigned(row.amount)}</span>
+                  <span className="block text-[10px] text-[#6b6b6b]">{formatSigned(row.priceAfter - row.priceBefore)}</span>
                 </TableCell>
                 <TableCell className="text-right">{row.minPrice === null ? "-" : formatPrice(row.minPrice)}</TableCell>
-                <TableCell>{row.effectiveDate.slice(0, 10)}</TableCell>
+                <TableCell className="whitespace-nowrap">{formatDay(row.effectiveDate)}</TableCell>
                 <TableCell className="max-w-48 truncate" title={row.reason}>
                   {row.reason}
                 </TableCell>
