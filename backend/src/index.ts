@@ -38,6 +38,8 @@ import { ProductMediaUseCase } from './usecases/product/ProductMediaUseCase.js';
 import { ProductUnitUseCase } from './usecases/product/ProductUnitUseCase.js';
 import { AttributeUseCase } from './usecases/product/AttributeUseCase.js';
 import { ProductController } from './presentation/controllers/ProductController.js';
+import { UnitPriceUseCase } from './usecases/pricing/UnitPriceUseCase.js';
+import { UnitPriceController } from './presentation/controllers/UnitPriceController.js';
 
 // Prisma returns BigInt for price columns; JSON.stringify cannot serialize it.
 // Prices stay below Number.MAX_SAFE_INTEGER (enforced by request validation).
@@ -347,6 +349,11 @@ app.get('/api/characteristics', authMiddleware, pc.listCharacteristics);
 app.post('/api/characteristics', authMiddleware, ownerOnly, pc.createCharacteristic);
 app.put('/api/characteristics/:id', authMiddleware, ownerOnly, pc.updateCharacteristic);
 app.delete('/api/characteristics/:id', authMiddleware, ownerOnly, pc.deleteCharacteristic);
+
+// Unit price management (CRM-51): daftar dan rincian harga unit.
+const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));
+app.get('/api/unit-prices', authMiddleware, unitPrices.list);
+app.get('/api/unit-prices/:unitId', authMiddleware, unitPrices.detail);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hexavara CRM API is running' });

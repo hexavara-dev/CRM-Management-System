@@ -6,3 +6,4 @@ export * from './product/product.js';
 export * from './product/attribute.js';
 export * from './product/unit.js';
 export * from './product/media.js';
+export * from './product/unitPrice.js';
