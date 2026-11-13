@@ -10,7 +10,7 @@ import {
   House,
   Images,
   Lightbulb,
-  Map,
+  Map as MapIcon,
   MapPin,
   Search,
   ShieldCheck,
@@ -44,7 +44,7 @@ const FACILITIES: { name: string; icon: LucideIcon }[] = [
 const TABS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "overview", label: "Overview", icon: Video },
   { value: "unit-distribution", label: "Unit Distribution", icon: ChartColumn },
-  { value: "siteplan", label: "Siteplan", icon: Map },
+  { value: "siteplan", label: "Siteplan", icon: MapIcon },
   { value: "media", label: "Media", icon: Images },
   { value: "documents", label: "Documents", icon: FileText },
 ];
