@@ -100,7 +100,17 @@ export function sellingPrice(basePrice: bigint, logTotal: bigint, adjustment: bi
   return basePrice + logTotal + adjustment;
 }
 
+/**
+ * Approval penyesuaian di bawah harga minimum. Dinonaktifkan pada tahap awal:
+ * semua penyesuaian langsung APPROVED. Ubah ke true untuk menyalakan alur approval.
+ */
+export const PRICE_APPROVAL_ENABLED = false;
+
 /** Decides whether a new adjustment needs approval. */
-export function needsApproval(priceAfter: bigint, minPrice: bigint | null) {
-  return minPrice !== null && priceAfter < minPrice;
+export function needsApproval(
+  priceAfter: bigint,
+  minPrice: bigint | null,
+  approvalEnabled = PRICE_APPROVAL_ENABLED
+) {
+  return approvalEnabled && minPrice !== null && priceAfter < minPrice;
 }

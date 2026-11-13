@@ -135,28 +135,42 @@ export class UnitPriceUseCase {
       };
     }
 
-    const [units, total, pendingAdjustments] = await Promise.all([
-      this.prisma.productUnit.findMany({
-        where,
-        include: unitInclude,
-        orderBy: { code: 'asc' },
-        skip: (filters.page - 1) * filters.limit,
-        take: filters.limit,
-      }),
-      this.prisma.productUnit.count({ where }),
+    // Semua unit yang cocok dengan filter dihitung harganya sekali, agar ringkasan
+    // (jumlah project, status, dan nilai harga jual) mencakup seluruh hasil filter,
+    // lalu dipotong per halaman untuk tabel.
+    const [allUnits, pendingAdjustments] = await Promise.all([
+      this.prisma.productUnit.findMany({ where, include: unitInclude, orderBy: { code: 'asc' } }),
       this.prisma.unitPriceAdjustment.count({ where: { tenantId, status: 'PENDING' } }),
     ]);
+    const total = allUnits.length;
+    const pricedAll = await this.price(tenantId, allUnits, day);
+    const start = (filters.page - 1) * filters.limit;
+    const priced = pricedAll.slice(start, start + filters.limit);
 
     const pendingUnits = new Set(
       (
         await this.prisma.unitPriceAdjustment.findMany({
-          where: { tenantId, status: 'PENDING', unitId: { in: units.map((u) => u.id) } },
+          where: { tenantId, status: 'PENDING', unitId: { in: priced.map((p) => p.unit.id) } },
           select: { unitId: true },
         })
       ).map((row) => row.unitId)
     );
 
-    const priced = await this.price(tenantId, units, day);
+    const byStatus: Record<ProductUnitStatus, number> = {
+      AVAILABLE: 0,
+      RESERVED: 0,
+      BOOKED: 0,
+      SOLD: 0,
+      BLOCKED: 0,
+    };
+    let unsoldValue = ZERO;
+    const projects = new Set<string>();
+    for (const { unit, price } of pricedAll) {
+      byStatus[unit.status] += 1;
+      projects.add(unit.variant.product.id);
+      if (unit.status !== 'SOLD') unsoldValue += price;
+    }
+
     const data = priced.map(({ unit, basePrice, logTotal, amount, price }) => ({
       unitId: unit.id,
       code: unit.code,
@@ -180,7 +194,15 @@ export class UnitPriceUseCase {
         limit: filters.limit,
         totalPages: Math.ceil(total / filters.limit),
       },
-      summary: { totalUnits: total, pendingAdjustments, date: day },
+      summary: {
+        totalUnits: total,
+        totalProjects: projects.size,
+        byStatus,
+        /** Jumlah harga jual unit yang belum terjual (status selain SOLD). */
+        unsoldValue,
+        pendingAdjustments,
+        date: day,
+      },
     };
   }
 
@@ -234,9 +256,13 @@ export class UnitPriceUseCase {
     const unit = await this.findUnit(unitId, actor.tenantId);
     if (unit.status === 'SOLD') throw new Error('Price of a sold unit cannot be adjusted (conflict)');
 
+    // input.amount adalah selisih terhadap harga jual pada tanggal efektif.
+    // Yang disimpan adalah total penyesuaian unit (penyesuaian aktif + selisih),
+    // sehingga rumus harga dan kenaikan tipe/blok tetap berlaku.
+    if (input.amount === 0) throw new Error('amount must not be 0');
     const [priced] = await this.price(actor.tenantId, [unit], input.effectiveDate);
-    const { basePrice, logTotal, price } = priced!;
-    const amount = BigInt(input.amount);
+    const { basePrice, logTotal, amount: currentAmount, price } = priced!;
+    const amount = currentAmount + BigInt(input.amount);
     const priceAfter = sellingPrice(basePrice, logTotal, amount);
     if (priceAfter < ZERO) throw new Error('Selling price after adjustment must be at least 0');
 

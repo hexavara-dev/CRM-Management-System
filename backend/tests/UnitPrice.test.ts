@@ -4,6 +4,7 @@ import {
   activeLogsForUnit,
   ancestorChain,
   needsApproval,
+  PRICE_APPROVAL_ENABLED,
   sellingPrice,
   sumLogs,
   toDateValue,
@@ -83,10 +84,15 @@ describe('price rules', () => {
     expect(sellingPrice(big(450_000_000), total, big(10_000_000))).toBe(big(485_000_000));
   });
 
-  it('requires approval only below a configured minimum', () => {
-    expect(needsApproval(big(400), big(440))).toBe(true);
-    expect(needsApproval(big(440), big(440))).toBe(false);
-    expect(needsApproval(big(1), null)).toBe(false);
+  it('requires approval only below a configured minimum when approval is enabled', () => {
+    expect(needsApproval(big(400), big(440), true)).toBe(true);
+    expect(needsApproval(big(440), big(440), true)).toBe(false);
+    expect(needsApproval(big(1), null, true)).toBe(false);
+  });
+
+  it('never requires approval while approval is disabled', () => {
+    expect(PRICE_APPROVAL_ENABLED).toBe(false);
+    expect(needsApproval(big(400), big(440))).toBe(false);
   });
 
   it('formats today in the Jakarta time zone', () => {
@@ -106,7 +112,7 @@ describe('UnitPriceUseCase.createAdjustment', () => {
     category: {},
   };
 
-  function prisma(over: { unit?: unknown; pending?: number } = {}) {
+  function prisma(over: { unit?: unknown; pending?: number; adjustments?: unknown[] } = {}) {
     const tx = {
       unitPriceAdjustment: {
         count: fn(over.pending ?? 0),
@@ -118,10 +124,30 @@ describe('UnitPriceUseCase.createAdjustment', () => {
       productUnit: { findFirst: fn('unit' in over ? over.unit : unit) },
       productCategory: { findMany: fn([]) },
       productVariantPriceLog: { findMany: fn([]) },
-      unitPriceAdjustment: { findMany: fn([]) },
+      unitPriceAdjustment: { findMany: fn(over.adjustments ?? []) },
       $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
     };
   }
+
+  it('adds the nominal to the current selling price instead of replacing the adjustment', async () => {
+    const active = {
+      unitId: 'u-1',
+      amount: big(40_000_000),
+      effectiveDate: toDateValue('2026-01-01'),
+      approvedAt: new Date(1),
+    };
+    const db = prisma({ adjustments: [active] });
+    const row = (await new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(5_000_000))) as any;
+    expect(row.priceBefore).toBe(big(490_000_000));
+    expect(row.priceAfter).toBe(big(495_000_000));
+    expect(row.amount).toBe(big(45_000_000));
+  });
+
+  it('rejects a zero nominal', async () => {
+    await expect(new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(0))).rejects.toThrow(
+      /must not be 0/
+    );
+  });
 
   const input = (amount: number, effectiveDate = today) => ({ amount, reason: 'Posisi hook', effectiveDate });
 
@@ -135,11 +161,12 @@ describe('UnitPriceUseCase.createAdjustment', () => {
     expect(row.tenantId).toBe('t-1');
   });
 
-  it('marks an adjustment below the minimum as pending', async () => {
+  it('approves an adjustment below the minimum while approval is disabled', async () => {
     const db = prisma();
     const row = (await new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(-20_000_000))) as any;
-    expect(row.status).toBe('PENDING');
-    expect(row.approvedById).toBeUndefined();
+    expect(row.status).toBe('APPROVED');
+    expect(row.approvedById).toBe('owner-1');
+    expect(row.priceAfter).toBe(big(430_000_000));
     expect(row.minPrice).toBe(big(440_000_000));
   });
 
@@ -218,5 +245,38 @@ describe('unit price filters', () => {
     expect(parseUnitPriceFilters({ date: '2026-11-13' }).date).toBe('2026-11-13');
     expect(() => parseUnitPriceFilters({ date: '13-11-2026' })).toThrow(/YYYY-MM-DD/);
     expect(() => parseUnitPriceFilters({ date: 'dd2026-11-13' })).toThrow(/YYYY-MM-DD/);
+  });
+});
+
+describe('UnitPriceUseCase.list summary', () => {
+  it('summarizes all filtered units, not only the current page', async () => {
+    const unit = (id: string, status: string, productId: string, basePrice: number) => ({
+      id,
+      code: id,
+      name: null,
+      status,
+      variantId: `v-${productId}`,
+      categoryId: 'block',
+      variant: { id: `v-${productId}`, name: 'Type', basePrice: BigInt(basePrice), minPrice: null, product: { id: productId, name: productId } },
+      category: { id: 'block', name: 'Block', type: 'BLOCK' },
+    });
+    const units = [
+      unit('A1', 'AVAILABLE', 'p-1', 100),
+      unit('A2', 'SOLD', 'p-1', 200),
+      unit('B1', 'RESERVED', 'p-2', 300),
+    ];
+    const ok = (value: unknown) => jest.fn<(...args: any[]) => any>().mockResolvedValue(value);
+    const db = {
+      productUnit: { findMany: ok(units) },
+      unitPriceAdjustment: { count: ok(0), findMany: ok([]) },
+      productCategory: { findMany: ok([]) },
+      productVariantPriceLog: { findMany: ok([]) },
+    };
+    const result = await new UnitPriceUseCase(db as never).list('t-1', { page: 1, limit: 2 });
+    expect(result.data).toHaveLength(2);
+    expect(result.meta.total).toBe(3);
+    expect(result.summary.totalProjects).toBe(2);
+    expect(result.summary.byStatus).toMatchObject({ AVAILABLE: 1, SOLD: 1, RESERVED: 1 });
+    expect(result.summary.unsoldValue).toBe(BigInt(400));
   });
 });

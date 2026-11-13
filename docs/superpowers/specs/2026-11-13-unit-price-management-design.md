@@ -43,7 +43,7 @@ Dalam istilah aplikasi saat ini, **project** adalah `products`, **tipe rumah** a
 | 2 | Batas minimum di kolom baru `product_variants.min_price`, nullable | Setiap tipe bisa punya batas berbeda. Null berarti tanpa batas. |
 | 3 | Penyesuaian per unit disimpan di tabel baru `unit_price_adjustments` | Satu tabel melayani penyesuaian, approval, dan riwayat |
 | 4 | `product_units.adjustment_amount` dan `adjustment_reason` tidak dipakai lagi | Nilai yang berlaku diambil dari riwayat. Kolom dihapus setelah disepakati tim. |
-| 5 | Penyesuaian menyimpan nominal selisih, bukan harga akhir | Kenaikan varian atau blok berikutnya tetap berlaku pada unit yang sudah disesuaikan |
+| 5 | User mengisi nominal yang ditambahkan ke harga jual saat ini. Sistem menyimpan total penyesuaian, bukan harga akhir. | Sesuai CRM-52 "penyesuaian harga jual", dan kenaikan varian atau blok berikutnya tetap berlaku pada unit yang sudah disesuaikan |
 | 6 | Riwayat hanya bisa ditambah | DoD CRM-53. Tidak ada endpoint ubah atau hapus. |
 | 7 | Penyesuaian di bawah minimum masuk `PENDING`, walaupun diajukan `owner` | Alur approval sudah siap saat hak akses dirapikan |
 | 8 | `current_price` tidak dipakai dalam perhitungan harga unit | Kolom ini disimpan dan tidak punya aturan pembaruan |
@@ -62,7 +62,8 @@ harga jual  = harga dasar + kenaikan + penyesuaian
 ```
 
 - **Price log aktif:** `effective_start <= tanggal acuan` dan `end_date` kosong atau `>= tanggal acuan`. Kolom `status` pada price log diabaikan.
-- **Penyesuaian aktif:** hanya satu yang berlaku per unit, yaitu baris `APPROVED` dengan `effective_date <= tanggal acuan` yang paling baru (urut `effective_date`, lalu `approved_at`). Penyesuaian baru menggantikan yang lama, bukan ditambahkan.
+- **Penyesuaian aktif:** hanya satu yang berlaku per unit, yaitu baris `APPROVED` dengan `effective_date <= tanggal acuan` yang paling baru (urut `effective_date`, lalu `approved_at`). Kolom `amount` pada baris itu adalah total penyesuaian unit.
+- **Nominal input bersifat menambah.** User mengisi selisih terhadap harga jual saat ini. Sistem menyimpan `amount` = penyesuaian aktif pada tanggal efektif + nominal. Contoh: harga jual 350 juta dengan penyesuaian aktif +40 juta, lalu diinput +5 juta, maka `amount` = +45 juta dan harga jual menjadi 355 juta. Nominal 0 ditolak.
 - **Tanggal acuan:** hari ini dalam zona waktu `Asia/Jakarta`, atau parameter `date` pada API.
 - **Harga jual tidak boleh negatif.** Penyesuaian yang membuatnya negatif ditolak.
 
@@ -83,9 +84,9 @@ Contoh: Type 45 dengan harga dasar 450.000.000, kenaikan Blok B +20.000.000 yang
 | `id` | VARCHAR(36) | UUID |
 | `company_id` | VARCHAR(36) | Dari JWT |
 | `unit_id` | VARCHAR(36) | Unit milik company yang sama |
-| `amount` | BIGINT | Selisih terhadap harga dasar + kenaikan. Boleh negatif. |
+| `amount` | BIGINT | Total penyesuaian unit terhadap harga dasar + kenaikan, yaitu penyesuaian aktif ditambah nominal input. Boleh negatif. |
 | `price_before` | BIGINT | Harga jual pada `effective_date`, dihitung saat diajukan |
-| `price_after` | BIGINT | `price_before` dikurangi penyesuaian lama, ditambah `amount` |
+| `price_after` | BIGINT | `price_before` + nominal input |
 | `min_price` | BIGINT, nullable | Salinan batas minimum saat diajukan |
 | `reason` | TEXT | Wajib, 3 sampai 500 karakter |
 | `effective_date` | DATE | Hari ini atau setelahnya |
@@ -113,6 +114,9 @@ Index: `(company_id, unit_id, status, effective_date)` dan `(company_id, status)
 7. Semua langkah berjalan dalam satu transaksi database.
 
 ### Approval
+
+> **Tahap awal: approval dinonaktifkan.** Konstanta `PRICE_APPROVAL_ENABLED = false` di `backend/src/usecases/pricing/priceRules.ts` dan `frontend/hooks/use-unit-prices.ts` membuat semua penyesuaian langsung `APPROVED`, termasuk yang di bawah `min_price`. Harga minimum tetap disalin ke riwayat, dan modal tetap menampilkan peringatan bila harga baru di bawah minimum. Tab, ringkasan, dan penanda approval disembunyikan. Endpoint approve dan reject tetap ada. Untuk menyalakan alur di bawah, ubah kedua konstanta menjadi `true`.
+
 
 - Hanya pengajuan `PENDING` yang bisa disetujui atau ditolak.
 - Menyetujui mengisi `approved_by`, `approved_at`, dan status `APPROVED`. Jika `effective_date` sudah lewat, penyesuaian berlaku sejak disetujui.
