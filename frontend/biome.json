@@ -14,7 +14,7 @@
       "**/.next",
       "**/node_modules",
       "**/package.json",
-      "public/data/wilayah.json"
+      "**/public/data/wilayah.json"
     ]
   },
   "organizeImports": { "enabled": true },
