@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import {
   activeAdjustment,
   activeLogsForUnit,
@@ -9,8 +10,15 @@ import {
   todayInPriceZone,
   type PriceLogRow,
 } from '../src/usecases/pricing/priceRules.js';
-import { parseUnitPriceFilters } from '../src/presentation/validation/product/unitPrice.js';
+import { UnitPriceUseCase } from '../src/usecases/pricing/UnitPriceUseCase.js';
+import {
+  parseUnitPriceFilters,
+  validateAdjustment,
+  validateReview,
+} from '../src/presentation/validation/product/unitPrice.js';
 
+type Mock = jest.Mock<(...args: any[]) => any>;
+const fn = (value?: unknown): Mock => jest.fn<(...args: any[]) => any>().mockResolvedValue(value);
 const big = (n: number) => BigInt(n);
 
 const log = (over: Partial<PriceLogRow>): PriceLogRow => ({
@@ -83,6 +91,125 @@ describe('price rules', () => {
 
   it('formats today in the Jakarta time zone', () => {
     expect(todayInPriceZone(new Date('2026-11-12T18:00:00Z'))).toBe('2026-11-13');
+  });
+});
+
+describe('UnitPriceUseCase.createAdjustment', () => {
+  const today = todayInPriceZone();
+  const actor = { tenantId: 't-1', userId: 'owner-1' };
+  const unit = {
+    id: 'u-1',
+    categoryId: 'block-b',
+    variantId: 'v-45',
+    status: 'AVAILABLE',
+    variant: { id: 'v-45', name: 'Type 45', basePrice: big(450_000_000), minPrice: big(440_000_000), product: {} },
+    category: {},
+  };
+
+  function prisma(over: { unit?: unknown; pending?: number } = {}) {
+    const tx = {
+      unitPriceAdjustment: {
+        count: fn(over.pending ?? 0),
+        create: jest.fn(async ({ data }: { data: unknown }) => data),
+      },
+    };
+    return {
+      tx,
+      productUnit: { findFirst: fn('unit' in over ? over.unit : unit) },
+      productCategory: { findMany: fn([]) },
+      productVariantPriceLog: { findMany: fn([]) },
+      unitPriceAdjustment: { findMany: fn([]) },
+      $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
+    };
+  }
+
+  const input = (amount: number, effectiveDate = today) => ({ amount, reason: 'Posisi hook', effectiveDate });
+
+  it('applies an adjustment at or above the minimum immediately', async () => {
+    const db = prisma();
+    const row = (await new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(-10_000_000))) as any;
+    expect(row.status).toBe('APPROVED');
+    expect(row.approvedById).toBe('owner-1');
+    expect(row.priceBefore).toBe(big(450_000_000));
+    expect(row.priceAfter).toBe(big(440_000_000));
+    expect(row.tenantId).toBe('t-1');
+  });
+
+  it('marks an adjustment below the minimum as pending', async () => {
+    const db = prisma();
+    const row = (await new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(-20_000_000))) as any;
+    expect(row.status).toBe('PENDING');
+    expect(row.approvedById).toBeUndefined();
+    expect(row.minPrice).toBe(big(440_000_000));
+  });
+
+  it('rejects a second adjustment while one is pending', async () => {
+    const db = prisma({ pending: 1 });
+    await expect(
+      new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(1_000_000))
+    ).rejects.toThrow(/pending adjustment/);
+  });
+
+  it('rejects past dates, sold units, negative prices, and other tenants', async () => {
+    await expect(
+      new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(1, '2000-01-01'))
+    ).rejects.toThrow(/today or later/);
+    await expect(
+      new UnitPriceUseCase(prisma({ unit: { ...unit, status: 'SOLD' } }) as never).createAdjustment('u-1', actor, input(1))
+    ).rejects.toThrow(/sold unit/);
+    await expect(
+      new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(-500_000_000))
+    ).rejects.toThrow(/at least 0/);
+
+    const db = prisma({ unit: null });
+    await expect(new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(1))).rejects.toThrow(
+      'Unit not found'
+    );
+    expect(db.productUnit.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'u-1', tenantId: 't-1' } })
+    );
+  });
+});
+
+describe('UnitPriceUseCase.review', () => {
+  const actor = { tenantId: 't-1', userId: 'owner-1' };
+
+  it('decides a pending adjustment only once', async () => {
+    const db = {
+      unitPriceAdjustment: {
+        updateMany: fn({ count: 0 }),
+        findFirst: fn({ id: 'a-1' }),
+      },
+    };
+    await expect(new UnitPriceUseCase(db as never).review('a-1', actor, 'APPROVED')).rejects.toThrow(
+      /Only pending/
+    );
+    expect(db.unitPriceAdjustment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'a-1', tenantId: 't-1', status: 'PENDING' } })
+    );
+  });
+
+  it('requires a note to reject', async () => {
+    await expect(new UnitPriceUseCase({} as never).review('a-1', actor, 'REJECTED', ' ')).rejects.toThrow(
+      /note is required/
+    );
+  });
+});
+
+describe('unit price validation', () => {
+  it('requires a reason and a valid effective date', () => {
+    expect(() => validateAdjustment({ amount: 1, effectiveDate: '2026-11-13' })).toThrow(/reason is required/);
+    expect(() => validateAdjustment({ amount: 1, reason: 'Hook', effectiveDate: '13-11-2026' })).toThrow(
+      /YYYY-MM-DD/
+    );
+    expect(() => validateAdjustment({ amount: 1.5, reason: 'Hook', effectiveDate: '2026-11-13' })).toThrow(
+      /integer/
+    );
+  });
+
+  it('requires a note only when rejecting', () => {
+    expect(validateReview({}, false)).toBeUndefined();
+    expect(() => validateReview({}, true)).toThrow(/note is required/);
   });
 });
 

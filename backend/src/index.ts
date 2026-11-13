@@ -350,10 +350,15 @@ app.post('/api/characteristics', authMiddleware, ownerOnly, pc.createCharacteris
 app.put('/api/characteristics/:id', authMiddleware, ownerOnly, pc.updateCharacteristic);
 app.delete('/api/characteristics/:id', authMiddleware, ownerOnly, pc.deleteCharacteristic);
 
-// Unit price management (CRM-51): daftar dan rincian harga unit.
+// Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
 const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));
 app.get('/api/unit-prices', authMiddleware, unitPrices.list);
 app.get('/api/unit-prices/:unitId', authMiddleware, unitPrices.detail);
+app.get('/api/unit-prices/:unitId/history', authMiddleware, unitPrices.history);
+app.post('/api/unit-prices/:unitId/adjustments', authMiddleware, ownerOnly, unitPrices.createAdjustment);
+app.get('/api/unit-price-adjustments', authMiddleware, unitPrices.listAdjustments);
+app.post('/api/unit-price-adjustments/:id/approve', authMiddleware, ownerOnly, unitPrices.approve);
+app.post('/api/unit-price-adjustments/:id/reject', authMiddleware, ownerOnly, unitPrices.reject);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hexavara CRM API is running' });

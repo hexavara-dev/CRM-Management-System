@@ -1,9 +1,10 @@
-import type { Prisma, PrismaClient, ProductUnitStatus } from '@prisma/client';
+import type { PriceAdjustmentStatus, Prisma, PrismaClient, ProductUnitStatus } from '@prisma/client';
 import { categoryWithDescendants } from '../product/catalogRules.js';
 import {
   activeAdjustment,
   activeLogsForUnit,
   ancestorChain,
+  needsApproval,
   sellingPrice,
   sumLogs,
   toDateValue,
@@ -21,6 +22,8 @@ export type UnitPriceFilters = {
   status?: ProductUnitStatus;
   date?: string;
 };
+
+export type AdjustmentInput = { amount: number; reason: string; effectiveDate: string };
 
 export type Actor = { tenantId: string; userId: string };
 
@@ -206,5 +209,126 @@ export class UnitPriceUseCase {
       sellingPrice: price,
       pendingAdjustment: pending,
     };
+  }
+
+  async history(unitId: string, tenantId: string, page: number, limit: number) {
+    await this.findUnit(unitId, tenantId);
+    const where = { tenantId, unitId };
+    const [data, total] = await Promise.all([
+      this.prisma.unitPriceAdjustment.findMany({
+        where,
+        include: { requestedBy: userSelect, approvedBy: userSelect },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.unitPriceAdjustment.count({ where }),
+    ]);
+    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+  }
+
+  async createAdjustment(unitId: string, actor: Actor, input: AdjustmentInput) {
+    const today = todayInPriceZone();
+    if (input.effectiveDate < today) throw new Error('effectiveDate must be today or later');
+
+    const unit = await this.findUnit(unitId, actor.tenantId);
+    if (unit.status === 'SOLD') throw new Error('Price of a sold unit cannot be adjusted (conflict)');
+
+    const [priced] = await this.price(actor.tenantId, [unit], input.effectiveDate);
+    const { basePrice, logTotal, price } = priced!;
+    const amount = BigInt(input.amount);
+    const priceAfter = sellingPrice(basePrice, logTotal, amount);
+    if (priceAfter < ZERO) throw new Error('Selling price after adjustment must be at least 0');
+
+    const minPrice = unit.variant.minPrice;
+    const status: PriceAdjustmentStatus = needsApproval(priceAfter, minPrice) ? 'PENDING' : 'APPROVED';
+
+    return this.prisma.$transaction(async (tx) => {
+      const pending = await tx.unitPriceAdjustment.count({
+        where: { tenantId: actor.tenantId, unitId, status: 'PENDING' },
+      });
+      if (pending > 0) {
+        throw new Error('This unit already has a pending adjustment (conflict)');
+      }
+      return tx.unitPriceAdjustment.create({
+        data: {
+          tenantId: actor.tenantId,
+          unitId,
+          amount,
+          priceBefore: price,
+          priceAfter,
+          minPrice,
+          reason: input.reason,
+          effectiveDate: toDateValue(input.effectiveDate),
+          status,
+          requestedById: actor.userId,
+          ...(status === 'APPROVED' ? { approvedById: actor.userId, approvedAt: new Date() } : {}),
+        },
+        include: { requestedBy: userSelect, approvedBy: userSelect },
+      });
+    });
+  }
+
+  async listAdjustments(
+    tenantId: string,
+    filters: { status?: PriceAdjustmentStatus; page: number; limit: number }
+  ) {
+    const where: Prisma.UnitPriceAdjustmentWhereInput = { tenantId };
+    if (filters.status) where.status = filters.status;
+    const [data, total] = await Promise.all([
+      this.prisma.unitPriceAdjustment.findMany({
+        where,
+        include: {
+          requestedBy: userSelect,
+          approvedBy: userSelect,
+          unit: {
+            select: {
+              id: true,
+              code: true,
+              variant: { select: { id: true, name: true, product: { select: { id: true, name: true } } } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit,
+      }),
+      this.prisma.unitPriceAdjustment.count({ where }),
+    ]);
+    return {
+      data,
+      meta: {
+        total,
+        page: filters.page,
+        limit: filters.limit,
+        totalPages: Math.ceil(total / filters.limit),
+      },
+    };
+  }
+
+  /** Approves or rejects a pending adjustment exactly once. */
+  async review(id: string, actor: Actor, decision: 'APPROVED' | 'REJECTED', note?: string) {
+    if (decision === 'REJECTED' && !note?.trim()) throw new Error('note is required to reject');
+    const result = await this.prisma.unitPriceAdjustment.updateMany({
+      where: { id, tenantId: actor.tenantId, status: 'PENDING' },
+      data: {
+        status: decision,
+        approvedById: actor.userId,
+        approvedAt: new Date(),
+        reviewNote: note?.trim() || null,
+      },
+    });
+    if (result.count === 0) {
+      const exists = await this.prisma.unitPriceAdjustment.findFirst({
+        where: { id, tenantId: actor.tenantId },
+        select: { id: true },
+      });
+      if (!exists) throw new Error('Adjustment not found');
+      throw new Error('Only pending adjustments can be reviewed (conflict)');
+    }
+    return this.prisma.unitPriceAdjustment.findFirst({
+      where: { id, tenantId: actor.tenantId },
+      include: { requestedBy: userSelect, approvedBy: userSelect },
+    });
   }
 }
