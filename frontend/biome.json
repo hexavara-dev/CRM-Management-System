@@ -13,7 +13,8 @@
     "ignore": [
       "**/.next",
       "**/node_modules",
-      "**/package.json"
+      "**/package.json",
+      "public/data/wilayah.json"
     ]
   },
   "organizeImports": { "enabled": true },

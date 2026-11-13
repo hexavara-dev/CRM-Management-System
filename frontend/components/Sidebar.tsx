@@ -212,7 +212,7 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
             { title: "Availability", url: "/availability", icon: Building },
             {
               title: "Reservations",
-              url: "/reservations",
+              url: "/reservation",
               icon: CalendarCheck2,
             },
           ],

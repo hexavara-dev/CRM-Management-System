@@ -38,6 +38,8 @@ import { ProductMediaUseCase } from './usecases/product/ProductMediaUseCase.js';
 import { ProductUnitUseCase } from './usecases/product/ProductUnitUseCase.js';
 import { AttributeUseCase } from './usecases/product/AttributeUseCase.js';
 import { ProductController } from './presentation/controllers/ProductController.js';
+import { ReservationController } from './presentation/controllers/ReservationController.js';
+import { ReservationUseCase } from './usecases/reservation/ReservationUseCase.js';
 
 // Prisma returns BigInt for price columns; JSON.stringify cannot serialize it.
 // Prices stay below Number.MAX_SAFE_INTEGER (enforced by request validation).
@@ -347,6 +349,12 @@ app.get('/api/characteristics', authMiddleware, pc.listCharacteristics);
 app.post('/api/characteristics', authMiddleware, ownerOnly, pc.createCharacteristic);
 app.put('/api/characteristics/:id', authMiddleware, ownerOnly, pc.updateCharacteristic);
 app.delete('/api/characteristics/:id', authMiddleware, ownerOnly, pc.deleteCharacteristic);
+
+const reservationController = new ReservationController(new ReservationUseCase(prisma));
+app.get('/api/reservations', authMiddleware, reservationController.list);
+app.post('/api/reservations', authMiddleware, reservationController.create);
+app.get('/api/reservations/:id', authMiddleware, reservationController.get);
+app.patch('/api/reservations/:id/status', authMiddleware, reservationController.updateStatus);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hexavara CRM API is running' });

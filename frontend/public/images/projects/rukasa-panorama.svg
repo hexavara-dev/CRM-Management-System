@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Rukasa Panorama</title><desc id="desc">Illustration of a panoramic residential neighborhood.</desc>
+  <rect width="1200" height="700" fill="#ede9fe"/><circle cx="965" cy="135" r="70" fill="#fb923c"/>
+  <path d="M0 540c220-104 390-90 600 0 205-98 400-96 600 0v160H0z" fill="#73ae82"/>
+  <path d="m300 430 175-150 175 150v145H300z" fill="#fff" stroke="#4f46e5" stroke-width="18"/><path d="m275 430 200-174 200 174" fill="none" stroke="#4f46e5" stroke-width="28" stroke-linejoin="round"/>
+  <rect x="440" y="460" width="76" height="115" rx="8" fill="#f97316"/><rect x="340" y="440" width="52" height="52" rx="6" fill="#ddd6fe"/><rect x="565" y="440" width="52" height="52" rx="6" fill="#ddd6fe"/>
+  <path d="M820 535V410l78-68 78 68v125" fill="#fff" stroke="#4f46e5" stroke-width="18"/><path d="M792 415 898 320l106 95" fill="none" stroke="#4f46e5" stroke-width="18"/>
+</svg>
