@@ -15,6 +15,7 @@ import { UnitPriceUseCase } from '../src/usecases/pricing/UnitPriceUseCase.js';
 import {
   parseUnitPriceFilters,
   validateAdjustment,
+  validateBulkAdjustment,
   validateReview,
 } from '../src/presentation/validation/product/unitPrice.js';
 
@@ -195,6 +196,122 @@ describe('UnitPriceUseCase.createAdjustment', () => {
     expect(db.productUnit.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'u-1', tenantId: 't-1' } })
     );
+  });
+});
+
+describe('UnitPriceUseCase.createBulkAdjustment', () => {
+  const today = todayInPriceZone();
+  const actor = { tenantId: 't-1', userId: 'owner-1' };
+  const input = (amount: number) => ({ amount, reason: 'Kenaikan Q4', effectiveDate: today });
+  const unit = (id: string, over: { status?: string; productId?: string; basePrice?: number } = {}) => ({
+    id,
+    code: id.toUpperCase(),
+    categoryId: 'block-a',
+    variantId: 'v-36',
+    status: over.status ?? 'AVAILABLE',
+    variant: {
+      id: 'v-36',
+      name: 'Type 36',
+      basePrice: big(over.basePrice ?? 350_000_000),
+      minPrice: big(340_000_000),
+      product: { id: over.productId ?? 'p-1', name: 'Project' },
+    },
+    category: {},
+  });
+
+  function prisma(units: unknown[], over: { pending?: unknown[]; adjustments?: unknown[] } = {}) {
+    const tx = {
+      unitPriceAdjustment: {
+        findMany: fn(over.pending ?? []),
+        create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: `adj-${data.unitId}`, ...data })),
+      },
+    };
+    return {
+      tx,
+      productUnit: { findMany: fn(units) },
+      productCategory: { findMany: fn([]) },
+      productVariantPriceLog: { findMany: fn([]) },
+      unitPriceAdjustment: { findMany: fn(over.adjustments ?? []) },
+      $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
+    };
+  }
+
+  it('adds the nominal to each unit price in one transaction', async () => {
+    const active = { unitId: 'u-2', amount: big(10_000_000), effectiveDate: toDateValue('2026-01-01'), approvedAt: new Date(1) };
+    const db = prisma([unit('u-1'), unit('u-2'), unit('u-3', { basePrice: 450_000_000 })], { adjustments: [active] });
+    const result = await new UnitPriceUseCase(db as never).createBulkAdjustment(['u-1', 'u-2', 'u-3'], actor, input(5_000_000));
+
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(result.count).toBe(3);
+    expect(result.data.map((r) => [r.code, r.priceBefore, r.priceAfter])).toEqual([
+      ['U-1', big(350_000_000), big(355_000_000)],
+      ['U-2', big(360_000_000), big(365_000_000)],
+      ['U-3', big(450_000_000), big(455_000_000)],
+    ]);
+    const created = db.tx.unitPriceAdjustment.create.mock.calls.map(([arg]) => (arg as { data: any }).data);
+    expect(created.find((d) => d.unitId === 'u-2').amount).toBe(big(15_000_000));
+    expect(created.every((d) => d.tenantId === 't-1' && d.status === 'APPROVED')).toBe(true);
+    expect(db.productUnit.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['u-1', 'u-2', 'u-3'] }, tenantId: 't-1' } })
+    );
+  });
+
+  it('rejects units of another tenant or missing units', async () => {
+    const db = prisma([unit('u-1')]);
+    await expect(
+      new UnitPriceUseCase(db as never).createBulkAdjustment(['u-1', 'u-x'], actor, input(1))
+    ).rejects.toThrow('Units not found: u-x');
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects units from different projects', async () => {
+    const db = prisma([unit('u-1'), unit('u-2', { productId: 'p-2' })]);
+    await expect(
+      new UnitPriceUseCase(db as never).createBulkAdjustment(['u-1', 'u-2'], actor, input(1))
+    ).rejects.toThrow(/same project/);
+  });
+
+  it('rejects sold units and negative prices with their codes', async () => {
+    await expect(
+      new UnitPriceUseCase(prisma([unit('u-1'), unit('u-2', { status: 'SOLD' })]) as never).createBulkAdjustment(
+        ['u-1', 'u-2'],
+        actor,
+        input(1)
+      )
+    ).rejects.toThrow(/sold unit.*U-2/);
+    await expect(
+      new UnitPriceUseCase(prisma([unit('u-1'), unit('u-2', { basePrice: 100 })]) as never).createBulkAdjustment(
+        ['u-1', 'u-2'],
+        actor,
+        input(-1_000_000)
+      )
+    ).rejects.toThrow(/at least 0: U-2/);
+  });
+
+  it('rejects units with a pending adjustment and writes nothing', async () => {
+    const db = prisma([unit('u-1'), unit('u-2')], { pending: [{ unitId: 'u-2' }] });
+    await expect(
+      new UnitPriceUseCase(db as never).createBulkAdjustment(['u-1', 'u-2'], actor, input(1))
+    ).rejects.toThrow(/pending adjustment.*U-2/);
+    expect(db.tx.unitPriceAdjustment.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('bulk adjustment validation', () => {
+  const base = { amount: 1, reason: 'Hook', effectiveDate: '2026-11-16' };
+
+  it('requires 1 to 100 unique unit ids', () => {
+    expect(() => validateBulkAdjustment({ ...base })).toThrow(/non-empty array/);
+    expect(() => validateBulkAdjustment({ ...base, unitIds: [] })).toThrow(/non-empty array/);
+    const many = Array.from({ length: 101 }, (_, i) => `u-${i}`);
+    expect(() => validateBulkAdjustment({ ...base, unitIds: many })).toThrow(/at most 100/);
+    expect(() => validateBulkAdjustment({ ...base, unitIds: ['a', 'a'] })).toThrow(/duplicates/);
+    expect(() => validateBulkAdjustment({ ...base, unitIds: [1] })).toThrow(/valid unit ids/);
+  });
+
+  it('applies the single adjustment rules', () => {
+    expect(() => validateBulkAdjustment({ unitIds: ['a'], amount: 1 })).toThrow(/reason is required/);
+    expect(validateBulkAdjustment({ ...base, unitIds: ['a'] })).toEqual({ ...base, unitIds: ['a'] });
   });
 });
 

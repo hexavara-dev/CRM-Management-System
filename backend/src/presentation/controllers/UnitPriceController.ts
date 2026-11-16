@@ -6,6 +6,7 @@ import {
   parseAdjustmentStatus,
   parseUnitPriceFilters,
   validateAdjustment,
+  validateBulkAdjustment,
   validateReview,
 } from '../validation/product/unitPrice.js';
 
@@ -55,6 +56,11 @@ export class UnitPriceController {
     res
       .status(201)
       .json(await this.prices.createAdjustment(param(req, 'unitId'), actor, validateAdjustment(req.body)));
+  });
+
+  createBulkAdjustment = handle(async (req, res, actor) => {
+    const { unitIds, ...input } = validateBulkAdjustment(req.body);
+    res.status(201).json(await this.prices.createBulkAdjustment(unitIds, actor, input));
   });
 
   listAdjustments = handle(async (req, res, { tenantId }) => {

@@ -27,6 +27,23 @@ export function validateAdjustment(body: unknown): AdjustmentInput {
   };
 }
 
+export const BULK_ADJUSTMENT_MAX_UNITS = 100;
+
+export function validateBulkAdjustment(body: unknown): AdjustmentInput & { unitIds: string[] } {
+  const { unitIds, ...rest } = (body ?? {}) as Record<string, unknown>;
+  if (!Array.isArray(unitIds) || unitIds.length === 0) {
+    throw new Error('unitIds must be a non-empty array');
+  }
+  if (unitIds.length > BULK_ADJUSTMENT_MAX_UNITS) {
+    throw new Error(`unitIds must contain at most ${BULK_ADJUSTMENT_MAX_UNITS} units`);
+  }
+  if (unitIds.some((id) => typeof id !== 'string' || id.trim() === '' || id.length > 36)) {
+    throw new Error('unitIds must contain valid unit ids');
+  }
+  if (new Set(unitIds).size !== unitIds.length) throw new Error('unitIds must not contain duplicates');
+  return { unitIds: unitIds as string[], ...validateAdjustment(rest) };
+}
+
 export function validateReview(body: unknown, requireNote: boolean) {
   const data = validateBody(
     body ?? {},

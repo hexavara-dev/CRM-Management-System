@@ -353,6 +353,7 @@ app.delete('/api/characteristics/:id', authMiddleware, ownerOnly, pc.deleteChara
 // Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
 const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));
 app.get('/api/unit-prices', authMiddleware, unitPrices.list);
+app.post('/api/unit-prices/bulk-adjustments', authMiddleware, ownerOnly, unitPrices.createBulkAdjustment);
 app.get('/api/unit-prices/:unitId', authMiddleware, unitPrices.detail);
 app.get('/api/unit-prices/:unitId/history', authMiddleware, unitPrices.history);
 app.post('/api/unit-prices/:unitId/adjustments', authMiddleware, ownerOnly, unitPrices.createAdjustment);

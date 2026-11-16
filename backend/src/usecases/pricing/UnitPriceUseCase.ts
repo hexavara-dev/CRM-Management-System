@@ -256,18 +256,10 @@ export class UnitPriceUseCase {
     const unit = await this.findUnit(unitId, actor.tenantId);
     if (unit.status === 'SOLD') throw new Error('Price of a sold unit cannot be adjusted (conflict)');
 
-    // input.amount adalah selisih terhadap harga jual pada tanggal efektif.
-    // Yang disimpan adalah total penyesuaian unit (penyesuaian aktif + selisih),
-    // sehingga rumus harga dan kenaikan tipe/blok tetap berlaku.
     if (input.amount === 0) throw new Error('amount must not be 0');
     const [priced] = await this.price(actor.tenantId, [unit], input.effectiveDate);
-    const { basePrice, logTotal, amount: currentAmount, price } = priced!;
-    const amount = currentAmount + BigInt(input.amount);
-    const priceAfter = sellingPrice(basePrice, logTotal, amount);
-    if (priceAfter < ZERO) throw new Error('Selling price after adjustment must be at least 0');
-
-    const minPrice = unit.variant.minPrice;
-    const status: PriceAdjustmentStatus = needsApproval(priceAfter, minPrice) ? 'PENDING' : 'APPROVED';
+    const data = this.adjustmentData(priced!, actor, input);
+    if (data.priceAfter < ZERO) throw new Error('Selling price after adjustment must be at least 0');
 
     return this.prisma.$transaction(async (tx) => {
       const pending = await tx.unitPriceAdjustment.count({
@@ -277,22 +269,101 @@ export class UnitPriceUseCase {
         throw new Error('This unit already has a pending adjustment (conflict)');
       }
       return tx.unitPriceAdjustment.create({
-        data: {
-          tenantId: actor.tenantId,
-          unitId,
-          amount,
-          priceBefore: price,
-          priceAfter,
-          minPrice,
-          reason: input.reason,
-          effectiveDate: toDateValue(input.effectiveDate),
-          status,
-          requestedById: actor.userId,
-          ...(status === 'APPROVED' ? { approvedById: actor.userId, approvedAt: new Date() } : {}),
-        },
+        data,
         include: { requestedBy: userSelect, approvedBy: userSelect },
       });
     });
+  }
+
+  /**
+   * Baris penyesuaian untuk satu unit yang sudah dihitung harganya.
+   * input.amount adalah selisih terhadap harga jual pada tanggal efektif. Yang
+   * disimpan adalah total penyesuaian unit (penyesuaian aktif + selisih), sehingga
+   * rumus harga dan kenaikan tipe/blok tetap berlaku.
+   */
+  private adjustmentData(
+    priced: Awaited<ReturnType<UnitPriceUseCase['price']>>[number],
+    actor: Actor,
+    input: AdjustmentInput
+  ) {
+    const { unit, basePrice, logTotal, amount: currentAmount, price } = priced;
+    const amount = currentAmount + BigInt(input.amount);
+    const priceAfter = sellingPrice(basePrice, logTotal, amount);
+    const minPrice = unit.variant.minPrice;
+    const status: PriceAdjustmentStatus = needsApproval(priceAfter, minPrice) ? 'PENDING' : 'APPROVED';
+    return {
+      tenantId: actor.tenantId,
+      unitId: unit.id,
+      amount,
+      priceBefore: price,
+      priceAfter,
+      minPrice,
+      reason: input.reason,
+      effectiveDate: toDateValue(input.effectiveDate),
+      status,
+      requestedById: actor.userId,
+      ...(status === 'APPROVED' ? { approvedById: actor.userId, approvedAt: new Date() } : {}),
+    };
+  }
+
+  /**
+   * Menyesuaikan harga jual banyak unit dari satu project sekaligus. Nominal yang
+   * sama diterapkan kumulatif ke harga jual masing-masing unit, dalam satu transaksi.
+   */
+  async createBulkAdjustment(unitIds: string[], actor: Actor, input: AdjustmentInput) {
+    const today = todayInPriceZone();
+    if (input.effectiveDate < today) throw new Error('effectiveDate must be today or later');
+    if (input.amount === 0) throw new Error('amount must not be 0');
+
+    const units = await this.prisma.productUnit.findMany({
+      where: { id: { in: unitIds }, tenantId: actor.tenantId },
+      include: unitInclude,
+      orderBy: { code: 'asc' },
+    });
+    const found = new Set(units.map((u) => u.id));
+    const missing = unitIds.filter((id) => !found.has(id));
+    if (missing.length > 0) throw new Error(`Units not found: ${missing.join(', ')}`);
+
+    if (new Set(units.map((u) => u.variant.product.id)).size > 1) {
+      throw new Error('All units must be from the same project');
+    }
+    const sold = units.filter((u) => u.status === 'SOLD').map((u) => u.code);
+    if (sold.length > 0) {
+      throw new Error(`Price of a sold unit cannot be adjusted (conflict): ${sold.join(', ')}`);
+    }
+
+    const priced = await this.price(actor.tenantId, units, input.effectiveDate);
+    const rows = priced.map((p) => this.adjustmentData(p, actor, input));
+    const negative = rows.filter((r) => r.priceAfter < ZERO).map((r) => units.find((u) => u.id === r.unitId)!.code);
+    if (negative.length > 0) {
+      throw new Error(`Selling price after adjustment must be at least 0: ${negative.join(', ')}`);
+    }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const pending = await tx.unitPriceAdjustment.findMany({
+        where: { tenantId: actor.tenantId, unitId: { in: unitIds }, status: 'PENDING' },
+        select: { unitId: true },
+      });
+      if (pending.length > 0) {
+        const codes = units.filter((u) => pending.some((p) => p.unitId === u.id)).map((u) => u.code);
+        throw new Error(`Units already have a pending adjustment (conflict): ${codes.join(', ')}`);
+      }
+      return Promise.all(rows.map((data) => tx.unitPriceAdjustment.create({ data })));
+    });
+
+    const codeOf = new Map(units.map((u) => [u.id, u.code]));
+    return {
+      count: created.length,
+      data: created.map((row) => ({
+        id: row.id,
+        unitId: row.unitId,
+        code: codeOf.get(row.unitId)!,
+        priceBefore: row.priceBefore,
+        priceAfter: row.priceAfter,
+        minPrice: row.minPrice,
+        status: row.status,
+      })),
+    };
   }
 
   async listAdjustments(
