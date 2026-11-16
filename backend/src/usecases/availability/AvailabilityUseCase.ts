@@ -19,10 +19,10 @@ const unitInclude = (tenantId: string) =>
     select: { fileUrl: true, isPrimary: true, sortOrder: true },
   },
   reservations: {
-    where: { tenantId, status: { in: ['ACTIVE', 'PAYMENT_PENDING'] } },
+    where: { tenantId, status: { in: ['ACTIVE', 'PAYMENT_PENDING', 'COMPLETED'] } },
     orderBy: { reservedAt: 'desc' },
     take: 1,
-    select: { status: true },
+    select: { status: true, customerName: true },
   },
   }) satisfies Prisma.ProductUnitInclude;
 
@@ -335,13 +335,18 @@ export class AvailabilityUseCase {
 
     const units = clusterUnits.map((unit) => {
       const block = nearestCategory(unit.categoryId, 'BLOCK', data.categories);
+      const status = unitStatusKey(unit);
       return {
         id: unit.id,
         code: unit.code,
         type: unit.variant.name,
         price: priceOf(unit),
         block: block?.name ?? '—',
-        status: unitStatusKey(unit),
+        status,
+        customer:
+          status === 'available' || status === 'blocked'
+            ? null
+            : (unit.reservations[0]?.customerName ?? null),
         discount: Number(unit.adjustmentAmount) < 0,
       };
     });
