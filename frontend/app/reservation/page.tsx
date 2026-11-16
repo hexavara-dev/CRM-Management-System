@@ -4,6 +4,9 @@ import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { ReservationFilters } from "@/components/reservation/reservation-filters";
 import { ReservationSummary } from "@/components/reservation/reservation-summary";
 import { ReservationTable } from "@/components/reservation/reservation-table";
+import { CreateReservationDialog } from "./create-reservation-dialog";
+import { ReservationDetailDialog } from "./reservation-detail-dialog";
+import type { Reservation } from "@/components/reservation/reservation-types";
 import type {
   ReservationFilterStatus,
   ReservationFiltersState,
@@ -46,6 +49,8 @@ const emptySummary = { total: 0, active: 0, paymentPending: 0, expired: 0 };
 const emptyFilterOptions = { projects: [], clusters: [], blocks: [] };
 
 export default function ReservationPage() {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState<{ id: string; mode: "detail" | "edit" } | null>(null);
   const [filters, setFilters] =
     useState<ReservationFiltersState>(initialFilters);
   const [page, setPage] = useState(1);
@@ -101,6 +106,7 @@ export default function ReservationPage() {
                 type="button"
                 size="lg"
                 className="self-start px-4 shadow-[0_5px_14px_rgba(11,127,232,0.22)] sm:self-auto"
+                onClick={() => setIsCreateDialogOpen(true)}
               >
                 <Plus data-icon="inline-start" />
                 Buat Reservasi
@@ -111,7 +117,7 @@ export default function ReservationPage() {
 
             <section
               aria-label="Daftar reservasi"
-              className="overflow-hidden rounded-xl bg-card shadow-[0_8px_28px_rgba(16,45,85,0.08)]"
+              className="overflow-hidden rounded-xl bg-card"
             >
               <ReservationFilters
                 filters={filters}
@@ -137,6 +143,8 @@ export default function ReservationPage() {
                   pageSize={PAGE_SIZE}
                   totalPages={totalPages}
                   onPageChange={setPage}
+                  onDetail={(reservation: Reservation) => setSelectedReservation({ id: reservation.id, mode: "detail" })}
+                  onEdit={(reservation: Reservation) => setSelectedReservation({ id: reservation.id, mode: "edit" })}
                   isLoading={query.isLoading}
                 />
               )}
@@ -144,6 +152,21 @@ export default function ReservationPage() {
           </div>
         </main>
       </SidebarInset>
+      <CreateReservationDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onCreated={() => {
+          setFilters(initialFilters);
+          setPage(1);
+        }}
+      />
+      <ReservationDetailDialog
+        key={selectedReservation?.id ?? "closed"}
+        id={selectedReservation?.id ?? null}
+        mode={selectedReservation?.mode ?? "detail"}
+        onClose={() => setSelectedReservation(null)}
+        onModeChange={(mode) => setSelectedReservation((current) => current && { ...current, mode })}
+      />
     </SidebarProvider>
   );
 }

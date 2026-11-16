@@ -15,16 +15,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDealsTable } from "@/hooks/use-deals-table";
 import { formatRupiah } from "@/lib/helper";
 import { Deal } from "@/types/deal";
-import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Eye, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import {
-  ConvertDealFormData,
-  convertDealSchema,
-} from "@/schemas/convert.schema";
 
 export default function DealsPage() {
   const { deals, isLoading, deleteDeal, isDeleting, serverPagination } =
@@ -159,13 +153,6 @@ export default function DealsPage() {
   //     assignedUserId: "",
   //   },
   // });
-
-  const addForm = useForm<ConvertDealFormData>({
-    resolver: zodResolver(convertDealSchema),
-    defaultValues: {
-      expectedAmount: 0,
-    },
-  });
 
   // const editForm = useForm<ConvertDealFormData>({
   //   resolver: zodResolver(convertDealSchema),

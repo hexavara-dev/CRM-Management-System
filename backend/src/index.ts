@@ -356,6 +356,7 @@ const reservationController = new ReservationController(new ReservationUseCase(p
 app.get('/api/reservations', authMiddleware, reservationController.list);
 app.post('/api/reservations', authMiddleware, reservationController.create);
 app.get('/api/reservations/:id', authMiddleware, reservationController.get);
+app.patch('/api/reservations/:id', authMiddleware, reservationController.update);
 app.patch('/api/reservations/:id/status', authMiddleware, reservationController.updateStatus);
 
 // Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.

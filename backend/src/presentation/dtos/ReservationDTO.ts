@@ -14,6 +14,17 @@ export interface CreateReservationDTO {
   notes?: string | null;
 }
 
+export interface UpdateReservationDTO {
+  unitId?: string;
+  salesId?: string;
+  customerName?: string;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  price?: number;
+  status?: ReservationStatus;
+  notes?: string | null;
+}
+
 export interface ReservationListFilters {
   page: number;
   limit: number;

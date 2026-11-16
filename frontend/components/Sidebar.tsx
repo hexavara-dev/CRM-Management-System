@@ -307,9 +307,7 @@ export function AppSidebar({
   });
 
   //TODO: Implement search functionality
-  const handleSearchSubmit = (data: SearchFormData) => {
-    console.log("Searching for:", data.query);
-  };
+  const handleSearchSubmit = () => undefined;
 
   const handleLogout = () => {
     logout();

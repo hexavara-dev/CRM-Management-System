@@ -22,6 +22,18 @@ const reservationRules: Record<string, FieldRule> = {
 
 export const validateReservationCreate = (body: unknown) => validateBody(body, reservationRules);
 
+export const validateReservationUpdate = (body: unknown) =>
+  validateBody(body, {
+    unitId: { type: 'string', max: 36 },
+    salesId: { type: 'string', max: 36 },
+    customerName: { type: 'string', max: 150 },
+    customerEmail: { type: 'string', nullable: true, allowEmpty: true, max: 255 },
+    customerPhone: { type: 'string', nullable: true, allowEmpty: true, max: 30 },
+    price: { type: 'number', integer: true, min: 0, max: Number.MAX_SAFE_INTEGER },
+    status: { type: 'string', values: ['ACTIVE', 'PAYMENT_PENDING', 'EXPIRED', 'CANCELLED', 'COMPLETED'] },
+    notes: { type: 'string', nullable: true, allowEmpty: true, max: 10000 },
+  }, { partial: true });
+
 export const validateReservationStatus = (body: unknown) =>
   validateBody(body, {
     status: {

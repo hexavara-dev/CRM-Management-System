@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Eye, MoreVertical } from "lucide-react";
+import { ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import type { Reservation, ReservationStatus } from "./reservation-types";
 
 const currencyFormatter = new Intl.NumberFormat("id-ID", {
@@ -71,18 +71,10 @@ function SalesCell({ sales }: { sales: Reservation["sales"] }) {
   );
 }
 
-function RowActions({ unit }: { unit: string }) {
+function RowActions({ reservation, onDetail, onEdit }: { reservation: Reservation; onDetail: (reservation: Reservation) => void; onEdit: (reservation: Reservation) => void }) {
+  const unit = reservation.unit;
   return (
     <div className="flex items-center justify-end gap-0.5">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        className="size-11 lg:size-6"
-        aria-label={`Lihat reservasi unit ${unit}`}
-      >
-        <Eye data-icon="inline-start" />
-      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -91,14 +83,15 @@ function RowActions({ unit }: { unit: string }) {
             size="icon-xs"
             className="size-11 lg:size-6"
             aria-label={`Aksi lain untuk unit ${unit}`}
+            onClick={(event) => event.stopPropagation()}
           >
             <MoreVertical data-icon="inline-start" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
           <DropdownMenuGroup>
-            <DropdownMenuItem>Lihat detail</DropdownMenuItem>
-            <DropdownMenuItem>Ubah reservasi</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onDetail(reservation)}>Lihat detail</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onEdit(reservation)}>Ubah reservasi</DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -113,6 +106,8 @@ type ReservationTableProps = {
   pageSize: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  onDetail: (reservation: Reservation) => void;
+  onEdit: (reservation: Reservation) => void;
   isLoading?: boolean;
 };
 
@@ -123,6 +118,8 @@ export function ReservationTable({
   pageSize,
   totalPages,
   onPageChange,
+  onDetail,
+  onEdit,
   isLoading = false,
 }: ReservationTableProps) {
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -193,7 +190,7 @@ export function ReservationTable({
           </TableHeader>
           <TableBody>
             {reservations.map((reservation, index) => (
-              <TableRow key={reservation.id} className="bg-white">
+              <TableRow key={reservation.id} className="cursor-pointer bg-white hover:bg-surface" onClick={() => onDetail(reservation)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onDetail(reservation); } }} tabIndex={0} aria-label={`Lihat detail reservasi unit ${reservation.unit}`}>
                 <TableCell className="px-3 py-2.5 text-gray-500">
                   {(page - 1) * pageSize + index + 1}
                 </TableCell>
@@ -227,7 +224,7 @@ export function ReservationTable({
                   <StatusBadge status={reservation.status} />
                 </TableCell>
                 <TableCell className="px-3 py-2.5">
-                  <RowActions unit={reservation.unit} />
+                  <RowActions reservation={reservation} onDetail={onDetail} onEdit={onEdit} />
                 </TableCell>
               </TableRow>
             ))}
@@ -239,7 +236,11 @@ export function ReservationTable({
         {reservations.map((reservation) => (
           <article
             key={reservation.id}
-            className="rounded-xl bg-white p-4 shadow-[0_4px_14px_rgba(16,45,85,0.08)]"
+            className="cursor-pointer rounded-xl bg-white p-4"
+            onClick={() => onDetail(reservation)}
+            onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onDetail(reservation); } }}
+            tabIndex={0}
+            aria-label={`Lihat detail reservasi unit ${reservation.unit}`}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -257,7 +258,7 @@ export function ReservationTable({
                   {reservation.block}
                 </p>
               </div>
-              <RowActions unit={reservation.unit} />
+              <RowActions reservation={reservation} onDetail={onDetail} onEdit={onEdit} />
             </div>
 
             <div className="mt-4 grid gap-3 border-t border-gray-200 pt-3 text-xs sm:grid-cols-2">

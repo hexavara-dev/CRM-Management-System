@@ -10,20 +10,17 @@ const projectDefinitions = [
   {
     code: 'GRIYA-REJO-ASRI',
     name: 'Griya Rejo Asri',
-    image: '/images/projects/griya-rejo-asri.svg',
   },
   {
     code: 'GRIYA-REJO-INDAH',
     name: 'Griya Rejo Indah',
-    image: '/images/projects/griya-rejo-indah.svg',
   },
-  { code: 'GREEN-HARMONY', name: 'Green Harmony', image: '/images/projects/green-harmony.svg' },
-  { code: 'ROYAL-MUTIARA', name: 'Royal Mutiara', image: '/images/projects/royal-mutiara.svg' },
-  { code: 'GREEN-SUKMA', name: 'Green Sukma', image: '/images/projects/green-sukma.svg' },
+  { code: 'GREEN-HARMONY', name: 'Green Harmony' },
+  { code: 'ROYAL-MUTIARA', name: 'Royal Mutiara' },
+  { code: 'GREEN-SUKMA', name: 'Green Sukma' },
   {
     code: 'RUKASA-PANORAMA',
     name: 'Rukasa Panorama',
-    image: '/images/projects/rukasa-panorama.svg',
   },
 ] as const;
 
@@ -37,6 +34,7 @@ const clusterDefinitions = [
 ] as const;
 
 const blockDefinitions = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
+const additionalAvailableUnitsPerBlock = 3;
 const customerNames = [
   'Andi Permana',
   'Siti Nurhaliza',
@@ -73,12 +71,7 @@ async function upsertCategory(
 ) {
   return prisma.productCategory.upsert({
     where: { tenantId_code: { tenantId, code: input.code } },
-    update: {
-      name: input.name,
-      type: input.type,
-      parentId: input.parentId ?? null,
-      isActive: true,
-    },
+    update: {},
     create: {
       tenantId,
       code: input.code,
@@ -99,6 +92,8 @@ export async function seedReservationData(
     throw new Error('At least one sales user is required for reservation seed data.');
 
   const seededUnits: { id: string; index: number; price: bigint }[] = [];
+  const seededBlocks: { variantId: string; categoryId: string; code: string }[] = [];
+  const variantIds = new Set<string>();
 
   for (const [projectIndex, projectDefinition] of projectDefinitions.entries()) {
     const projectCategory = await upsertCategory(prisma, tenantId, {
@@ -109,11 +104,7 @@ export async function seedReservationData(
 
     const product = await prisma.product.upsert({
       where: { tenantId_code: { tenantId, code: projectDefinition.code } },
-      update: {
-        name: projectDefinition.name,
-        categoryId: projectCategory.id,
-        isActive: true,
-      },
+      update: {},
       create: {
         tenantId,
         categoryId: projectCategory.id,
@@ -140,26 +131,7 @@ export async function seedReservationData(
           stock: 20,
         },
       }));
-
-    const existingMedia = await prisma.productMedia.findFirst({
-      where: { productId: product.id, fileUrl: projectDefinition.image },
-      select: { id: true },
-    });
-    if (!existingMedia) {
-      await prisma.productMedia.create({
-        data: {
-          tenantId,
-          productId: product.id,
-          title: `${projectDefinition.name} cover`,
-          mediaType: 'IMAGE',
-          fileUrl: projectDefinition.image,
-          fileName: projectDefinition.image.split('/').pop(),
-          fileType: 'image/svg+xml',
-          isPrimary: true,
-          sortOrder: 0,
-        },
-      });
-    }
+    variantIds.add(variant.id);
 
     for (let clusterOffset = 0; clusterOffset < 2; clusterOffset += 1) {
       const clusterDefinition =
@@ -182,6 +154,7 @@ export async function seedReservationData(
           type: 'BLOCK',
           parentId: cluster.id,
         });
+        seededBlocks.push({ variantId: variant.id, categoryId: blockCategory.id, code: block });
 
         for (let unitOffset = 0; unitOffset < 5; unitOffset += 1) {
           const index = seededUnits.length;
@@ -190,12 +163,7 @@ export async function seedReservationData(
           const reservationStatus = getReservationStatus(index);
           const unit = await prisma.productUnit.upsert({
             where: { tenantId_code: { tenantId, code: unitCode } },
-            update: {
-              variantId: variant.id,
-              categoryId: blockCategory.id,
-              name: `Unit ${unitCode}`,
-              status: getUnitStatus(reservationStatus),
-            },
+            update: {},
             create: {
               tenantId,
               variantId: variant.id,
@@ -209,6 +177,34 @@ export async function seedReservationData(
         }
       }
     }
+  }
+
+  let additionalUnits = 0;
+  for (const [blockIndex, block] of seededBlocks.entries()) {
+    for (let offset = 0; offset < additionalAvailableUnitsPerBlock; offset += 1) {
+      const unitCode = `${block.code}-AV-${String(blockIndex * additionalAvailableUnitsPerBlock + offset + 1).padStart(3, '0')}`;
+      const unit = await prisma.productUnit.upsert({
+        where: { tenantId_code: { tenantId, code: unitCode } },
+        update: {},
+        create: {
+          tenantId,
+          variantId: block.variantId,
+          categoryId: block.categoryId,
+          code: unitCode,
+          name: `Unit ${unitCode}`,
+          status: 'AVAILABLE',
+        },
+      });
+      if (unit.status === 'AVAILABLE') additionalUnits += 1;
+    }
+  }
+
+  for (const variantId of variantIds) {
+    const unitCount = await prisma.productUnit.count({ where: { tenantId, variantId } });
+    await prisma.productVariant.updateMany({
+      where: { id: variantId, tenantId, stock: { lt: unitCount } },
+      data: { stock: unitCount },
+    });
   }
 
   const now = new Date();
@@ -225,18 +221,7 @@ export async function seedReservationData(
       where: {
         tenantId_refCode: { tenantId, refCode: `RSV-${String(index + 1).padStart(3, '0')}` },
       },
-      update: {
-        unitId,
-        salesId: salesUsers[index % salesUsers.length]!.id,
-        customerName: customerNames[index % customerNames.length]!,
-        customerEmail: `customer${index + 1}@example.com`,
-        customerPhone: `0812${String(index + 1).padStart(8, '0')}`,
-        reservedAt,
-        expiresAt,
-        price,
-        status,
-        notes: null,
-      },
+      update: {},
       create: {
         tenantId,
         unitId,
@@ -253,5 +238,5 @@ export async function seedReservationData(
     });
   }
 
-  console.log(`Seeded ${seededUnits.length} units and ${seededUnits.length} reservations.`);
+  console.log(`Seeded ${seededUnits.length} original units, ${additionalUnits} available units, and ${seededUnits.length} reservations.`);
 }

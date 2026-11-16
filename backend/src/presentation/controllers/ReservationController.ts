@@ -2,12 +2,13 @@ import type { Request, Response } from 'express';
 import { parsePagination, parseSearch } from '../../infrastructure/utils/RequestValidation.js';
 import { respondWithError } from '../../infrastructure/utils/HttpErrorMapper.js';
 import type { ReservationUseCase } from '../../usecases/reservation/ReservationUseCase.js';
-import type { CreateReservationDTO } from '../dtos/ReservationDTO.js';
+import type { CreateReservationDTO, UpdateReservationDTO } from '../dtos/ReservationDTO.js';
 import {
   parseReservationPeriod,
   parseReservationStatus,
   parseReservationTextFilter,
   validateReservationCreate,
+  validateReservationUpdate,
   validateReservationStatus,
 } from '../validation/ReservationRequestValidation.js';
 
@@ -72,6 +73,16 @@ export class ReservationController {
       const status = parseReservationStatus(payload.status);
       if (!status) throw new Error('status is required');
       res.json(await this.reservations.updateStatus(String(req.params.id), tenantId, status));
+    } catch (error) {
+      respondWithError(res, error);
+    }
+  };
+
+  update = async (req: Request, res: Response) => {
+    try {
+      const { tenantId } = authContext(req as AuthenticatedRequest);
+      const payload = validateReservationUpdate(req.body) as UpdateReservationDTO;
+      res.json(await this.reservations.update(String(req.params.id), tenantId, payload));
     } catch (error) {
       respondWithError(res, error);
     }

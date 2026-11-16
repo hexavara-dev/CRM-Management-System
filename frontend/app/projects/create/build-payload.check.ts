@@ -34,4 +34,4 @@ assert.throws(() => buildProjectPayload({ info, unitTypes: [type36], nodes: [{ .
 assert.throws(() => buildProjectPayload({ info, unitTypes: [type36, type36], nodes, units }), /tidak boleh sama/);
 assert.throws(() => buildProjectPayload({ info, unitTypes: [type36], nodes, units: [{ ...units[0], type: "Type 99" }] }), /tidak ada di Unit Type/);
 
-console.log("build-payload OK");
+console.info("build-payload OK");

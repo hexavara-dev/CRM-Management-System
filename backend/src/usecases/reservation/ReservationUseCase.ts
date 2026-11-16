@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient, ReservationStatus } from '@prisma/client';
 import type {
   CreateReservationDTO,
   ReservationListFilters,
+  UpdateReservationDTO,
 } from '../../presentation/dtos/ReservationDTO.js';
 
 const reservationInclude = {
@@ -279,29 +280,79 @@ export class ReservationUseCase {
     return this.get(id, tenantId);
   }
 
-  async updateStatus(id: string, tenantId: string, status: ReservationStatus) {
-    const result = await this.prisma.$transaction(async (tx) => {
+  async update(id: string, tenantId: string, dto: UpdateReservationDTO) {
+    await this.prisma.$transaction(async (tx) => {
       const current = await tx.reservation.findFirst({
         where: { id, tenantId },
-        select: { id: true, unitId: true },
+        select: { id: true, unitId: true, status: true },
       });
       if (!current) throw new Error('Reservation not found');
 
-      await tx.reservation.update({ where: { id }, data: { status } });
-      await tx.productUnit.updateMany({
-        where: { id: current.unitId, tenantId },
+      const wasActive = current.status === 'ACTIVE' || current.status === 'PAYMENT_PENDING';
+      const nextStatus = dto.status ?? current.status;
+      const becomesActive = nextStatus === 'ACTIVE' || nextStatus === 'PAYMENT_PENDING';
+
+      if (current.status === 'COMPLETED' || (!wasActive && nextStatus === 'COMPLETED')) {
+        throw new Error('Reservation status conflict');
+      }
+
+      if (dto.unitId !== undefined && dto.unitId !== current.unitId) {
+        if (!wasActive || !becomesActive) {
+          throw new Error('Only active reservations can change units');
+        }
+
+        const claimed = await tx.productUnit.updateMany({
+          where: { id: dto.unitId, tenantId, status: 'AVAILABLE' },
+          data: { status: 'RESERVED' },
+        });
+        if (claimed.count !== 1) throw new Error('Unit is not available');
+
+        const released = await tx.productUnit.updateMany({
+          where: { id: current.unitId, tenantId, status: 'RESERVED' },
+          data: { status: 'AVAILABLE' },
+        });
+        if (released.count !== 1) throw new Error('Unit reservation conflict');
+      }
+
+      if (dto.salesId) {
+        const sales = await tx.user.findFirst({
+          where: { id: dto.salesId, tenantId },
+          select: { id: true },
+        });
+        if (!sales) throw new Error('Sales user not found');
+      }
+
+      const saved = await tx.reservation.updateMany({
+        where: { id, tenantId, status: current.status },
         data: {
-          status:
-            status === 'ACTIVE' || status === 'PAYMENT_PENDING'
-              ? 'RESERVED'
-              : status === 'COMPLETED'
-                ? 'SOLD'
-                : 'AVAILABLE',
+          ...(dto.unitId !== undefined ? { unitId: dto.unitId } : {}),
+          ...(dto.salesId !== undefined ? { salesId: dto.salesId } : {}),
+          ...(dto.customerName !== undefined ? { customerName: dto.customerName.trim() } : {}),
+          ...(dto.customerEmail !== undefined ? { customerEmail: dto.customerEmail || null } : {}),
+          ...(dto.customerPhone !== undefined ? { customerPhone: dto.customerPhone || null } : {}),
+          ...(dto.price !== undefined ? { price: BigInt(dto.price) } : {}),
+          ...(dto.status !== undefined ? { status: dto.status } : {}),
+          ...(dto.notes !== undefined ? { notes: dto.notes || null } : {}),
         },
       });
-      return current.id;
+      if (saved.count !== 1) throw new Error('Reservation status conflict');
+
+      if (dto.status && dto.status !== current.status) {
+        if (wasActive !== becomesActive || dto.status === 'COMPLETED') {
+          const changed = await tx.productUnit.updateMany({
+            where: { id: current.unitId, tenantId, status: wasActive ? 'RESERVED' : 'AVAILABLE' },
+            data: { status: becomesActive ? 'RESERVED' : dto.status === 'COMPLETED' ? 'SOLD' : 'AVAILABLE' },
+          });
+          if (changed.count !== 1) throw new Error('Unit reservation conflict');
+        }
+      }
+
     });
 
-    return this.get(result, tenantId);
+    return this.get(id, tenantId);
+  }
+
+  async updateStatus(id: string, tenantId: string, status: ReservationStatus) {
+    return this.update(id, tenantId, { status });
   }
 }

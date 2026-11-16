@@ -54,7 +54,7 @@ export function ReservationSummary({
       {cards.map((card) => (
         <article
           key={card.label}
-          className="flex min-h-24 items-center gap-4 rounded-xl bg-card px-4 py-4 shadow-[0_6px_20px_rgba(16,45,85,0.08)]"
+          className="flex min-h-24 items-center gap-4 rounded-xl bg-card px-4 py-4"
         >
           <div
             className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${card.iconSurface}`}

@@ -31,4 +31,4 @@ for (const bad of ["https://maps.app.goo.gl/abc", "https://evil.example.com/maps
 }
 assert.equal(parseMapsInput("").ok, false);
 
-console.log("parse-maps-link: semua cek lolos");
+console.info("parse-maps-link: semua cek lolos");

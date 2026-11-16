@@ -28,6 +28,7 @@ export type Reservation = {
   reservationDate: string;
   price: number;
   sales: {
+    id: string;
     name: string;
     initials: string;
     color: string;
@@ -73,4 +74,34 @@ export type ReservationListResponse = {
   meta: { total: number; page: number; limit: number; totalPages: number };
   summary: ReservationSummaryData;
   filters: ReservationFilterOptions;
+};
+
+export type CreateReservationPayload = {
+  unitId: string;
+  salesId?: string;
+  customerName: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  price: number;
+  status: Extract<ReservationStatusCode, "ACTIVE" | "PAYMENT_PENDING">;
+  notes?: string;
+};
+
+export type UpdateReservationPayload = {
+  unitId?: string;
+  salesId: string;
+  customerName: string;
+  customerEmail: string | null;
+  customerPhone: string | null;
+  price: number;
+  status: ReservationStatusCode;
+  notes: string | null;
+};
+
+export type AvailableReservationUnit = {
+  id: string;
+  code: string;
+  status: string;
+  variant: { id: string; name: string; currentPrice: number };
+  category: { id: string; name: string; type: string };
 };
