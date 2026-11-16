@@ -42,6 +42,8 @@ import { ReservationController } from './presentation/controllers/ReservationCon
 import { ReservationUseCase } from './usecases/reservation/ReservationUseCase.js';
 import { UnitPriceUseCase } from './usecases/pricing/UnitPriceUseCase.js';
 import { UnitPriceController } from './presentation/controllers/UnitPriceController.js';
+import { AvailabilityUseCase } from './usecases/availability/AvailabilityUseCase.js';
+import { AvailabilityController } from './presentation/controllers/AvailabilityController.js';
 
 // Prisma returns BigInt for price columns; JSON.stringify cannot serialize it.
 // Prices stay below Number.MAX_SAFE_INTEGER (enforced by request validation).
@@ -358,6 +360,16 @@ app.post('/api/reservations', authMiddleware, reservationController.create);
 app.get('/api/reservations/:id', authMiddleware, reservationController.get);
 app.patch('/api/reservations/:id', authMiddleware, reservationController.update);
 app.patch('/api/reservations/:id/status', authMiddleware, reservationController.updateStatus);
+
+const availabilityController = new AvailabilityController(new AvailabilityUseCase(prisma));
+app.get('/api/availability', authMiddleware, availabilityController.overview);
+app.get('/api/availability/:projectId', authMiddleware, availabilityController.project);
+app.get('/api/availability/:projectId/clusters/:clusterId', authMiddleware, availabilityController.cluster);
+app.get(
+  '/api/availability/:projectId/clusters/:clusterId/units/:unitId',
+  authMiddleware,
+  availabilityController.unit
+);
 
 // Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
 const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));

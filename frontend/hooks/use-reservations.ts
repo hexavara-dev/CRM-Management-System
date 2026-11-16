@@ -75,6 +75,7 @@ export function useUpdateReservation() {
       queryClient.invalidateQueries({ queryKey: ["availability-overview"] });
       queryClient.invalidateQueries({ queryKey: ["availability-project"] });
       queryClient.invalidateQueries({ queryKey: ["availability-cluster"] });
+      queryClient.invalidateQueries({ queryKey: ["availability-unit"] });
       toast.success("Reservasi berhasil diperbarui.");
     },
     onError: (error) => toast.error(reservationErrorMessage(error)),
@@ -124,6 +125,7 @@ export function useCreateReservation() {
       queryClient.invalidateQueries({ queryKey: ["availability-overview"] });
       queryClient.invalidateQueries({ queryKey: ["availability-project"] });
       queryClient.invalidateQueries({ queryKey: ["availability-cluster"] });
+      queryClient.invalidateQueries({ queryKey: ["availability-unit"] });
       toast.success("Reservasi berhasil dibuat.");
     },
     onError: (error) => toast.error(reservationErrorMessage(error)),

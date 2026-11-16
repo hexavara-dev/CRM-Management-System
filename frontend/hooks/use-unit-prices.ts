@@ -156,7 +156,13 @@ export function usePendingAdjustments(page: number) {
 
 function useInvalidatePrices() {
   const queryClient = useQueryClient();
-  return () => Object.values(KEYS).forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+  return () => {
+    Object.values(KEYS).forEach((key) => queryClient.invalidateQueries({ queryKey: [key] }));
+    queryClient.invalidateQueries({ queryKey: ["availability-overview"] });
+    queryClient.invalidateQueries({ queryKey: ["availability-project"] });
+    queryClient.invalidateQueries({ queryKey: ["availability-cluster"] });
+    queryClient.invalidateQueries({ queryKey: ["availability-unit"] });
+  };
 }
 
 export function useCreateAdjustment(unitId: string) {

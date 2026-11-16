@@ -23,7 +23,7 @@ export function AvailabilitySummaryCard({
 }: SummaryCardProps) {
   return (
     <Card className="rounded-xl border-[#edf0f4] shadow-none">
-      <CardContent className="flex h-[76px] items-center gap-3 p-3">
+      <CardContent className="flex h-[40px] items-center gap-3 px-3 py-2">
         <div
           className={`flex size-11 shrink-0 items-center justify-center rounded-full ${iconContainerClassName}`}
         >
