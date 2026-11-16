@@ -27,6 +27,8 @@ export type VariantInput = {
   name?: string;
   basePrice?: number;
   currentPrice?: number;
+  /** Batas minimum harga jual unit; null menghapus batas. */
+  minPrice?: number | null;
   stock?: number;
   /** Only used when creating a product together with its variants. */
   attributes?: NewAttributeInput[];
@@ -270,6 +272,7 @@ export class ProductUseCase {
               name: variant.name as string,
               basePrice: variant.basePrice as number,
               currentPrice: variant.currentPrice ?? (variant.basePrice as number),
+              minPrice: variant.minPrice ?? null,
               stock: variant.stock ?? 0,
             },
           });
@@ -368,6 +371,7 @@ export class ProductUseCase {
         name: input.name as string,
         basePrice: input.basePrice as number,
         currentPrice: input.currentPrice ?? (input.basePrice as number),
+        minPrice: input.minPrice ?? null,
         stock: input.stock ?? 0,
       },
     });
@@ -379,6 +383,7 @@ export class ProductUseCase {
     if (input.name !== undefined) data.name = input.name;
     if (input.basePrice !== undefined) data.basePrice = input.basePrice;
     if (input.currentPrice !== undefined) data.currentPrice = input.currentPrice;
+    if (input.minPrice !== undefined) data.minPrice = input.minPrice;
     if (input.stock !== undefined) data.stock = input.stock;
     return this.prisma.productVariant.update({ where: { id: variantId }, data });
   }

@@ -40,6 +40,8 @@ import { AttributeUseCase } from './usecases/product/AttributeUseCase.js';
 import { ProductController } from './presentation/controllers/ProductController.js';
 import { ReservationController } from './presentation/controllers/ReservationController.js';
 import { ReservationUseCase } from './usecases/reservation/ReservationUseCase.js';
+import { UnitPriceUseCase } from './usecases/pricing/UnitPriceUseCase.js';
+import { UnitPriceController } from './presentation/controllers/UnitPriceController.js';
 
 // Prisma returns BigInt for price columns; JSON.stringify cannot serialize it.
 // Prices stay below Number.MAX_SAFE_INTEGER (enforced by request validation).
@@ -355,6 +357,16 @@ app.get('/api/reservations', authMiddleware, reservationController.list);
 app.post('/api/reservations', authMiddleware, reservationController.create);
 app.get('/api/reservations/:id', authMiddleware, reservationController.get);
 app.patch('/api/reservations/:id/status', authMiddleware, reservationController.updateStatus);
+
+// Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
+const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));
+app.get('/api/unit-prices', authMiddleware, unitPrices.list);
+app.get('/api/unit-prices/:unitId', authMiddleware, unitPrices.detail);
+app.get('/api/unit-prices/:unitId/history', authMiddleware, unitPrices.history);
+app.post('/api/unit-prices/:unitId/adjustments', authMiddleware, ownerOnly, unitPrices.createAdjustment);
+app.get('/api/unit-price-adjustments', authMiddleware, unitPrices.listAdjustments);
+app.post('/api/unit-price-adjustments/:id/approve', authMiddleware, ownerOnly, unitPrices.approve);
+app.post('/api/unit-price-adjustments/:id/reject', authMiddleware, ownerOnly, unitPrices.reject);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Hexavara CRM API is running' });

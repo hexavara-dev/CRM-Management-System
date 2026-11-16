@@ -11,6 +11,7 @@ const variantRules: Record<string, FieldRule> = {
   name: { type: 'string', required: true, max: 150 },
   basePrice: { type: 'number', required: true, integer: true, min: 0, max: PRICE_MAX },
   currentPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
+  minPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX, nullable: true },
   stock: { type: 'number', integer: true, min: 0, max: INT_MAX },
 };
 
