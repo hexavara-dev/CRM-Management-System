@@ -35,7 +35,7 @@ export function ClusterSummaryCard({
 
   return (
     <div
-      className={`flex min-h-[96px] items-center gap-3 rounded-xl px-4 py-3 ${style.card}`}
+      className={`flex min-h-[66px] items-center gap-3 rounded-xl px-4 py-1.5 ${style.card}`}
     >
       <div className={`shrink-0 ${style.icon}`}>{icon}</div>
       <div>

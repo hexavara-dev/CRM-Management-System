@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, House, Layers, Tag } from "lucide-react";
+import { Ban, CalendarDays, House, Layers, Tag } from "lucide-react";
 import { useState } from "react";
 
 import { PageHeading } from "@/components/PageHeading";
@@ -96,7 +96,7 @@ export default function AvailabilityPage() {
             />
           ) : (
             <>
-              <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 <SummaryCard
                   title="Total Units"
                   value={summary.total}
@@ -136,6 +136,14 @@ export default function AvailabilityPage() {
                   color="text-red-500"
                   bg="bg-red-50"
                 />
+                <SummaryCard
+                  title="Blocked"
+                  value={summary.blocked}
+                  percentage={getPercentage(summary.blocked)}
+                  icon={Ban}
+                  color="text-slate-500"
+                  bg="bg-slate-100"
+                />
               </section>
 
               <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -144,6 +152,7 @@ export default function AvailabilityPage() {
                   processing={summary.processing}
                   reserved={summary.reserved}
                   sold={summary.sold}
+                  blocked={summary.blocked}
                   total={summary.total}
                 />
                 <SalesProgress sold={summary.sold} total={summary.total} />

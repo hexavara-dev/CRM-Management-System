@@ -45,12 +45,12 @@ export function ProjectAvailabilityHeader({
           <Image
             src={project.image}
             alt={project.name}
-            width={90}
-            height={55}
-            className="h-[55px] w-[90px] rounded-lg object-cover"
+            width={100}
+            height={60}
+            className="h-[60px] w-[100px] rounded-lg object-cover"
           />
         ) : (
-          <div className="flex h-[55px] w-[90px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#e8f4ff] to-[#eef2f6]">
+          <div className="flex h-[60px] w-[100px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#e8f4ff] to-[#eef2f6]">
             <Building2 className="size-6 text-[#2695ff]/55" />
           </div>
         )}
