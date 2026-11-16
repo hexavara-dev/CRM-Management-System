@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Griya Rejo Asri</title><desc id="desc">Illustration of a warm residential neighborhood.</desc>
+  <rect width="1200" height="700" fill="#dff0ff"/><circle cx="970" cy="130" r="72" fill="#fbbf24"/>
+  <path d="M0 540c180-92 340-88 510-8 180-104 365-104 690 8v160H0z" fill="#86c79c"/>
+  <path d="m340 420 150-130 150 130v150H340z" fill="#fff"/><path d="m315 420 175-155 175 155" fill="none" stroke="#0b4f9c" stroke-width="28" stroke-linejoin="round"/>
+  <rect x="455" y="455" width="70" height="115" rx="8" fill="#339af0"/><rect x="370" y="435" width="48" height="48" rx="6" fill="#91ccf8"/><rect x="560" y="435" width="48" height="48" rx="6" fill="#91ccf8"/>
+  <path d="M820 510v-95l62-54 62 54v95" fill="#fff" stroke="#0b4f9c" stroke-width="18"/><path d="M798 420 882 345l84 75" fill="none" stroke="#0b4f9c" stroke-width="18"/>
+</svg>

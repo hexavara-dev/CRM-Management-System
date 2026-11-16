@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import { createConnection } from 'node:net';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -38,6 +39,21 @@ const adapter = new PrismaMariaDb({
   // MySQL 8 (caching_sha2_password) meminta kunci RSA setelah DB restart; tanpa ini semua koneksi gagal.
   // Aman untuk jaringan Docker internal / localhost; untuk DB lintas jaringan publik, pakai ssl.
   allowPublicKeyRetrieval: true,
+  // MariaDB's default Net.connect(port, host) can pick only one localhost address.
+  // Node's autoSelectFamily tries the resolved IPv4/IPv6 addresses until one connects.
+  stream: (callback) => {
+    const socket = createConnection({
+      host: parsed.hostname || 'localhost',
+      port: parsed.port ? parseInt(parsed.port, 10) : 3306,
+      autoSelectFamily: true,
+    });
+    socket.setNoDelay(true);
+    if (!callback) {
+      socket.destroy();
+      throw new Error('MariaDB connection stream callback is unavailable.');
+    }
+    callback(undefined, socket);
+  },
 });
 
 export const prisma = new PrismaClient({ adapter });

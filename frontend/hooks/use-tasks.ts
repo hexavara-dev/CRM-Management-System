@@ -1,6 +1,5 @@
 import api from "@/lib/api";
 import { Task } from "@/types/activity";
-import { useAuth } from "@/components/auth/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 

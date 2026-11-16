@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Building2, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { MetricTile } from "@/components/projects/metric-tile";
+import { NoImagePlaceholder } from "@/components/projects/no-image-placeholder";
 import { cn } from "@/lib/utils";
 import type { ProjectListItem } from "@/hooks/use-projects";
 import { STATUS_STYLE, projectMetrics, shortLocation, statusOf } from "./projects-data";
@@ -14,11 +15,11 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
       href={`/projects/${project.id}`}
       className="block overflow-hidden rounded-xl border border-[#E4E4E7] bg-white p-2 transition-shadow hover:shadow-md"
     >
-      <div className="relative flex h-36 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-[#DCE9F2] to-[#F3F7FA]">
+      <div className="relative flex h-36 items-center justify-center overflow-hidden rounded-lg bg-[#F4F4F5]">
         {project.coverUrl ? (
           <Image src={project.coverUrl} alt={project.name} fill unoptimized className="object-cover" />
         ) : (
-          <Building2 className="size-10 text-[#1980C0]/40" />
+          <NoImagePlaceholder className="absolute inset-0" />
         )}
         <span className={cn("absolute right-2 top-2 rounded-md px-2 py-0.5 text-[11px] font-medium", STATUS_STYLE[status])}>
           {status}

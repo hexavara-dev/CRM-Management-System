@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useDeals } from "@/hooks/use-deals";
 
@@ -12,59 +12,27 @@ export function useDealsTable(options: UseDealsTableOptions = {}) {
 
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [rowsPerPage, setRowsPerPage] = useState(initialLimit);
-  const [useServerPaginationMode, setUseServerPaginationMode] = useState(true);
-
   const dealsQuery = useDeals({
     page: currentPage,
     limit: rowsPerPage,
-    useServerPagination: useServerPaginationMode,
+    useServerPagination: true,
   });
 
-  const { pagination, isLoading, isFetching, isSuccess } = dealsQuery;
-
-  useEffect(() => {
-    if (
-      useServerPaginationMode &&
-      currentPage === 1 &&
-      isSuccess &&
-      !isLoading &&
-      !isFetching &&
-      !pagination
-    ) {
-      setUseServerPaginationMode(false);
-      setCurrentPage(1);
-    }
-  }, [
-    useServerPaginationMode,
-    currentPage,
-    isSuccess,
-    isLoading,
-    isFetching,
-    pagination,
-  ]);
-
-  useEffect(() => {
-    if (
-      useServerPaginationMode &&
-      pagination &&
-      currentPage > pagination.totalPages
-    ) {
-      setCurrentPage(Math.max(pagination.totalPages, 1));
-    }
-  }, [currentPage, pagination, useServerPaginationMode]);
+  const { pagination, isLoading, isFetching } = dealsQuery;
+  const displayedPage = pagination
+    ? Math.min(currentPage, Math.max(pagination.totalPages, 1))
+    : currentPage;
 
   const serverPagination = useMemo(() => {
-    if (!useServerPaginationMode || !pagination) {
-      return undefined;
-    }
+    if (!pagination) return undefined;
 
     return {
       meta: pagination,
-      page: currentPage,
+      page: displayedPage,
       limit: rowsPerPage,
       isLoading: isLoading || isFetching,
       onPageChange: (nextPage: number) => {
-        if (nextPage < 1 || nextPage > pagination.totalPages) return;
+        if (nextPage < 1 || nextPage > Math.max(pagination.totalPages, 1)) return;
         setCurrentPage(nextPage);
       },
       onLimitChange: (nextLimit: number) => {
@@ -73,9 +41,8 @@ export function useDealsTable(options: UseDealsTableOptions = {}) {
       },
     };
   }, [
-    useServerPaginationMode,
     pagination,
-    currentPage,
+    displayedPage,
     rowsPerPage,
     isLoading,
     isFetching,

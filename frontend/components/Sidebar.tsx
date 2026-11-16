@@ -212,7 +212,7 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
             { title: "Availability", url: "/availability", icon: Building },
             {
               title: "Reservations",
-              url: "/reservations",
+              url: "/reservation",
               icon: CalendarCheck2,
             },
           ],
@@ -307,9 +307,7 @@ export function AppSidebar({
   });
 
   //TODO: Implement search functionality
-  const handleSearchSubmit = (data: SearchFormData) => {
-    console.log("Searching for:", data.query);
-  };
+  const handleSearchSubmit = () => undefined;
 
   const handleLogout = () => {
     logout();

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { prisma } from '../src/infrastructure/database/prisma.js';
 import { PrismaGenericRepository } from '../src/infrastructure/repositories/PrismaGenericRepository.js';
 import { AuthUseCases } from '../src/usecases/auth/AuthUseCases.js';
+import { seedReservationData } from './seed/reservationSeed.js';
 
 const TENANT_NAME = 'Demo Organization';
 // Hanya untuk akun demo lokal. Jangan dipakai di server yang bisa diakses orang lain.
@@ -51,6 +52,32 @@ async function main() {
     await authUseCases.register(SEED_PASSWORD, MEMBER.name, MEMBER.email, owner!.tenantId);
     console.log(`Created ${MEMBER.email} (${MEMBER.role})`);
   }
+
+  const salesDefinitions = [
+    { email: 'rafi.firmansyah@example.com', name: 'Rafi Firmansyah' },
+    { email: 'dewi.lestari@example.com', name: 'Dewi Lestari' },
+    { email: 'rizki.ramadhan@example.com', name: 'Rizki Ramadhan' },
+    { email: 'aulia.rahman@example.com', name: 'Aulia Rahman' },
+    { email: 'nabila.fitriani@example.com', name: 'Nabila Fitriani' },
+  ];
+  const salesUsers = [];
+  for (const definition of salesDefinitions) {
+    const existing = await prisma.user.findUnique({ where: { email: definition.email } });
+    if (existing) {
+      if (existing.tenantId !== owner!.tenantId) {
+        throw new Error(`${definition.email} already exists in another tenant.`);
+      }
+      salesUsers.push(existing);
+      continue;
+    }
+
+    await authUseCases.register(SEED_PASSWORD, definition.name, definition.email, owner!.tenantId);
+    const created = await prisma.user.findUnique({ where: { email: definition.email } });
+    if (!created) throw new Error(`Could not load seeded sales user ${definition.email}.`);
+    salesUsers.push(created);
+  }
+
+  await seedReservationData(prisma, owner!.tenantId, salesUsers);
 }
 
 main()
