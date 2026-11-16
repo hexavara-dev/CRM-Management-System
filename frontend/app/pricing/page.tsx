@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, History, MoreVertical, Pencil, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, History, Layers, MoreVertical, Pencil, Search, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import {
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { PageHeading } from "@/components/PageHeading";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,12 +22,14 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { errorMessage } from "@/hooks/use-projects";
 import {
+  BULK_ADJUSTMENT_MAX_UNITS,
   PRICE_APPROVAL_ENABLED,
   formatDay,
   formatPrice,
   formatSigned,
   usePriceFilterOptions,
   useUnitPrices,
+  type UnitPriceRow,
   type UnitStatus,
 } from "@/hooks/use-unit-prices";
 import { cn } from "@/lib/utils";
@@ -34,6 +37,7 @@ import { PendingAdjustments } from "./pending-adjustments";
 import { UNIT_STATUS_LABEL, UnitStatusBadge } from "./status-badge";
 import { AdjustPriceDialog, PriceHistoryDialog } from "./unit-price-dialogs";
 import { FilterCombobox, type ComboOption } from "./filter-combobox";
+import { BulkAdjustDialog } from "./bulk-adjust-dialog";
 
 const PAGE_SIZE = 10;
 const STATUSES = Object.keys(UNIT_STATUS_LABEL) as UnitStatus[];
@@ -60,6 +64,9 @@ export default function PricingPage() {
   const [status, setStatus] = useState<UnitStatus>();
   const [adjustUnit, setAdjustUnit] = useState<string>();
   const [historyUnit, setHistoryUnit] = useState<string>();
+  // Unit terpilih untuk ubah massal, tetap tersimpan saat pindah halaman atau filter dalam project yang sama.
+  const [selected, setSelected] = useState<Map<string, UnitPriceRow>>(new Map());
+  const [bulkOpen, setBulkOpen] = useState(false);
   const search = useDebouncedValue(query.trim());
 
   const prices = useUnitPrices({ page, limit: PAGE_SIZE, search, productId, categoryId, variantId, status });
@@ -118,6 +125,31 @@ export default function PricingPage() {
   const total = prices.data?.meta.total ?? 0;
   const totalPages = Math.max(1, prices.data?.meta.totalPages ?? 1);
   const start = (page - 1) * PAGE_SIZE;
+
+  // Ubah massal hanya untuk satu project: dikunci oleh unit pertama yang dipilih,
+  // atau oleh filter project bila belum ada yang dipilih.
+  const canSelect = canWrite;
+  const firstSelected = selected.values().next().value as UnitPriceRow | undefined;
+  const lockedProject = firstSelected?.product ?? (selectedProject ? { id: selectedProject.id, name: selectedProject.name } : undefined);
+  const lockReason = (row: UnitPriceRow) =>
+    row.status === "SOLD"
+      ? "Unit terjual tidak bisa diubah"
+      : lockedProject && row.product.id !== lockedProject.id
+        ? `Hanya unit dari ${lockedProject.name}`
+        : undefined;
+  const mixedPage = new Set(rows.map((row) => row.product.id)).size > 1;
+  const selectableRows = lockedProject || !mixedPage ? rows.filter((row) => !lockReason(row)) : [];
+  const pageSelected = selectableRows.filter((row) => selected.has(row.unitId)).length;
+  const toggleRows = (targets: UnitPriceRow[], checked: boolean) =>
+    setSelected((current) => {
+      const next = new Map(current);
+      for (const row of targets) {
+        if (checked) next.set(row.unitId, row);
+        else next.delete(row.unitId);
+      }
+      return next;
+    });
+  const tooMany = selected.size > BULK_ADJUSTMENT_MAX_UNITS;
 
   const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
     setter(value);
@@ -200,6 +232,7 @@ export default function PricingPage() {
                     options={(options.projects.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
                     onChange={(value) => {
                       setProductId(value);
+                      setSelected(new Map());
                       setClusterId(undefined);
                       setBlockId(undefined);
                       setVariantId(undefined);
@@ -256,6 +289,34 @@ export default function PricingPage() {
                 </div>
               </div>
 
+              {selected.size > 0 && (
+                <div className="flex flex-col gap-2 rounded-xl border border-[#1980C0]/30 bg-[#E5F1FA] px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-[#1f1f1f]">
+                    <span className="font-semibold">{selected.size} unit</span> dipilih
+                    {firstSelected && <span className="text-[#6b6b6b]"> · {firstSelected.product.name}</span>}
+                    {tooMany && (
+                      <span className="ml-1 text-[#D64545]">· maksimal {BULK_ADJUSTMENT_MAX_UNITS} unit</span>
+                    )}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => setSelected(new Map())}>
+                      <X className="size-3.5" />
+                      Batal
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={tooMany}
+                      onClick={() => setBulkOpen(true)}
+                      className="h-8 bg-[#1980C0] text-white hover:bg-[#166ea6]"
+                    >
+                      <Layers className="size-3.5" />
+                      Ubah harga massal
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {prices.isLoading ? (
                 <Skeleton className="h-72 rounded-xl" />
               ) : prices.isError ? (
@@ -271,6 +332,27 @@ export default function PricingPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        {canSelect && (
+                          <TableHead className="w-10">
+                            <Checkbox
+                              aria-label="Pilih semua unit di halaman ini"
+                              title={
+                                selectableRows.length === 0 && mixedPage && !lockedProject
+                                  ? "Pilih project atau centang satu unit dulu"
+                                  : undefined
+                              }
+                              disabled={selectableRows.length === 0}
+                              checked={
+                                pageSelected === 0
+                                  ? false
+                                  : pageSelected === selectableRows.length
+                                    ? true
+                                    : "indeterminate"
+                              }
+                              onCheckedChange={(checked) => toggleRows(selectableRows, checked === true)}
+                            />
+                          </TableHead>
+                        )}
                         <TableHead>Unit</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Harga Dasar</TableHead>
@@ -283,7 +365,18 @@ export default function PricingPage() {
                     </TableHeader>
                     <TableBody>
                       {rows.map((row) => (
-                        <TableRow key={row.unitId}>
+                        <TableRow key={row.unitId} data-state={selected.has(row.unitId) ? "selected" : undefined}>
+                          {canSelect && (
+                            <TableCell>
+                              <Checkbox
+                                aria-label={`Pilih unit ${row.code}`}
+                                title={lockReason(row)}
+                                disabled={!!lockReason(row) && !selected.has(row.unitId)}
+                                checked={selected.has(row.unitId)}
+                                onCheckedChange={(checked) => toggleRows([row], checked === true)}
+                              />
+                            </TableCell>
+                          )}
                           <TableCell>
                             <div className="flex items-center gap-2 whitespace-nowrap">
                               <span className="font-semibold text-[#1f1f1f]">{row.code}</span>
@@ -399,6 +492,17 @@ export default function PricingPage() {
 
       {canWrite && (
         <AdjustPriceDialog unitId={adjustUnit} onOpenChange={(open) => !open && setAdjustUnit(undefined)} />
+      )}
+      {canWrite && (
+        <BulkAdjustDialog
+          units={[...selected.values()]}
+          open={bulkOpen}
+          onOpenChange={setBulkOpen}
+          onSaved={() => {
+            setBulkOpen(false);
+            setSelected(new Map());
+          }}
+        />
       )}
       <PriceHistoryDialog unitId={historyUnit} onOpenChange={(open) => !open && setHistoryUnit(undefined)} />
     </SidebarProvider>
