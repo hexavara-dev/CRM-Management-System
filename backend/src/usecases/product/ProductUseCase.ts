@@ -181,9 +181,9 @@ export class ProductUseCase {
       },
     });
     if (!product) throw new Error('Product not found');
-    const variants = product.variants.map(({ _count, ...variant }) => ({
+    const variants = (product.variants ?? []).map(({ _count, ...variant }) => ({
       ...variant,
-      unitCount: _count.units,
+      unitCount: _count?.units ?? 0,
     }));
     const summaries = await this.unitSummaries(
       tenantId,
