@@ -52,7 +52,6 @@ function TypeForm({
   const [projectId, setProjectId] = useState(initial?.projectId ?? "");
   const [name, setName] = useState(initial?.name ?? "");
   const [basePrice, setBasePrice] = useState(String(initial?.basePrice ?? ""));
-  const [stock, setStock] = useState(String(initial?.stock ?? "0"));
   const [attributes, setAttributes] = useState<
     Record<TypeAttributeCode, number>
   >(initial?.attributes ?? EMPTY_ATTRIBUTES);
@@ -65,7 +64,6 @@ function TypeForm({
       projectId,
       name,
       basePrice: Number(basePrice),
-      stock: Number(stock),
       attributes,
       image,
     };
@@ -130,18 +128,15 @@ function TypeForm({
             className="h-9"
           />
         </label>
-        <label className="space-y-1.5 text-xs font-medium text-[#344054]">
-          Total unit
-          <Input
-            required
-            type="number"
-            min="0"
-            step="1"
-            value={stock}
-            onChange={(event) => setStock(event.target.value)}
-            className="h-9"
-          />
-        </label>
+        <div className="space-y-1.5 text-xs font-medium text-[#344054]">
+          <p>Total unit</p>
+          <div className="flex h-9 items-center rounded-md border border-[#D0D5DD] bg-[#F9FAFB] px-3 text-sm text-[#344054]">
+            {initial?.unitCount ?? 0} unit
+          </div>
+          <p className="text-[10px] font-normal text-[#667085]">
+            Dihitung dari unit yang terhubung ke tipe ini.
+          </p>
+        </div>
         {TYPE_ATTRIBUTES.map((attribute) => (
           <label
             key={attribute.code}

@@ -150,7 +150,7 @@ export default function TypesPage() {
       "Bedrooms",
       "Bathrooms",
       "Carport",
-      "Stock",
+      "Total Unit",
       "Status",
     ];
     const lines = filteredRows.map((row) =>
@@ -166,7 +166,7 @@ export default function TypesPage() {
         row.attributes.bedroom,
         row.attributes.bathroom,
         row.attributes.carport,
-        row.stock,
+        row.unitCount,
         row.isActive ? "Aktif" : "Nonaktif",
       ]
         .map(escapeCsv)
@@ -439,7 +439,7 @@ export default function TypesPage() {
                             </div>
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-center font-semibold text-[#344054]">
-                            {numberFormat.format(row.stock)}
+                            {numberFormat.format(row.unitCount)}
                           </TableCell>
                           <TableCell className="px-3 py-2.5">
                             <Badge

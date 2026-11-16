@@ -43,7 +43,7 @@ type ProductVariant = {
   basePrice: number;
   currentPrice: number;
   minPrice: number | null;
-  stock: number;
+  unitCount: number;
 };
 
 type ProductDetail = {
@@ -91,7 +91,7 @@ export type ProjectTypeRow = {
   name: string;
   basePrice: number;
   currentPrice: number;
-  stock: number;
+  unitCount: number;
   image: string | null;
   attributes: Record<TypeAttributeCode, number>;
   attributeRows: ProductAttribute[];
@@ -102,7 +102,6 @@ export type ProjectTypeForm = {
   variantId?: string;
   name: string;
   basePrice: number;
-  stock: number;
   attributes: Record<TypeAttributeCode, number>;
   image?: File;
 };
@@ -202,7 +201,7 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
         name: variant.name,
         basePrice: Number(variant.basePrice),
         currentPrice: Number(variant.currentPrice),
-        stock: variant.stock,
+        unitCount: variant.unitCount,
         image: media?.fileUrl ?? projectMedia?.fileUrl ?? null,
         attributes,
         attributeRows,
@@ -218,7 +217,7 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
     summary: {
       totalTypes,
       totalProjects,
-      totalUnits: rows.reduce((total, row) => total + row.stock, 0),
+      totalUnits: rows.reduce((total, row) => total + row.unitCount, 0),
       averageTypes: totalProjects ? totalTypes / totalProjects : 0,
     },
   };
@@ -281,13 +280,12 @@ export function useCreateProjectType() {
     mutationFn: async (form: ProjectTypeForm) => {
       const attributeIds = await ensureAttributeDefinitions();
       const variant = (
-        await api.post<ProductVariant>(
+        await api.post<{ id: string }>(
           `/api/products/${form.projectId}/variants`,
           {
             name: form.name.trim(),
             basePrice: form.basePrice,
             currentPrice: form.basePrice,
-            stock: form.stock,
           },
         )
       ).data;
@@ -345,7 +343,6 @@ export function useUpdateProjectType() {
         {
           name: form.name.trim(),
           basePrice: form.basePrice,
-          stock: form.stock,
         },
       );
 

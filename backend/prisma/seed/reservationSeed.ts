@@ -10,18 +10,138 @@ const projectDefinitions = [
   {
     code: 'GRIYA-REJO-ASRI',
     name: 'Griya Rejo Asri',
+    variants: [
+      {
+        name: 'Type 36',
+        buildingArea: 36,
+        surfaceArea: 72,
+        floors: 1,
+        bedroom: 2,
+        bathroom: 1,
+        carport: 1,
+        basePrice: 350_000_000,
+      },
+      {
+        name: 'Type 45',
+        buildingArea: 45,
+        surfaceArea: 90,
+        floors: 1,
+        bedroom: 2,
+        bathroom: 1,
+        carport: 1,
+        basePrice: 450_000_000,
+      },
+    ],
   },
   {
     code: 'GRIYA-REJO-INDAH',
     name: 'Griya Rejo Indah',
+    variants: [
+      {
+        name: 'Type 36',
+        buildingArea: 36,
+        surfaceArea: 72,
+        floors: 1,
+        bedroom: 2,
+        bathroom: 1,
+        carport: 1,
+        basePrice: 375_000_000,
+      },
+      {
+        name: 'Type 45',
+        buildingArea: 45,
+        surfaceArea: 90,
+        floors: 1,
+        bedroom: 2,
+        bathroom: 1,
+        carport: 1,
+        basePrice: 475_000_000,
+      },
+    ],
   },
-  { code: 'GREEN-HARMONY', name: 'Green Harmony' },
-  { code: 'ROYAL-MUTIARA', name: 'Royal Mutiara' },
-  { code: 'GREEN-SUKMA', name: 'Green Sukma' },
+  {
+    code: 'GREEN-HARMONY',
+    name: 'Green Harmony',
+    variants: [
+      {
+        name: 'Type 60',
+        buildingArea: 60,
+        surfaceArea: 120,
+        floors: 1,
+        bedroom: 3,
+        bathroom: 2,
+        carport: 2,
+        basePrice: 650_000_000,
+      },
+    ],
+  },
+  {
+    code: 'ROYAL-MUTIARA',
+    name: 'Royal Mutiara',
+    variants: [
+      {
+        name: 'Type 72',
+        buildingArea: 72,
+        surfaceArea: 120,
+        floors: 1,
+        bedroom: 3,
+        bathroom: 2,
+        carport: 2,
+        basePrice: 750_000_000,
+      },
+    ],
+  },
+  {
+    code: 'GREEN-SUKMA',
+    name: 'Green Sukma',
+    variants: [
+      {
+        name: 'Type 45',
+        buildingArea: 45,
+        surfaceArea: 90,
+        floors: 1,
+        bedroom: 2,
+        bathroom: 1,
+        carport: 1,
+        basePrice: 550_000_000,
+      },
+    ],
+  },
   {
     code: 'RUKASA-PANORAMA',
     name: 'Rukasa Panorama',
+    variants: [
+      {
+        name: 'Type 36',
+        buildingArea: 36,
+        surfaceArea: 72,
+        floors: 1,
+        bedroom: 2,
+        bathroom: 1,
+        carport: 1,
+        basePrice: 400_000_000,
+      },
+      {
+        name: 'Type 45',
+        buildingArea: 45,
+        surfaceArea: 90,
+        floors: 1,
+        bedroom: 2,
+        bathroom: 1,
+        carport: 1,
+        basePrice: 500_000_000,
+      },
+    ],
   },
+] as const;
+
+const variantAttributeDefinitions = [
+  { code: 'building_area', name: 'Building Area', unit: 'm²' },
+  { code: 'surface_area', name: 'Surface Area', unit: 'm²' },
+  { code: 'floors', name: 'Floors', unit: null },
+  { code: 'bedroom', name: 'Bedroom', unit: null },
+  { code: 'bathroom', name: 'Bathroom', unit: null },
+  { code: 'carport', name: 'Carport', unit: null },
 ] as const;
 
 const clusterDefinitions = [
@@ -117,21 +237,90 @@ export async function seedReservationData(
       },
     });
 
-    const variant =
-      (await prisma.productVariant.findFirst({
-        where: { tenantId, productId: product.id, name: 'Standard House' },
-      })) ??
-      (await prisma.productVariant.create({
-        data: {
-          tenantId,
-          productId: product.id,
-          name: 'Standard House',
-          basePrice: BigInt(450_000_000 + projectIndex * 50_000_000),
-          currentPrice: BigInt(450_000_000 + projectIndex * 50_000_000),
-          stock: 20,
-        },
-      }));
-    variantIds.add(variant.id);
+    const existingVariants = await prisma.productVariant.findMany({
+      where: { tenantId, productId: product.id },
+    });
+    const legacyStandardVariant = existingVariants.find(
+      (variant) => variant.name === 'Standard House'
+    );
+    const variants = [];
+    for (const [variantIndex, definition] of projectDefinition.variants.entries()) {
+      const existing = existingVariants.find((variant) => variant.name === definition.name);
+      const legacyToRename = !existing && variantIndex === 0 ? legacyStandardVariant : undefined;
+      const basePrice = BigInt(definition.basePrice);
+      const variant = existing
+        ? await prisma.productVariant.update({
+            where: { id: existing.id },
+            data: { basePrice, currentPrice: basePrice },
+          })
+        : legacyToRename
+          ? await prisma.productVariant.update({
+              where: { id: legacyToRename.id },
+              data: { name: definition.name, basePrice, currentPrice: basePrice },
+            })
+          : await prisma.productVariant.create({
+              data: {
+                tenantId,
+                productId: product.id,
+                name: definition.name,
+                basePrice,
+                currentPrice: basePrice,
+              },
+            });
+
+      for (const [attributeIndex, attributeDefinition] of variantAttributeDefinitions.entries()) {
+        const attribute = await prisma.attribute.upsert({
+          where: { tenantId_code: { tenantId, code: attributeDefinition.code } },
+          update: {
+            name: attributeDefinition.name,
+            dataType: 'NUMBER',
+            unit: attributeDefinition.unit,
+          },
+          create: {
+            tenantId,
+            name: attributeDefinition.name,
+            code: attributeDefinition.code,
+            dataType: 'NUMBER',
+            unit: attributeDefinition.unit,
+          },
+        });
+        const value = [
+          definition.buildingArea,
+          definition.surfaceArea,
+          definition.floors,
+          definition.bedroom,
+          definition.bathroom,
+          definition.carport,
+        ][attributeIndex];
+        const existingValue = await prisma.productAttribute.findFirst({
+          where: {
+            tenantId,
+            productId: product.id,
+            variantId: variant.id,
+            attributeId: attribute.id,
+          },
+        });
+        if (existingValue) {
+          await prisma.productAttribute.update({
+            where: { id: existingValue.id },
+            data: { value },
+          });
+        } else {
+          await prisma.productAttribute.create({
+            data: {
+              tenantId,
+              productId: product.id,
+              variantId: variant.id,
+              attributeId: attribute.id,
+              value,
+            },
+          });
+        }
+      }
+
+      variants.push(variant);
+      variantIds.add(variant.id);
+    }
 
     for (let clusterOffset = 0; clusterOffset < 2; clusterOffset += 1) {
       const clusterDefinition =
@@ -154,6 +343,7 @@ export async function seedReservationData(
           type: 'BLOCK',
           parentId: cluster.id,
         });
+        const variant = variants[blockOffset % variants.length]!;
         seededBlocks.push({ variantId: variant.id, categoryId: blockCategory.id, code: block });
 
         for (let unitOffset = 0; unitOffset < 5; unitOffset += 1) {
@@ -163,7 +353,7 @@ export async function seedReservationData(
           const reservationStatus = getReservationStatus(index);
           const unit = await prisma.productUnit.upsert({
             where: { tenantId_code: { tenantId, code: unitCode } },
-            update: {},
+            update: { variantId: variant.id },
             create: {
               tenantId,
               variantId: variant.id,
@@ -185,7 +375,7 @@ export async function seedReservationData(
       const unitCode = `${block.code}-AV-${String(blockIndex * additionalAvailableUnitsPerBlock + offset + 1).padStart(3, '0')}`;
       const unit = await prisma.productUnit.upsert({
         where: { tenantId_code: { tenantId, code: unitCode } },
-        update: {},
+        update: { variantId: block.variantId },
         create: {
           tenantId,
           variantId: block.variantId,
@@ -202,7 +392,7 @@ export async function seedReservationData(
   for (const variantId of variantIds) {
     const unitCount = await prisma.productUnit.count({ where: { tenantId, variantId } });
     await prisma.productVariant.updateMany({
-      where: { id: variantId, tenantId, stock: { lt: unitCount } },
+      where: { id: variantId, tenantId },
       data: { stock: unitCount },
     });
   }
@@ -238,5 +428,7 @@ export async function seedReservationData(
     });
   }
 
-  console.log(`Seeded ${seededUnits.length} original units, ${additionalUnits} available units, and ${seededUnits.length} reservations.`);
+  console.log(
+    `Seeded ${seededUnits.length} original units, ${additionalUnits} available units, and ${seededUnits.length} reservations.`
+  );
 }
