@@ -53,7 +53,9 @@ export default function PricingPage() {
   const [query, setQuery] = useState("");
   // Filter bertahap: project dulu, lalu lokasi dan tipe di dalam project itu.
   const [productId, setProductId] = useState<string>();
-  const [categoryId, setCategoryId] = useState<string>();
+  const [clusterId, setClusterId] = useState<string>();
+  const [blockId, setBlockId] = useState<string>();
+  const categoryId = blockId ?? clusterId;
   const [variantId, setVariantId] = useState<string>();
   const [status, setStatus] = useState<UnitStatus>();
   const [adjustUnit, setAdjustUnit] = useState<string>();
@@ -63,38 +65,52 @@ export default function PricingPage() {
   const prices = useUnitPrices({ page, limit: PAGE_SIZE, search, productId, categoryId, variantId, status });
   const options = usePriceFilterOptions(productId);
 
-  /** Lokasi di bawah project terpilih, dengan jalur induknya sebagai keterangan. */
-  const locationOptions = useMemo<ComboOption[]>(() => {
+  /**
+   * Lokasi di bawah project terpilih, dipisah menjadi Cluster/Zona dan Blok.
+   * Keterangan berisi jenis lokasi dan jalur induknya di dalam project.
+   */
+  const { clusterOptions, blockOptions } = useMemo(() => {
     const root = options.project.data?.categoryId;
-    if (!root) return [];
+    if (!root) return { clusterOptions: [] as ComboOption[], blockOptions: [] as ComboOption[] };
     const all = options.locations.data ?? [];
     const byId = new Map(all.map((c) => [c.id, c]));
-    const pathOf = (id: string | null): string[] => {
-      const names: string[] = [];
-      let current = id ? byId.get(id) : undefined;
-      while (current && current.id !== root) {
-        names.unshift(current.name);
-        current = current.parentId ? byId.get(current.parentId) : undefined;
-      }
-      return names;
-    };
-    const inProject = (id: string) => {
-      let current = byId.get(id);
+    /** Id induk dari bawah ke atas sampai sebelum node project; null bila di luar project. */
+    const ancestorsInProject = (id: string): string[] | null => {
+      const chain: string[] = [];
+      let current = byId.get(id)?.parentId;
       while (current) {
-        if (current.parentId === root) return true;
-        current = current.parentId ? byId.get(current.parentId) : undefined;
+        if (current === root) return chain;
+        chain.push(current);
+        current = byId.get(current)?.parentId ?? null;
       }
-      return false;
+      return null;
     };
-    return all
-      .filter((c) => c.id !== root && c.type !== "CATEGORY" && inProject(c.id))
-      .map((c) => {
-        const parents = pathOf(c.parentId);
-        const type = LOCATION_TYPE_LABEL[c.type] ?? c.type;
-        return { value: c.id, label: c.name, hint: parents.length ? `${type} · ${parents.join(" › ")}` : type };
-      })
-      .sort((a, b) => (a.hint + a.label).localeCompare(b.hint + b.label));
-  }, [options.locations.data, options.project.data]);
+    const toOption = (c: (typeof all)[number], ancestors: string[]): ComboOption => {
+      const type = LOCATION_TYPE_LABEL[c.type] ?? c.type;
+      const path = ancestors
+        .map((id) => byId.get(id)?.name)
+        .filter(Boolean)
+        .reverse();
+      return { value: c.id, label: c.name, hint: path.length ? `${type} · ${path.join(" › ")}` : type };
+    };
+    const byHint = (a: ComboOption, b: ComboOption) => `${a.hint}${a.label}`.localeCompare(`${b.hint}${b.label}`);
+
+    const clusters: ComboOption[] = [];
+    const blocks: ComboOption[] = [];
+    for (const c of all) {
+      if (c.id === root || c.type === "CATEGORY") continue;
+      const ancestors = ancestorsInProject(c.id);
+      if (!ancestors) continue;
+      if (c.type === "BLOCK") {
+        if (!clusterId || ancestors.includes(clusterId)) blocks.push(toOption(c, ancestors));
+      } else {
+        clusters.push(toOption(c, ancestors));
+      }
+    }
+    return { clusterOptions: clusters.sort(byHint), blockOptions: blocks.sort(byHint) };
+  }, [options.locations.data, options.project.data, clusterId]);
+
+  const locationLoading = options.project.isLoading || options.locations.isLoading;
 
   const summary = prices.data?.summary;
   const selectedProject = (options.projects.data ?? []).find((p) => p.id === productId);
@@ -175,8 +191,8 @@ export default function PricingPage() {
             )}
 
             <TabsContent value="list" className="space-y-4 pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-1">
                   <FilterCombobox
                     value={productId}
                     placeholder="Semua project"
@@ -184,19 +200,33 @@ export default function PricingPage() {
                     options={(options.projects.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
                     onChange={(value) => {
                       setProductId(value);
-                      setCategoryId(undefined);
+                      setClusterId(undefined);
+                      setBlockId(undefined);
                       setVariantId(undefined);
                       setPage(1);
                     }}
                   />
                   <FilterCombobox
-                    value={categoryId}
-                    placeholder="Semua lokasi"
+                    value={clusterId}
+                    placeholder="Semua cluster"
+                    disabled={!productId || (!locationLoading && clusterOptions.length === 0)}
+                    disabledHint={productId ? "Tidak ada cluster" : "Pilih project dulu"}
+                    loading={locationLoading}
+                    options={clusterOptions}
+                    onChange={(value) => {
+                      setClusterId(value);
+                      setBlockId(undefined);
+                      setPage(1);
+                    }}
+                  />
+                  <FilterCombobox
+                    value={blockId}
+                    placeholder="Semua blok"
                     disabled={!productId}
                     disabledHint="Pilih project dulu"
-                    loading={options.project.isLoading || options.locations.isLoading}
-                    options={locationOptions}
-                    onChange={resetPage(setCategoryId)}
+                    loading={locationLoading}
+                    options={blockOptions}
+                    onChange={resetPage(setBlockId)}
                   />
                   <FilterCombobox
                     value={variantId}
@@ -214,14 +244,14 @@ export default function PricingPage() {
                     onChange={resetPage((value?: string) => setStatus(value as UnitStatus | undefined))}
                   />
                 </div>
-                <div className="relative w-full sm:w-auto">
+                <div className="relative w-full lg:w-48 lg:shrink-0">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#6b6b6b]" />
                   <Input
                     type="search"
                     value={query}
                     onChange={(e) => resetPage(setQuery)(e.target.value)}
                     placeholder="Cari nomor unit"
-                    className="h-8 w-full pl-8 sm:w-56"
+                    className="h-8 w-full pl-8"
                   />
                 </div>
               </div>
