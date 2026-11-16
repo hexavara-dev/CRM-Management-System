@@ -38,7 +38,7 @@ model Company {
   records                 Record[]
   auditLogs               AuditLog[]
   Source                  Source[]
-  trackingType            TrackingType             @default(UNIT) @map("tracking_type")
+  trackingType            TrackingType             @default(BOTH) @map("tracking_type")
   productCategories       ProductCategory[]
   products                Product[]
   productVariants         ProductVariant[]
@@ -582,9 +582,11 @@ enum ProductCategoryType {
   FLOOR
 }
 
+/// Metode inventory global company: QUANTITY (quantity-based only), UNIT (unit-based only), BOTH.
 enum TrackingType {
   QUANTITY
   UNIT
+  BOTH
 }
 
 enum AttributeDataType {

@@ -51,6 +51,7 @@ describe('ProductUseCase.create (whole project)', () => {
     };
     const prisma = {
       product: { findFirst: fn({ id: 'p-1', variants: [], media: [] }) },
+      company: { findUnique: fn({ trackingType: 'UNIT' }) },
       $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
     };
     const useCase = new ProductUseCase(prisma as never);

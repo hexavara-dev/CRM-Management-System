@@ -1,5 +1,6 @@
 import type { AttributeDataType, Prisma, PrismaClient } from '@prisma/client';
 import { assertCategory, categoryWithDescendants } from './catalogRules.js';
+import { InventoryTrackingUseCase } from '../settings/InventoryTrackingUseCase.js';
 import {
   assertUnits,
   orderLocations,
@@ -204,6 +205,7 @@ export class ProductUseCase {
     const locations = orderLocations(input.locations ?? []);
     const units = input.units ?? [];
     assertUnits(units, variants.length, new Set(locations.map((l) => l.key)));
+    if (units.length > 0) await new InventoryTrackingUseCase(this.prisma).assertUnitTracking(tenantId);
     await this.assertProductRelations(tenantId, input);
 
     const created = await this.prisma.$transaction(
