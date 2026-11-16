@@ -15,5 +15,6 @@ export type ClusterUnit = {
   price: number;
   block: Block;
   status: UnitStatus;
+  customer: string | null;
   discount?: boolean;
 };

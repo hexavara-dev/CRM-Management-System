@@ -121,7 +121,7 @@ export default function ProjectDetailPage() {
               </div>
 
               <Tabs defaultValue="overview" className="gap-4">
-                <TabsList className="h-auto w-full justify-start gap-2 overflow-x-auto rounded-none border-b border-[#EDEDED] bg-transparent px-1 pb-3 pt-1">
+                <TabsList className="group-data-horizontal/tabs:h-auto w-full justify-start gap-2 overflow-x-auto overflow-y-hidden rounded-none border-b border-[#EDEDED] bg-transparent px-1 pb-3 pt-1">
                   {TABS.map(({ value, label, icon: Icon }) => (
                     <TabsTrigger key={value} value={value} className={TAB_TRIGGER}>
                       <Icon className="size-3.5" />
@@ -194,7 +194,7 @@ export default function ProjectDetailPage() {
                 </TabsContent>
 
                 <TabsContent value="unit-distribution">
-                  <UnitDistribution />
+                  <UnitDistribution projectId={params.id} />
                 </TabsContent>
 
                 {TABS.filter((t) => t.value !== "overview" && t.value !== "unit-distribution").map(({ value, label }) => (
