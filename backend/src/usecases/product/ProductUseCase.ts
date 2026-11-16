@@ -169,7 +169,10 @@ export class ProductUseCase {
       where: { id, tenantId },
       include: {
         category: { select: { id: true, name: true, type: true } },
-        variants: { orderBy: { createdAt: 'asc' } },
+        variants: {
+          orderBy: { createdAt: 'asc' },
+          include: { _count: { select: { units: true } } },
+        },
         attributes: {
           orderBy: [{ variantId: 'asc' }, { attribute: { name: 'asc' } }],
           include: { attribute: true },
@@ -178,12 +181,15 @@ export class ProductUseCase {
       },
     });
     if (!product) throw new Error('Product not found');
-    const variants = product.variants ?? [];
+    const variants = (product.variants ?? []).map(({ _count, ...variant }) => ({
+      ...variant,
+      unitCount: _count?.units ?? 0,
+    }));
     const summaries = await this.unitSummaries(
       tenantId,
       new Map([[product.id, variants.map((v) => v.id)]])
     );
-    return { ...product, unitSummary: summaries.get(product.id) };
+    return { ...product, variants, unitSummary: summaries.get(product.id) };
   }
 
   /**
