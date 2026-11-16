@@ -18,13 +18,6 @@ import {
 import { useNotes } from "@/hooks/use-notes";
 import { Link2, Search, StickyNote, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-
-type NoteFormData = {
-  content: string;
-  entityType: "lead" | "deal";
-  entityId: string;
-};
 
 // type LeadActivity = {
 //   id: string;
@@ -124,14 +117,6 @@ export default function NotesPage() {
   //     entityId: "",
   //   },
   // });
-
-  const editForm = useForm<NoteFormData>({
-    defaultValues: {
-      content: "",
-      entityType: "lead",
-      entityId: "",
-    },
-  });
 
   // const createActivityForEntity = async (data: NoteFormData) => {
   //   if (data.entityType === "lead") {

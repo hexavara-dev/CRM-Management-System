@@ -62,9 +62,24 @@ export function useLeads(options: UseLeadsOptions = {}) {
       },
     ],
     queryFn: async () => {
-      const response = await api.get(`/api/lead`, {
+      const response = await api.get<PaginatedResponse<Lead[]>>(`/api/lead`, {
         params: queryParams,
       });
+      const totalPages = response.data.meta?.totalPages;
+      if (
+        useServerPagination &&
+        typeof page === "number" &&
+        typeof limit === "number" &&
+        typeof totalPages === "number" &&
+        page > Math.max(totalPages, 1)
+      ) {
+        const correctedPage = Math.max(totalPages, 1);
+        const correctedResponse = await api.get<PaginatedResponse<Lead[]>>(
+          "/api/lead",
+          { params: { ...queryParams, page: correctedPage } },
+        );
+        return correctedResponse.data;
+      }
       return response.data;
     },
     enabled: getAll,

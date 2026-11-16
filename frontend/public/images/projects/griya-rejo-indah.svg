@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Griya Rejo Indah</title><desc id="desc">Illustration of a calm residential neighborhood.</desc>
+  <rect width="1200" height="700" fill="#e9e8ec"/><circle cx="950" cy="125" r="70" fill="#f59e0b"/>
+  <path d="M0 530c215-110 390-90 590-2 175-90 352-86 610 4v168H0z" fill="#78b58a"/>
+  <path d="m250 450 160-142 160 142v125H250z" fill="#fff" stroke="#334155" stroke-width="18"/><path d="m225 450 185-168 185 168" fill="none" stroke="#1980c0" stroke-width="28" stroke-linejoin="round"/>
+  <rect x="370" y="465" width="72" height="110" rx="8" fill="#f59e0b"/><rect x="285" y="445" width="48" height="48" rx="6" fill="#fef3c7"/><rect x="460" y="445" width="48" height="48" rx="6" fill="#fef3c7"/>
+  <path d="M760 520V405l74-64 74 64v115" fill="#fff" stroke="#334155" stroke-width="18"/><path d="M735 410 834 325l99 85" fill="none" stroke="#1980c0" stroke-width="18"/>
+</svg>

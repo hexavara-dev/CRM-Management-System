@@ -63,6 +63,21 @@ export function useDeals(options: UseDealsOptions = {}) {
       const response = await api.get<PaginatedResponse<Deal[]>>("/api/deal", {
         params: queryParams,
       });
+      const totalPages = response.data.meta?.totalPages;
+      if (
+        useServerPagination &&
+        typeof page === "number" &&
+        typeof limit === "number" &&
+        typeof totalPages === "number" &&
+        page > Math.max(totalPages, 1)
+      ) {
+        const correctedPage = Math.max(totalPages, 1);
+        const correctedResponse = await api.get<PaginatedResponse<Deal[]>>(
+          "/api/deal",
+          { params: { ...queryParams, page: correctedPage } },
+        );
+        return correctedResponse.data;
+      }
       return response.data;
     },
     enabled: getAll || useServerPagination === true,

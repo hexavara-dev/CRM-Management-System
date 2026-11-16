@@ -49,6 +49,7 @@ model Company {
   productUnits            ProductUnit[]
   productVariantPriceLogs ProductVariantPriceLog[]
   unitPriceAdjustments    UnitPriceAdjustment[]
+  reservations            Reservation[]
 
   @@map("company")
 }
@@ -72,6 +73,7 @@ model User {
   tenant         Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   viewings       Viewing[]      @relation("ActorViewings")
   auditLogs      AuditLog[]
+  assignedReservations Reservation[]  @relation("ReservationSales")
   requestedPriceAdjustments UnitPriceAdjustment[] @relation("PriceAdjustmentRequester")
   reviewedPriceAdjustments  UnitPriceAdjustment[] @relation("PriceAdjustmentReviewer")
 
@@ -784,6 +786,7 @@ model ProductUnit {
   characteristic   Characteristic?   @relation(fields: [characteristicId], references: [id], onDelete: SetNull)
   media            ProductMedia[]
   priceAdjustments UnitPriceAdjustment[]
+  reservations     Reservation[]
 
   @@unique([tenantId, code])
   @@index([variantId])
@@ -845,3 +848,39 @@ model UnitPriceAdjustment {
   @@index([tenantId, status])
   @@map("unit_price_adjustments")
 }
+
+enum ReservationStatus {
+  ACTIVE
+  PAYMENT_PENDING
+  EXPIRED
+  CANCELLED
+  COMPLETED
+}
+
+model Reservation {
+  id            String            @id @default(uuid()) @db.VarChar(36)
+  tenantId      String            @map("company_id") @db.VarChar(36)
+  unitId        String            @map("unit_id") @db.VarChar(36)
+  salesId       String            @map("sales_id") @db.VarChar(36)
+  refCode       String            @map("ref_code") @db.VarChar(80)
+  customerName  String            @map("customer_name") @db.VarChar(150)
+  customerEmail String?           @map("customer_email") @db.VarChar(255)
+  customerPhone String?           @map("customer_phone") @db.VarChar(30)
+  reservedAt    DateTime          @default(now()) @map("reserved_at") @db.DateTime(6)
+  expiresAt     DateTime?         @map("expires_at") @db.DateTime(6)
+  price         BigInt
+  status        ReservationStatus @default(ACTIVE)
+  notes         String?           @db.Text
+  createdAt     DateTime          @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant        Company           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  unit          ProductUnit       @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  sales         User              @relation("ReservationSales", fields: [salesId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, refCode])
+  @@index([tenantId, status, reservedAt])
+  @@index([unitId, status])
+  @@index([salesId])
+  @@map("reservations")
+}
+

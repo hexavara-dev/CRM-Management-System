@@ -38,6 +38,8 @@ import { ProductMediaUseCase } from './usecases/product/ProductMediaUseCase.js';
 import { ProductUnitUseCase } from './usecases/product/ProductUnitUseCase.js';
 import { AttributeUseCase } from './usecases/product/AttributeUseCase.js';
 import { ProductController } from './presentation/controllers/ProductController.js';
+import { ReservationController } from './presentation/controllers/ReservationController.js';
+import { ReservationUseCase } from './usecases/reservation/ReservationUseCase.js';
 import { UnitPriceUseCase } from './usecases/pricing/UnitPriceUseCase.js';
 import { UnitPriceController } from './presentation/controllers/UnitPriceController.js';
 
@@ -349,6 +351,13 @@ app.get('/api/characteristics', authMiddleware, pc.listCharacteristics);
 app.post('/api/characteristics', authMiddleware, ownerOnly, pc.createCharacteristic);
 app.put('/api/characteristics/:id', authMiddleware, ownerOnly, pc.updateCharacteristic);
 app.delete('/api/characteristics/:id', authMiddleware, ownerOnly, pc.deleteCharacteristic);
+
+const reservationController = new ReservationController(new ReservationUseCase(prisma));
+app.get('/api/reservations', authMiddleware, reservationController.list);
+app.post('/api/reservations', authMiddleware, reservationController.create);
+app.get('/api/reservations/:id', authMiddleware, reservationController.get);
+app.patch('/api/reservations/:id', authMiddleware, reservationController.update);
+app.patch('/api/reservations/:id/status', authMiddleware, reservationController.updateStatus);
 
 // Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
 const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));

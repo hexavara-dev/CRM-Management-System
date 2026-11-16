@@ -20,7 +20,7 @@ import {
   PopoverTrigger,
 } from "./popover";
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export type SelectOptions = {
   label: string;
@@ -37,6 +37,8 @@ type InputSelectProps = {
   labelClassname?: string;
   validation?: RegisterOptions;
   searchable?: boolean;
+  filterOptionsBySearch?: boolean;
+  portalInsideDialog?: boolean;
   searchValue?: string;
   searchPlaceholder?: string;
   onSearchChange?: (value: string) => void;
@@ -53,11 +55,16 @@ export default function FormSelect({
   validation,
   options,
   searchable = false,
-  searchValue = "",
+  filterOptionsBySearch = false,
+  portalInsideDialog = false,
+  searchValue,
   searchPlaceholder = "Search...",
   onSearchChange,
 }: InputSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [internalSearch, setInternalSearch] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const currentSearch = searchValue ?? internalSearch;
   const {
     control,
     formState: { errors },
@@ -74,16 +81,28 @@ export default function FormSelect({
         const selectedOption = options.find(
           (option) => option.value === field.value,
         );
+        const visibleOptions = filterOptionsBySearch
+          ? options.filter((option) =>
+              option.label.toLowerCase().includes(currentSearch.trim().toLowerCase()),
+            )
+          : options;
 
         return (
           <div>
             {label && <LabelText className={labelClassname}>{label}</LabelText>}
             {searchable ? (
-              <Popover open={isOpen} onOpenChange={setIsOpen}>
+              <Popover
+                open={isOpen}
+                onOpenChange={(nextOpen) => {
+                  setIsOpen(nextOpen);
+                  if (!nextOpen && filterOptionsBySearch) setInternalSearch("");
+                }}
+              >
                 <PopoverTrigger asChild>
                   <button
+                    ref={triggerRef}
                     type="button"
-                    disabled={disabled}
+                    disabled={disabled || isLoading}
                     className={cn(
                       "flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none disabled:cursor-not-allowed disabled:opacity-50",
                       !selectedOption && "text-muted-foreground",
@@ -99,21 +118,29 @@ export default function FormSelect({
                 </PopoverTrigger>
                 <PopoverContent
                   align="start"
+                  portalContainer={
+                    portalInsideDialog
+                      ? triggerRef.current?.closest<HTMLElement>("[data-slot='dialog-content']")
+                      : undefined
+                  }
                   className="z-[999] w-[var(--radix-popover-trigger-width)] p-2"
                 >
                   <Input
                     autoFocus
-                    value={searchValue}
+                    value={currentSearch}
                     placeholder={searchPlaceholder}
-                    onChange={(event) => onSearchChange?.(event.target.value)}
+                    onChange={(event) => {
+                      if (onSearchChange) onSearchChange(event.target.value);
+                      else setInternalSearch(event.target.value);
+                    }}
                   />
-                  <div className="max-h-56 overflow-y-auto">
+                  <div className="max-h-56 overflow-y-auto overscroll-contain">
                     {isLoading ? (
                       <div className="px-2 py-3 text-sm text-muted-foreground">
                         Searching...
                       </div>
-                    ) : options.length > 0 ? (
-                      options.map((option) => (
+                    ) : visibleOptions.length > 0 ? (
+                      visibleOptions.map((option) => (
                         <button
                           key={option.value}
                           type="button"
@@ -121,6 +148,7 @@ export default function FormSelect({
                           onClick={() => {
                             field.onChange(option.value);
                             setIsOpen(false);
+                            if (filterOptionsBySearch) setInternalSearch("");
                           }}
                         >
                           {option.label}
