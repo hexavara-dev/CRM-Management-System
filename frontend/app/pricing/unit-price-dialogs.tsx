@@ -14,8 +14,6 @@ import {
   ChevronLeft,
   ChevronRight,
   History,
-  Minus,
-  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,16 +49,14 @@ export const todayJakarta = () =>
     new Date(),
   );
 
-const MAX_AMOUNT = Number.MAX_SAFE_INTEGER;
+const MAX_PRICE = Number.MAX_SAFE_INTEGER;
 
 export const adjustmentSchema = z.object({
-  direction: z.enum(["increase", "decrease"]),
-  /** Nominal tanpa tanda, berupa digit saja. */
-  amount: z
+  /** Harga jual final, berupa digit saja. */
+  price: z
     .string()
-    .regex(/^\d+$/, "Nominal wajib diisi")
-    .refine((value) => Number(value) > 0, "Nominal harus lebih dari 0")
-    .refine((value) => Number(value) <= MAX_AMOUNT, "Nominal terlalu besar"),
+    .regex(/^\d+$/, "Harga jual baru wajib diisi")
+    .refine((value) => Number(value) <= MAX_PRICE, "Harga terlalu besar"),
   reason: z
     .string()
     .trim()
@@ -79,91 +75,63 @@ export type AdjustmentFormData = z.infer<typeof adjustmentSchema>;
 const groupDigits = (digits: string) =>
   digits ? Number(digits).toLocaleString("id-ID") : "";
 
-/** Input nominal dengan prefix Rp, pemisah ribuan, dan pilihan naik atau turun. */
-export function AmountField() {
+/** Input harga jual final dengan prefix Rp dan pemisah ribuan. */
+export function PriceField({ helper }: { helper: string }) {
   const {
     control,
     formState: { errors },
   } = useFormContext<AdjustmentFormData>();
-  const error = errors.amount?.message;
+  const error = errors.price?.message;
   return (
     <div>
-      <LabelText className="mb-2 block">Nominal penyesuaian</LabelText>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Controller
-          control={control}
-          name="direction"
-          render={({ field }) => (
-            <div
-              className="flex shrink-0 rounded-md border border-input p-0.5 [&>button]:flex-1 [&>button]:justify-center sm:[&>button]:flex-none"
-              role="radiogroup"
-              aria-label="Arah penyesuaian"
-            >
-              {(
-                [
-                  { value: "increase", label: "Naik", icon: Plus },
-                  { value: "decrease", label: "Turun", icon: Minus },
-                ] as const
-              ).map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="radio"
-                  aria-checked={field.value === value}
-                  onClick={() => field.onChange(value)}
-                  className={cn(
-                    "flex h-7 items-center gap-1 rounded px-2 text-xs text-[#6b6b6b]",
-                    field.value === value &&
-                      (value === "increase"
-                        ? "bg-[#E6F6EC] text-[#1E9E55]"
-                        : "bg-[#FDECEC] text-[#D64545]"),
-                  )}
-                >
-                  <Icon className="size-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-        />
-        <Controller
-          control={control}
-          name="amount"
-          render={({ field }) => (
-            <div
-              className={cn(
-                "flex h-9 flex-1 items-center rounded-md border border-input bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring",
-                error && "border-destructive",
-              )}
-            >
-              <span className="pl-3 text-sm text-[#6b6b6b]">Rp</span>
-              <input
-                inputMode="numeric"
-                aria-label="Nominal penyesuaian dalam rupiah"
-                value={groupDigits(field.value)}
-                onChange={(event) =>
-                  field.onChange(
-                    event.target.value
-                      .replace(/\D/g, "")
-                      .replace(/^0+(?=\d)/, ""),
-                  )
-                }
-                onBlur={field.onBlur}
-                placeholder="0"
-                className="h-full w-full bg-transparent px-2 text-sm outline-none"
-              />
-            </div>
-          )}
-        />
-      </div>
+      <LabelText className="mb-2 block">Harga jual baru</LabelText>
+      <Controller
+        control={control}
+        name="price"
+        render={({ field }) => (
+          <div
+            className={cn(
+              "flex h-9 items-center rounded-md border border-input bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring",
+              error && "border-destructive",
+            )}
+          >
+            <span className="pl-3 text-sm text-[#6b6b6b]">Rp</span>
+            <input
+              inputMode="numeric"
+              aria-label="Harga jual baru dalam rupiah"
+              value={groupDigits(field.value)}
+              onChange={(event) =>
+                field.onChange(
+                  event.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""),
+                )
+              }
+              onBlur={field.onBlur}
+              placeholder="0"
+              className="h-full w-full bg-transparent px-2 text-sm outline-none"
+            />
+          </div>
+        )}
+      />
       {error ? (
         <ErrorText className="mt-2">{error}</ErrorText>
       ) : (
-        <HelperText className="mt-2">
-          Nominal ditambahkan ke atau dikurangkan dari harga jual saat ini.
-        </HelperText>
+        <HelperText className="mt-2">{helper}</HelperText>
       )}
     </div>
+  );
+}
+
+/** Selisih harga final terhadap harga sekarang, berwarna sesuai arah. */
+export function PriceChange({ value }: { value: number }) {
+  return (
+    <span
+      className={cn(
+        "font-medium",
+        value > 0 ? "text-[#1E9E55]" : value < 0 ? "text-[#D64545]" : "text-[#6b6b6b]",
+      )}
+    >
+      {value === 0 ? "tidak berubah" : formatSigned(value)}
+    </span>
   );
 }
 
@@ -319,19 +287,19 @@ function AdjustmentForm({
   const form = useForm<AdjustmentFormData>({
     resolver: zodResolver(adjustmentSchema),
     defaultValues: {
-      direction: "increase",
-      amount: "",
+      price: "",
       reason: "",
       effectiveDate: todayJakarta(),
     },
   });
-  const [direction, digits, effectiveDate] = useWatch({
+  const [digits, effectiveDate] = useWatch({
     control: form.control,
-    name: ["direction", "amount", "effectiveDate"],
+    name: ["price", "effectiveDate"],
   });
-  const amount = (direction === "decrease" ? -1 : 1) * Number(digits || 0);
-  const preview = basis + amount;
-  const belowMin = minPrice !== null && preview < minPrice;
+  const filled = digits !== "";
+  const preview = Number(digits || 0);
+  const change = filled ? preview - basis : 0;
+  const belowMin = filled && minPrice !== null && preview < minPrice;
 
   return (
     <FormProvider {...form}>
@@ -340,8 +308,7 @@ function AdjustmentForm({
         onSubmit={form.handleSubmit(async (data) => {
           try {
             await create.mutateAsync({
-              amount:
-                (data.direction === "decrease" ? -1 : 1) * Number(data.amount),
+              price: Number(data.price),
               reason: data.reason,
               effectiveDate: data.effectiveDate,
             });
@@ -351,7 +318,7 @@ function AdjustmentForm({
           }
         })}
       >
-        <AmountField />
+        <PriceField helper={`Harga jual saat ini ${formatPrice(basis)}. Isi harga final yang diinginkan.`} />
         <div>
           <FormInput
             name="effectiveDate"
@@ -381,14 +348,21 @@ function AdjustmentForm({
               : "bg-[#E5F1FA] text-[#1980C0]",
           )}
         >
-          Harga jual menjadi{" "}
-          <span className="font-semibold">{formatPrice(preview)}</span>
+          {filled ? (
+            <>
+              Harga jual {formatPrice(basis)} →{" "}
+              <span className="font-semibold">{formatPrice(preview)}</span>{" "}
+              (<PriceChange value={change} />)
+            </>
+          ) : (
+            "Isi harga jual baru untuk melihat perubahannya."
+          )}
           {belowMin &&
             ` · di bawah harga minimum ${formatPrice(minPrice)}${PRICE_APPROVAL_ENABLED ? ", perlu approval" : ""}`}
         </div>
         <Button
           type="submit"
-          disabled={create.isPending}
+          disabled={create.isPending || (filled && change === 0)}
           className="h-10 w-full rounded-lg bg-[#1980C0] text-white hover:bg-[#166ea6]"
         >
           {create.isPending

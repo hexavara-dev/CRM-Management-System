@@ -112,8 +112,9 @@ describe('UnitPriceUseCase.createAdjustment', () => {
     variant: { id: 'v-45', name: 'Type 45', basePrice: big(450_000_000), minPrice: big(440_000_000), product: {} },
     category: {},
   };
+  const input = (price: number, effectiveDate = today) => ({ price, reason: 'Posisi hook', effectiveDate });
 
-  function prisma(over: { unit?: unknown; pending?: number; adjustments?: unknown[] } = {}) {
+  function prisma(over: { unit?: unknown; pending?: number; adjustments?: unknown[]; logs?: unknown[] } = {}) {
     const tx = {
       unitPriceAdjustment: {
         count: fn(over.pending ?? 0),
@@ -124,70 +125,57 @@ describe('UnitPriceUseCase.createAdjustment', () => {
       tx,
       productUnit: { findFirst: fn('unit' in over ? over.unit : unit) },
       productCategory: { findMany: fn([]) },
-      productVariantPriceLog: { findMany: fn([]) },
+      productVariantPriceLog: { findMany: fn(over.logs ?? []) },
       unitPriceAdjustment: { findMany: fn(over.adjustments ?? []) },
       $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
     };
   }
 
-  it('adds the nominal to the current selling price instead of replacing the adjustment', async () => {
-    const active = {
-      unitId: 'u-1',
-      amount: big(40_000_000),
-      effectiveDate: toDateValue('2026-01-01'),
-      approvedAt: new Date(1),
-    };
-    const db = prisma({ adjustments: [active] });
-    const row = (await new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(5_000_000))) as any;
-    expect(row.priceBefore).toBe(big(490_000_000));
-    expect(row.priceAfter).toBe(big(495_000_000));
-    expect(row.amount).toBe(big(45_000_000));
-  });
-
-  it('rejects a zero nominal', async () => {
-    await expect(new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(0))).rejects.toThrow(
-      /must not be 0/
-    );
-  });
-
-  const input = (amount: number, effectiveDate = today) => ({ amount, reason: 'Posisi hook', effectiveDate });
-
-  it('applies an adjustment at or above the minimum immediately', async () => {
-    const db = prisma();
-    const row = (await new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(-10_000_000))) as any;
+  it('sets the selling price to the final price instead of adding it', async () => {
+    const active = { unitId: 'u-1', amount: big(40_000_000), effectiveDate: toDateValue('2026-01-01'), approvedAt: new Date(1) };
+    const db = prisma({ adjustments: [active], logs: [log({ adjustmentPrice: big(10_000_000) })] });
+    const row = (await new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(600_000_000))) as any;
+    expect(row.priceBefore).toBe(big(500_000_000));
+    expect(row.priceAfter).toBe(big(600_000_000));
+    // 600jt - harga dasar 450jt - kenaikan tipe 10jt
+    expect(row.amount).toBe(big(140_000_000));
     expect(row.status).toBe('APPROVED');
     expect(row.approvedById).toBe('owner-1');
-    expect(row.priceBefore).toBe(big(450_000_000));
-    expect(row.priceAfter).toBe(big(440_000_000));
     expect(row.tenantId).toBe('t-1');
   });
 
-  it('approves an adjustment below the minimum while approval is disabled', async () => {
-    const db = prisma();
-    const row = (await new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(-20_000_000))) as any;
+  it('allows a final price below the base price', async () => {
+    const row = (await new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(200_000_000))) as any;
+    expect(row.priceAfter).toBe(big(200_000_000));
+    expect(row.amount).toBe(big(-250_000_000));
+  });
+
+  it('rejects a price equal to the current selling price', async () => {
+    await expect(
+      new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(450_000_000))
+    ).rejects.toThrow(/must differ/);
+  });
+
+  it('approves a price below the minimum while approval is disabled', async () => {
+    const row = (await new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(430_000_000))) as any;
     expect(row.status).toBe('APPROVED');
-    expect(row.approvedById).toBe('owner-1');
     expect(row.priceAfter).toBe(big(430_000_000));
     expect(row.minPrice).toBe(big(440_000_000));
   });
 
   it('rejects a second adjustment while one is pending', async () => {
-    const db = prisma({ pending: 1 });
     await expect(
-      new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(1_000_000))
+      new UnitPriceUseCase(prisma({ pending: 1 }) as never).createAdjustment('u-1', actor, input(1))
     ).rejects.toThrow(/pending adjustment/);
   });
 
-  it('rejects past dates, sold units, negative prices, and other tenants', async () => {
+  it('rejects past dates, sold units, and other tenants', async () => {
     await expect(
       new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(1, '2000-01-01'))
     ).rejects.toThrow(/today or later/);
     await expect(
       new UnitPriceUseCase(prisma({ unit: { ...unit, status: 'SOLD' } }) as never).createAdjustment('u-1', actor, input(1))
     ).rejects.toThrow(/sold unit/);
-    await expect(
-      new UnitPriceUseCase(prisma() as never).createAdjustment('u-1', actor, input(-500_000_000))
-    ).rejects.toThrow(/at least 0/);
 
     const db = prisma({ unit: null });
     await expect(new UnitPriceUseCase(db as never).createAdjustment('u-1', actor, input(1))).rejects.toThrow(
@@ -202,7 +190,7 @@ describe('UnitPriceUseCase.createAdjustment', () => {
 describe('UnitPriceUseCase.createBulkAdjustment', () => {
   const today = todayInPriceZone();
   const actor = { tenantId: 't-1', userId: 'owner-1' };
-  const input = (amount: number) => ({ amount, reason: 'Kenaikan Q4', effectiveDate: today });
+  const input = (price: number) => ({ price, reason: 'Harga baru Q4', effectiveDate: today });
   const unit = (id: string, over: { status?: string; productId?: string; basePrice?: number } = {}) => ({
     id,
     code: id.toUpperCase(),
@@ -236,24 +224,35 @@ describe('UnitPriceUseCase.createBulkAdjustment', () => {
     };
   }
 
-  it('adds the nominal to each unit price in one transaction', async () => {
+  it('sets every unit to the same final price in one transaction', async () => {
     const active = { unitId: 'u-2', amount: big(10_000_000), effectiveDate: toDateValue('2026-01-01'), approvedAt: new Date(1) };
     const db = prisma([unit('u-1'), unit('u-2'), unit('u-3', { basePrice: 450_000_000 })], { adjustments: [active] });
-    const result = await new UnitPriceUseCase(db as never).createBulkAdjustment(['u-1', 'u-2', 'u-3'], actor, input(5_000_000));
+    const result = await new UnitPriceUseCase(db as never).createBulkAdjustment(['u-1', 'u-2', 'u-3'], actor, input(400_000_000));
 
     expect(db.$transaction).toHaveBeenCalledTimes(1);
     expect(result.count).toBe(3);
     expect(result.data.map((r) => [r.code, r.priceBefore, r.priceAfter])).toEqual([
-      ['U-1', big(350_000_000), big(355_000_000)],
-      ['U-2', big(360_000_000), big(365_000_000)],
-      ['U-3', big(450_000_000), big(455_000_000)],
+      ['U-1', big(350_000_000), big(400_000_000)],
+      ['U-2', big(360_000_000), big(400_000_000)],
+      ['U-3', big(450_000_000), big(400_000_000)],
     ]);
     const created = db.tx.unitPriceAdjustment.create.mock.calls.map(([arg]) => (arg as { data: any }).data);
-    expect(created.find((d) => d.unitId === 'u-2').amount).toBe(big(15_000_000));
+    expect(created.find((d) => d.unitId === 'u-2').amount).toBe(big(50_000_000));
+    expect(created.find((d) => d.unitId === 'u-3').amount).toBe(big(-50_000_000));
     expect(created.every((d) => d.tenantId === 't-1' && d.status === 'APPROVED')).toBe(true);
     expect(db.productUnit.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: { in: ['u-1', 'u-2', 'u-3'] }, tenantId: 't-1' } })
     );
+  });
+
+  it('skips units already at the final price and rejects when none change', async () => {
+    const db = prisma([unit('u-1'), unit('u-2', { basePrice: 400_000_000 })]);
+    const result = await new UnitPriceUseCase(db as never).createBulkAdjustment(['u-1', 'u-2'], actor, input(400_000_000));
+    expect(result.data.map((r) => r.code)).toEqual(['U-1']);
+
+    await expect(
+      new UnitPriceUseCase(prisma([unit('u-1')]) as never).createBulkAdjustment(['u-1'], actor, input(350_000_000))
+    ).rejects.toThrow(/must differ/);
   });
 
   it('rejects units of another tenant or missing units', async () => {
@@ -271,7 +270,7 @@ describe('UnitPriceUseCase.createBulkAdjustment', () => {
     ).rejects.toThrow(/same project/);
   });
 
-  it('rejects sold units and negative prices with their codes', async () => {
+  it('rejects sold units with their codes', async () => {
     await expect(
       new UnitPriceUseCase(prisma([unit('u-1'), unit('u-2', { status: 'SOLD' })]) as never).createBulkAdjustment(
         ['u-1', 'u-2'],
@@ -279,13 +278,6 @@ describe('UnitPriceUseCase.createBulkAdjustment', () => {
         input(1)
       )
     ).rejects.toThrow(/sold unit.*U-2/);
-    await expect(
-      new UnitPriceUseCase(prisma([unit('u-1'), unit('u-2', { basePrice: 100 })]) as never).createBulkAdjustment(
-        ['u-1', 'u-2'],
-        actor,
-        input(-1_000_000)
-      )
-    ).rejects.toThrow(/at least 0: U-2/);
   });
 
   it('rejects units with a pending adjustment and writes nothing', async () => {
@@ -298,7 +290,7 @@ describe('UnitPriceUseCase.createBulkAdjustment', () => {
 });
 
 describe('bulk adjustment validation', () => {
-  const base = { amount: 1, reason: 'Hook', effectiveDate: '2026-11-16' };
+  const base = { price: 1, reason: 'Hook', effectiveDate: '2026-11-16' };
 
   it('requires 1 to 100 unique unit ids', () => {
     expect(() => validateBulkAdjustment({ ...base })).toThrow(/non-empty array/);
@@ -310,7 +302,7 @@ describe('bulk adjustment validation', () => {
   });
 
   it('applies the single adjustment rules', () => {
-    expect(() => validateBulkAdjustment({ unitIds: ['a'], amount: 1 })).toThrow(/reason is required/);
+    expect(() => validateBulkAdjustment({ unitIds: ['a'], price: 1 })).toThrow(/reason is required/);
     expect(validateBulkAdjustment({ ...base, unitIds: ['a'] })).toEqual({ ...base, unitIds: ['a'] });
   });
 });
@@ -342,11 +334,13 @@ describe('UnitPriceUseCase.review', () => {
 
 describe('unit price validation', () => {
   it('requires a reason and a valid effective date', () => {
-    expect(() => validateAdjustment({ amount: 1, effectiveDate: '2026-11-13' })).toThrow(/reason is required/);
-    expect(() => validateAdjustment({ amount: 1, reason: 'Hook', effectiveDate: '13-11-2026' })).toThrow(
+    expect(() => validateAdjustment({ price: 1, effectiveDate: '2026-11-13' })).toThrow(/reason is required/);
+    expect(() => validateAdjustment({ price: -1, reason: 'Hook', effectiveDate: '2026-11-13' })).toThrow();
+    expect(() => validateAdjustment({ amount: 1, reason: 'Hook', effectiveDate: '2026-11-13' })).toThrow();
+    expect(() => validateAdjustment({ price: 1, reason: 'Hook', effectiveDate: '13-11-2026' })).toThrow(
       /YYYY-MM-DD/
     );
-    expect(() => validateAdjustment({ amount: 1.5, reason: 'Hook', effectiveDate: '2026-11-13' })).toThrow(
+    expect(() => validateAdjustment({ price: 1.5, reason: 'Hook', effectiveDate: '2026-11-13' })).toThrow(
       /integer/
     );
   });
