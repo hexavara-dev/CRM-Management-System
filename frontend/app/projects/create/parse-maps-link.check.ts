@@ -26,7 +26,7 @@ const named = parseMapsInput("https://www.google.com/maps/place/Alun+Alun+Malang
 assert.ok(named.ok && named.preview.embedUrl.includes("Alun%20Alun%20Malang"));
 
 // Penolakan
-for (const bad of ["https://maps.app.goo.gl/abc", "https://evil.example.com/maps/@-7.9,112.6,15z", "halo", "99999, 1.5"]) {
+for (const bad of ["https://maps.app.goo.gl/abc", "https://evil.example.com/maps/@-7.9,112.6,15z", "https://google.evil.com/maps/embed?pb=x", "http://www.google.com/maps/embed?pb=x", "https://www.google.com.evil.io/maps?q=a", "<iframe src=\"https://google.attacker.net/maps/embed\"></iframe>", "halo", "99999, 1.5"]) {
   assert.equal(parseMapsInput(bad).ok, false, `harus ditolak: ${bad}`);
 }
 assert.equal(parseMapsInput("").ok, false);

@@ -190,6 +190,26 @@ describe('category request validation', () => {
 });
 
 describe('product request validation', () => {
+  it('accepts Google Maps https links and an empty mapsUrl', () => {
+    for (const mapsUrl of ['https://www.google.com/maps?q=Malang', 'https://maps.google.co.id/maps/place/X', 'https://www.google.com/maps/embed?pb=!1m18', '']) {
+      expect(validateProduct({ mapsUrl }, true).mapsUrl).toBe(mapsUrl);
+    }
+  });
+
+  it('rejects mapsUrl outside the Google Maps allowlist', () => {
+    for (const mapsUrl of [
+      'https://google.evil.com/maps/embed',
+      'https://www.google.com.evil.io/maps?q=a',
+      'http://www.google.com/maps?q=a',
+      'https://www.google.com/search?q=a',
+      'javascript:alert(1)',
+      '<iframe src="https://www.google.com/maps/embed"></iframe>',
+    ]) {
+      expect(() => validateProduct({ mapsUrl }, true)).toThrow(/Invalid mapsUrl/);
+    }
+  });
+
+
   it('accepts variants on a partial update for the edit wizard', () => {
     expect(validateProduct({ variants: [] }, true).variants).toEqual([]);
   });

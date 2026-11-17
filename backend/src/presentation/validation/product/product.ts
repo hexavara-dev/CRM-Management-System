@@ -61,8 +61,27 @@ function arrayOf<T>(value: unknown, max: number, field: string, validate: (item:
   return items.map(validate);
 }
 
+/** Host Google Maps yang boleh disimpan: google.com, google.co.id, google.de, maps.google.com, dll. */
+const GOOGLE_MAPS_HOST = /^(?:www\.|maps\.)?google\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/;
+
+/** mapsUrl dirender sebagai iframe di frontend, jadi hanya link https Google Maps yang diterima. */
+export function assertGoogleMapsUrl(value: string) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Invalid mapsUrl: must be a Google Maps https link');
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port || !GOOGLE_MAPS_HOST.test(url.hostname.toLowerCase()) || !url.pathname.startsWith('/maps')) {
+    throw new Error('Invalid mapsUrl: must be a Google Maps https link');
+  }
+}
+
 export function validateProduct(body: unknown, partial = false) {
   const result = validateBody(body, productRules, { partial }) as ProductInput;
+  if (typeof result.mapsUrl === 'string' && result.mapsUrl.trim()) {
+    assertGoogleMapsUrl(result.mapsUrl.trim());
+  }
   if (result.facilityAttributeIds !== undefined) {
     const ids = result.facilityAttributeIds;
     if (ids.length > 100 || ids.some((id) => typeof id !== 'string' || !id || id.length > 36) || new Set(ids).size !== ids.length) {

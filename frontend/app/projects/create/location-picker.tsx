@@ -34,6 +34,8 @@ export function LocationPicker({ initialValue = "" }: { initialValue?: string })
             title="Preview lokasi proyek"
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
+            // Tanpa allow-top-navigation: isi iframe tidak bisa membelokkan halaman CRM.
+            sandbox="allow-scripts allow-same-origin allow-popups"
             className="h-72 w-full rounded-lg border border-[#E4E4E7]"
           />
           <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6b6b6b]">
@@ -60,7 +62,8 @@ export function LocationPicker({ initialValue = "" }: { initialValue?: string })
         </div>
       )}
 
-      <input type="hidden" name="mapsUrl" value={preview ? value.trim() : ""} />
+      {/* Simpan URL Google Maps hasil normalisasi (bukan teks/HTML mentah yang ditempel user). */}
+      <input type="hidden" name="mapsUrl" value={preview ? preview.embedUrl.replace("&output=embed", "") : ""} />
       <input type="hidden" name="latitude" value={preview?.lat ?? ""} />
       <input type="hidden" name="longitude" value={preview?.lng ?? ""} />
     </div>
