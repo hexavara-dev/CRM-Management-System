@@ -168,7 +168,7 @@ function useInvalidatePrices() {
 export function useCreateAdjustment(unitId: string) {
   const invalidate = useInvalidatePrices();
   return useMutation({
-    mutationFn: async (data: { amount: number; reason: string; effectiveDate: string }) =>
+    mutationFn: async (data: { price: number; reason: string; effectiveDate: string }) =>
       (await api.post<PriceAdjustment>(`/api/unit-prices/${unitId}/adjustments`, data)).data,
     onSuccess: (row) => {
       invalidate();
@@ -197,7 +197,7 @@ export interface BulkAdjustmentResult {
 export function useBulkAdjustment() {
   const invalidate = useInvalidatePrices();
   return useMutation({
-    mutationFn: async (data: { unitIds: string[]; amount: number; reason: string; effectiveDate: string }) =>
+    mutationFn: async (data: { unitIds: string[]; price: number; reason: string; effectiveDate: string }) =>
       (await api.post<BulkAdjustmentResult>("/api/unit-prices/bulk-adjustments", data)).data,
     onSuccess: (result) => {
       invalidate();
