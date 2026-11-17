@@ -178,6 +178,35 @@ export function useCreateAdjustment(unitId: string) {
   });
 }
 
+/** Batas unit per ubah massal, sama dengan BULK_ADJUSTMENT_MAX_UNITS di backend. */
+export const BULK_ADJUSTMENT_MAX_UNITS = 100;
+
+export interface BulkAdjustmentResult {
+  count: number;
+  data: {
+    id: string;
+    unitId: string;
+    code: string;
+    priceBefore: number;
+    priceAfter: number;
+    minPrice: number | null;
+    status: AdjustmentStatus;
+  }[];
+}
+
+export function useBulkAdjustment() {
+  const invalidate = useInvalidatePrices();
+  return useMutation({
+    mutationFn: async (data: { unitIds: string[]; amount: number; reason: string; effectiveDate: string }) =>
+      (await api.post<BulkAdjustmentResult>("/api/unit-prices/bulk-adjustments", data)).data,
+    onSuccess: (result) => {
+      invalidate();
+      toast.success(`Harga ${result.count} unit diperbarui`);
+    },
+    onError: (error) => toast.error(errorMessage(error, "Gagal menyimpan ubah harga massal.")),
+  });
+}
+
 export function useReviewAdjustment() {
   const invalidate = useInvalidatePrices();
   return useMutation({

@@ -50,7 +50,7 @@ export function FilterCombobox({
         if (!next) setQuery("");
       }}
     >
-      <div className="relative w-full sm:w-48">
+      <div className="relative min-w-0 lg:flex-1">
         <PopoverTrigger asChild>
           <button
             type="button"

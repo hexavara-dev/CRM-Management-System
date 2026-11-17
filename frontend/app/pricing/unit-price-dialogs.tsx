@@ -46,14 +46,14 @@ import {
 import { cn } from "@/lib/utils";
 import { AdjustmentStatusBadge, UnitStatusBadge } from "./status-badge";
 
-const todayJakarta = () =>
+export const todayJakarta = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(
     new Date(),
   );
 
 const MAX_AMOUNT = Number.MAX_SAFE_INTEGER;
 
-const adjustmentSchema = z.object({
+export const adjustmentSchema = z.object({
   direction: z.enum(["increase", "decrease"]),
   /** Nominal tanpa tanda, berupa digit saja. */
   amount: z
@@ -74,13 +74,13 @@ const adjustmentSchema = z.object({
       "Tanggal efektif tidak boleh sebelum hari ini",
     ),
 });
-type AdjustmentFormData = z.infer<typeof adjustmentSchema>;
+export type AdjustmentFormData = z.infer<typeof adjustmentSchema>;
 
 const groupDigits = (digits: string) =>
   digits ? Number(digits).toLocaleString("id-ID") : "";
 
 /** Input nominal dengan prefix Rp, pemisah ribuan, dan pilihan naik atau turun. */
-function AmountField() {
+export function AmountField() {
   const {
     control,
     formState: { errors },
@@ -173,7 +173,7 @@ type DialogProps = {
 };
 
 /** Kotak bagian di dalam modal, dengan ruang yang lebih lega dari SectionCard. */
-function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-xl border border-[#E4E4E7] p-4 sm:p-5">
       <h4 className="mb-4 text-sm font-semibold text-[#1f1f1f]">{title}</h4>
