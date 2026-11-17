@@ -1,3 +1,7 @@
 .npm-cache/
 .npm-cache-frontend-clean/
 /.env
+
+# Artefak tool lokal (venv plugin keamanan Claude yang salah resolve "~", output ponytail) - bukan bagian proyek
+~/
+undefined/

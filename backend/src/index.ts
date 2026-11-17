@@ -12,6 +12,7 @@ import { DealUseCases } from './usecases/deal/DealUseCases.js';
 import { AuthController } from './presentation/controllers/AuthController.js';
 import { AuthUseCases } from './usecases/auth/AuthUseCases.js';
 import { authMiddleware, requireRole } from './presentation/middlewares/AuthMiddleware.js';
+import { requestLogMiddleware } from './presentation/middlewares/RequestLogMiddleware.js';
 import { uploadTenantAccessMiddleware } from './presentation/middlewares/UploadAccessMiddleware.js';
 import { StatisticsUseCases } from './usecases/statistics/StatisticsUseCases.js';
 import { StatisticsController } from './presentation/controllers/StatisticsController.js';
@@ -52,6 +53,7 @@ import { AvailabilityController } from './presentation/controllers/AvailabilityC
 };
 
 const app = express();
+app.use(requestLogMiddleware);
 app.use(express.json());
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
   .split(',')

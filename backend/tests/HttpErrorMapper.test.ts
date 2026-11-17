@@ -11,6 +11,9 @@ describe('mapHttpError', () => {
     [{ code: 'P2002' }, 409],
     [{ code: 'P2025' }, 404],
     [{ code: 'P2003' }, 409],
+    [{ code: 'P1000' }, 500],
+    [{ code: 'P1001' }, 503],
+    [{ name: 'DriverAdapterError', message: 'pool timeout: connect ECONNREFUSED 127.0.0.1:3306' }, 503],
     [{ name: 'MulterError', message: 'File too large' }, 400],
     [{ status: 400, message: 'Unexpected token in JSON request body' }, 400],
   ])('maps known errors to the expected HTTP status', (error, expectedStatus) => {
@@ -37,6 +40,48 @@ describe('mapHttpError', () => {
     expect(
       mapHttpError({ message: 'Invalid `prisma.product.create()` invocation\nNull constraint violation on the fields: (`code`)' })
     ).toEqual({ status: 400, message: 'Field "code" wajib diisi.' });
+  });
+
+  describe('unique constraint violations (P2002)', () => {
+    // Bentuk asli error Prisma + adapter MariaDB (lihat meta.driverAdapterError.cause.constraint.index).
+    const duplicate = (modelName: string, index: string) => ({
+      code: 'P2002',
+      meta: {
+        modelName,
+        driverAdapterError: {
+          cause: {
+            originalMessage: `Duplicate entry 'tenant-secret-id-CODE-1' for key 'x.${index}'`,
+            kind: 'UniqueConstraintViolation',
+            constraint: { index },
+          },
+        },
+      },
+    });
+
+    it('tells the user a unit code is already used, and that codes are unique across projects', () => {
+      const mapped = mapHttpError(duplicate('ProductUnit', 'product_units_company_id_code_key'));
+      expect(mapped.status).toBe(409);
+      expect(mapped.message).toMatch(/kode unit/i);
+      expect(mapped.message).toMatch(/proyek lain|semua proyek/i);
+    });
+
+    it('tells the user the project/location code is already used', () => {
+      const mapped = mapHttpError(duplicate('ProductCategory', 'product_categories_company_id_code_key'));
+      expect(mapped.status).toBe(409);
+      expect(mapped.message).toMatch(/kode proyek/i);
+    });
+
+    it('never leaks the duplicated value or tenant id', () => {
+      const text = JSON.stringify(mapHttpError(duplicate('ProductUnit', 'product_units_company_id_code_key')));
+      expect(text).not.toMatch(/tenant-secret-id|CODE-1/);
+    });
+
+    it('keeps the generic message when the constraint is unknown', () => {
+      expect(mapHttpError({ code: 'P2002' })).toEqual({
+        status: 409,
+        message: 'A record with the same unique value already exists.',
+      });
+    });
   });
 
   it('explains foreign key violations in plain words', () => {
