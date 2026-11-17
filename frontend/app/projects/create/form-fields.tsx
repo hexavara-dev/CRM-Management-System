@@ -18,8 +18,8 @@ export function Field({ label, required, children, className }: { label: string;
   );
 }
 
-export function SelectField({ name, placeholder, options, required }: { name: string; placeholder: string; options: string[]; required?: boolean }) {
-  const [value, setValue] = useState("");
+export function SelectField({ name, placeholder, options, required, initialValue = "" }: { name: string; placeholder: string; options: string[]; required?: boolean; initialValue?: string }) {
+  const [value, setValue] = useState(initialValue);
   return (
     <Select name={name} value={value} onValueChange={setValue} required={required}>
       <SelectTrigger className="h-9 w-full text-xs">

@@ -87,11 +87,34 @@ export class ProductController {
   getProduct = handle(async (req, res, tenantId) => {
     res.json(await this.products.get(param(req, 'id'), tenantId));
   });
+  getProductEdit = handle(async (req, res, tenantId) => {
+    res.json(await this.products.getEdit(param(req, 'id'), tenantId));
+  });
   createProduct = handle(async (req, res, tenantId) => {
-    res.status(201).json(await this.products.create(tenantId, validateProduct(req.body)));
+    let body: unknown = req.body;
+    if (req.is('multipart/form-data')) {
+      if (typeof req.body?.payload !== 'string') throw new Error('Invalid project payload');
+      try {
+        body = JSON.parse(req.body.payload);
+      } catch {
+        throw new Error('Invalid project payload');
+      }
+    }
+    const covers = Array.isArray(req.files) ? req.files : [];
+    res.status(201).json(await this.products.create(tenantId, validateProduct(body), covers));
   });
   updateProduct = handle(async (req, res, tenantId) => {
-    res.json(await this.products.update(param(req, 'id'), tenantId, validateProduct(req.body, true)));
+    let body: unknown = req.body;
+    if (req.is('multipart/form-data')) {
+      if (typeof req.body?.payload !== 'string') throw new Error('Invalid project payload');
+      try {
+        body = JSON.parse(req.body.payload);
+      } catch {
+        throw new Error('Invalid project payload');
+      }
+    }
+    const covers = Array.isArray(req.files) ? req.files : [];
+    res.json(await this.products.update(param(req, 'id'), tenantId, validateProduct(body, true), covers));
   });
   deleteProduct = handle(async (req, res, tenantId) => {
     const fileUrls = await this.products.remove(param(req, 'id'), tenantId);

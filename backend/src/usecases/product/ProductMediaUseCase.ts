@@ -30,6 +30,15 @@ function matchesSignature(mime: string, buf: Buffer): boolean {
   }
 }
 
+/** Validates a product image independently of the HTTP upload middleware. */
+export function validateProductImage(file: Express.Multer.File): string {
+  if (!IMAGE_TYPES.includes(file.mimetype) || !file.buffer?.length || !matchesSignature(file.mimetype, file.buffer)) {
+    throw new Error('Unsupported file type');
+  }
+  if (file.buffer.length > 10 * 1024 * 1024) throw new Error('File too large');
+  return EXT_BY_MIME[file.mimetype] as string;
+}
+
 export type MediaMetaInput = {
   title?: string | null;
   variantId?: string | null;
@@ -64,12 +73,13 @@ export class ProductMediaUseCase {
   /** Clears the primary flag of the other media of the same product/variant. */
   private async clearPrimary(
     tx: Prisma.TransactionClient,
+    tenantId: string,
     productId: string,
     variantId: string | null,
     exceptId?: string
   ) {
     await tx.productMedia.updateMany({
-      where: { productId, variantId, isPrimary: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+      where: { tenantId, productId, variantId, isPrimary: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
       data: { isPrimary: false },
     });
   }
@@ -107,7 +117,7 @@ export class ProductMediaUseCase {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        if (meta.isPrimary) await this.clearPrimary(tx, productId, variantId);
+        if (meta.isPrimary) await this.clearPrimary(tx, tenantId, productId, variantId);
         return tx.productMedia.create({
           data: {
             tenantId,
@@ -143,7 +153,7 @@ export class ProductMediaUseCase {
     if (url.protocol !== 'https:') throw new Error('fileUrl must be a valid https URL');
 
     return this.prisma.$transaction(async (tx) => {
-      if (input.isPrimary) await this.clearPrimary(tx, productId, variantId);
+      if (input.isPrimary) await this.clearPrimary(tx, tenantId, productId, variantId);
       return tx.productMedia.create({
         data: {
           tenantId,
@@ -171,7 +181,7 @@ export class ProductMediaUseCase {
     if (variantId) await this.assertVariant(media.productId, variantId, tenantId);
 
     return this.prisma.$transaction(async (tx) => {
-      if (input.isPrimary) await this.clearPrimary(tx, media.productId, variantId, id);
+      if (input.isPrimary) await this.clearPrimary(tx, tenantId, media.productId, variantId, id);
       const data: Prisma.ProductMediaUncheckedUpdateInput = { variantId };
       if (input.title !== undefined) data.title = input.title;
       if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;

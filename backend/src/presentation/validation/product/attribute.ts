@@ -18,6 +18,8 @@ const attributeDefinitionRules: Record<string, FieldRule> = {
   name: { type: 'string', required: true, max: 150 },
   code: { type: 'string', required: true, max: 100 },
   dataType: { type: 'string', required: true, values: DATA_TYPES },
+  source: { type: 'string', values: ['UNIT_TYPE', 'PROJECT'] },
+  iconKey: { type: 'string', nullable: true, max: 50 },
   unit: { type: 'string', nullable: true, allowEmpty: true, max: 30 },
 };
 

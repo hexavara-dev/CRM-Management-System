@@ -153,6 +153,35 @@ const clusterDefinitions = [
   { code: 'LAVENDER', name: 'Lavender' },
 ] as const;
 
+// Lokasi contoh mengikuti nama wilayah di frontend/public/data/wilayah.json.
+// Link peta menunjuk area kelurahan, bukan titik persil proyek fiktif.
+const demoLocations = [
+  { province: 'Jawa Timur', city: 'Kabupaten Malang', district: 'Bululawang', village: 'Bululawang', postalCode: '65171', address: 'Lingkungan Bululawang, Kabupaten Malang' },
+  { province: 'Jawa Tengah', city: 'Kota Semarang', district: 'Pedurungan', village: 'Tlogomulyo', postalCode: '50195', address: 'Area Tlogomulyo, Pedurungan, Semarang' },
+  { province: 'Jawa Barat', city: 'Kota Bandung', district: 'Bandung Wetan', village: 'Cihapit', postalCode: '40114', address: 'Kawasan Cihapit, Bandung Wetan, Kota Bandung' },
+  { province: 'Jawa Timur', city: 'Kota Surabaya', district: 'Rungkut', village: 'Kalirungkut', postalCode: '60293', address: 'Koridor Kalirungkut, Rungkut, Surabaya' },
+  { province: 'Jawa Barat', city: 'Kota Bogor', district: 'Bogor Utara', village: 'Bantarjati', postalCode: '16153', address: 'Lingkungan Bantarjati, Bogor Utara, Kota Bogor' },
+  { province: 'Daerah Istimewa Yogyakarta', city: 'Kota Yogyakarta', district: 'Gondokusuman', village: 'Demangan', postalCode: '55221', address: 'Area Demangan, Gondokusuman, Yogyakarta' },
+] as const;
+
+const previousDemoAddresses = [
+  'Area hunian Dago, Coblong, Kota Bandung',
+  'Lingkungan Sukarasa, Sukasari, Kota Bandung',
+  'Kawasan Cihapit, Bandung Wetan, Kota Bandung',
+  'Area Pasteur, Sukajadi, Kota Bandung',
+  'Lingkungan Antapani Wetan, Kota Bandung',
+  'Kawasan Braga, Sumur Bandung, Kota Bandung',
+] as const;
+
+const demoFacilityCodes = [
+  ['facility_security', 'facility_parking', 'facility_park'],
+  ['facility_security', 'facility_playground'],
+  ['facility_security', 'facility_parking', 'facility_pool', 'facility_park'],
+  ['facility_security', 'facility_parking', 'facility_smart_home', 'facility_pool', 'facility_park'],
+  ['facility_security', 'facility_park', 'facility_playground'],
+  ['facility_security', 'facility_parking', 'facility_mosque'],
+] as const;
+
 const blockDefinitions = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
 const additionalAvailableUnitsPerBlock = 3;
 const customerNames = [
@@ -216,26 +245,63 @@ export async function seedReservationData(
   const variantIds = new Set<string>();
 
   for (const [projectIndex, projectDefinition] of projectDefinitions.entries()) {
+    const demoLocation = demoLocations[projectIndex];
+    const address = demoLocation.address;
+    const mapsUrl = `https://www.google.com/maps?q=${encodeURIComponent(`${demoLocation.village}, ${demoLocation.district}, ${demoLocation.city}, ${demoLocation.province}`)}`;
     const projectCategory = await upsertCategory(prisma, tenantId, {
       code: projectDefinition.code,
       name: projectDefinition.name,
       type: 'PROJECT',
     });
 
+    const existingProduct = await prisma.product.findUnique({
+      where: { tenantId_code: { tenantId, code: projectDefinition.code } },
+    });
+    const replacePreviousDemo = existingProduct?.address === previousDemoAddresses[projectIndex];
     const product = await prisma.product.upsert({
       where: { tenantId_code: { tenantId, code: projectDefinition.code } },
-      update: {},
+      update: {
+        // Lengkapi proyek seed lama tanpa menimpa alamat yang sudah diubah pengguna.
+        ...(replacePreviousDemo || existingProduct?.province == null ? { province: demoLocation.province } : {}),
+        ...(replacePreviousDemo || existingProduct?.city == null ? { city: demoLocation.city } : {}),
+        ...(replacePreviousDemo || existingProduct?.subdistrict == null ? { subdistrict: demoLocation.district } : {}),
+        ...(replacePreviousDemo || existingProduct?.village == null ? { village: demoLocation.village } : {}),
+        ...(replacePreviousDemo || existingProduct?.address == null ? { address } : {}),
+        ...(replacePreviousDemo || existingProduct?.postalCode == null ? { postalCode: demoLocation.postalCode } : {}),
+        ...(replacePreviousDemo || existingProduct?.mapsUrl == null ? { mapsUrl } : {}),
+      },
       create: {
         tenantId,
         categoryId: projectCategory.id,
         name: projectDefinition.name,
         code: projectDefinition.code,
         description: `Hunian modern ${projectDefinition.name}`,
-        city: 'Bandung',
-        province: 'Jawa Barat',
+        city: demoLocation.city,
+        province: demoLocation.province,
+        subdistrict: demoLocation.district,
+        village: demoLocation.village,
+        address,
+        postalCode: demoLocation.postalCode,
+        mapsUrl,
         isActive: true,
       },
     });
+
+    const existingFacilities = await prisma.productAttribute.count({
+      where: { tenantId, productId: product.id, variantId: null, attribute: { source: 'PROJECT' } },
+    });
+    if (existingFacilities === 0) {
+      const facilities = await prisma.attribute.findMany({
+        where: { tenantId, source: 'PROJECT', code: { in: [...demoFacilityCodes[projectIndex]] } },
+        select: { id: true },
+      });
+      if (facilities.length !== demoFacilityCodes[projectIndex].length) {
+        throw new Error(`Missing seeded facility attributes for ${projectDefinition.code}`);
+      }
+      await prisma.productAttribute.createMany({
+        data: facilities.map((attribute) => ({ tenantId, productId: product.id, variantId: null, attributeId: attribute.id, value: 1 })),
+      });
+    }
 
     const existingVariants = await prisma.productVariant.findMany({
       where: { tenantId, productId: product.id },

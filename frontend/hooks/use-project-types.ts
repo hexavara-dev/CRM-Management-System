@@ -178,13 +178,6 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
             Number(right.isPrimary) - Number(left.isPrimary) ||
             left.sortOrder - right.sortOrder,
         )[0];
-      const projectMedia = product.media
-        .filter((item) => item.mediaType === "IMAGE" && item.variantId === null)
-        .sort(
-          (left, right) =>
-            Number(right.isPrimary) - Number(left.isPrimary) ||
-            left.sortOrder - right.sortOrder,
-        )[0];
 
       return {
         id: variant.id,
@@ -202,7 +195,8 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
         basePrice: Number(variant.basePrice),
         currentPrice: Number(variant.currentPrice),
         unitCount: variant.unitCount,
-        image: media?.fileUrl ?? projectMedia?.fileUrl ?? null,
+        // Gambar type hanya dari media milik variant ini; gambar proyek (variantId null) tidak dipakai sebagai fallback.
+        image: media?.fileUrl ?? null,
         attributes,
         attributeRows,
       } satisfies ProjectTypeRow;

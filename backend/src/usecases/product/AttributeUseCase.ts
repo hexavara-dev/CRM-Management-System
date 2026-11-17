@@ -1,9 +1,11 @@
-import type { AttributeDataType, Prisma, PrismaClient } from '@prisma/client';
+import type { AttributeDataType, AttributeSource, Prisma, PrismaClient } from '@prisma/client';
 
 export type AttributeDefinitionInput = {
   name?: string;
   code?: string;
   dataType?: AttributeDataType;
+  source?: AttributeSource;
+  iconKey?: string | null;
   unit?: string | null;
 };
 
@@ -35,6 +37,8 @@ export class AttributeUseCase {
         name: input.name,
         code: input.code,
         dataType: input.dataType,
+        source: input.source ?? 'UNIT_TYPE',
+        iconKey: input.iconKey ?? null,
         unit: input.unit ?? null,
       },
     });
@@ -46,6 +50,8 @@ export class AttributeUseCase {
     if (input.name !== undefined) data.name = input.name;
     if (input.code !== undefined) data.code = input.code;
     if (input.dataType !== undefined) data.dataType = input.dataType;
+    if (input.source !== undefined) data.source = input.source;
+    if (input.iconKey !== undefined) data.iconKey = input.iconKey;
     if (input.unit !== undefined) data.unit = input.unit;
     return this.prisma.attribute.update({ where: { id }, data });
   }

@@ -8,6 +8,7 @@ import { newAttributeRules } from './attribute.js';
 import { unitRules } from './unit.js';
 
 const variantRules: Record<string, FieldRule> = {
+  id: { type: 'string', max: 36 },
   name: { type: 'string', required: true, max: 150 },
   basePrice: { type: 'number', required: true, integer: true, min: 0, max: PRICE_MAX },
   currentPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
@@ -32,13 +33,18 @@ const productRules: Record<string, FieldRule> = {
   village: { type: 'string', nullable: true, allowEmpty: true, max: 100 },
   address: { type: 'string', nullable: true, allowEmpty: true, max: 255 },
   postalCode: { type: 'string', nullable: true, allowEmpty: true, max: 10 },
+  mapsUrl: { type: 'string', nullable: true, allowEmpty: true, max: 4096 },
   isActive: { type: 'boolean' },
   variants: { type: 'array' },
   locations: { type: 'array' },
   units: { type: 'array' },
+  facilityAttributeIds: { type: 'array' },
+  removeMediaIds: { type: 'array' },
+  primaryMediaId: { type: 'string', max: 36 },
 };
 
 const locationRules: Record<string, FieldRule> = {
+  id: { type: 'string', max: 36 },
   key: { type: 'string', required: true, max: 64 },
   parentKey: { type: 'string', nullable: true, max: 64 },
   name: { type: 'string', required: true, max: 150 },
@@ -57,13 +63,17 @@ function arrayOf<T>(value: unknown, max: number, field: string, validate: (item:
 
 export function validateProduct(body: unknown, partial = false) {
   const result = validateBody(body, productRules, { partial }) as ProductInput;
-  if (partial) {
-    for (const field of ['variants', 'locations', 'units'] as const) {
-      if (result[field] !== undefined) {
-        throw new Error(`${field} can only be sent when creating a product`);
-      }
+  if (result.facilityAttributeIds !== undefined) {
+    const ids = result.facilityAttributeIds;
+    if (ids.length > 100 || ids.some((id) => typeof id !== 'string' || !id || id.length > 36) || new Set(ids).size !== ids.length) {
+      throw new Error('Invalid facility attribute IDs');
     }
-    return result;
+  }
+  if (result.removeMediaIds !== undefined) {
+    const ids = result.removeMediaIds;
+    if (ids.length > 10 || ids.some((id) => typeof id !== 'string' || !id || id.length > 36) || new Set(ids).size !== ids.length) {
+      throw new Error('Invalid project media IDs');
+    }
   }
   if (result.variants !== undefined) {
     result.variants = arrayOf(result.variants, MAX_VARIANTS, 'variants', (v) => {

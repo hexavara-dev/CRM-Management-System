@@ -3,11 +3,13 @@ import type { FieldRule } from '../../../infrastructure/utils/RequestValidation.
 import { UNIT_STATUSES } from './constants.js';
 
 export const unitRules: Record<string, FieldRule> = {
+  id: { type: 'string', max: 36 },
   code: { type: 'string', required: true, max: 100 },
   name: { type: 'string', nullable: true, allowEmpty: true, max: 150 },
   variantIndex: { type: 'number', required: true, integer: true, min: 0 },
   locationKey: { type: 'string', max: 64 },
   status: { type: 'string', values: UNIT_STATUSES },
+  isHook: { type: 'boolean' },
 };
 
 export function parseUnitFilters(query: Record<string, unknown>) {

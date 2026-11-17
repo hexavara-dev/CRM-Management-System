@@ -16,9 +16,9 @@ import { DetailStat } from "./detail-stat";
 import { TreeRow } from "./tree-row";
 
 /** Flat list; parentId "root" = langsung di bawah proyek. */
-export type LocationNode = { id: string; parentId: string; name: string; level: string };
+export type LocationNode = { id: string; persistedId?: string; parentId: string; name: string; level: string };
 /** Unit fisik; dimiliki oleh lokasi terbawah (block) melalui locationId. */
-export type UnitItem = { id: string; locationId: string; code: string; type: string; hook: string; status: string };
+export type UnitItem = { id: string; persistedId?: string; locationId: string; code: string; type: string; hook: string; status: string };
 
 const ROOT = "root";
 const LEVEL_SUGGESTIONS = ["Cluster", "Zone", "Block", "Tower", "Floor"];
@@ -92,7 +92,8 @@ export function HierarchyStep({
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft) return;
-    const node: LocationNode = { id: draft.id ?? crypto.randomUUID(), parentId: draft.parentId, name: draft.name.trim(), level: draft.level.trim() };
+    const previous = nodes.find((item) => item.id === draft.id);
+    const node: LocationNode = { id: draft.id ?? crypto.randomUUID(), ...(previous?.persistedId ? { persistedId: previous.persistedId } : {}), parentId: draft.parentId, name: draft.name.trim(), level: draft.level.trim() };
     onChange(draft.id ? nodes.map((n) => (n.id === draft.id ? node : n)) : [...nodes, node]);
     if (!draft.id) setExpanded((s) => new Set(s).add(draft.parentId));
     setDraft(null);

@@ -1,6 +1,5 @@
 "use client";
 
-import { } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Data resmi kode wilayah Kemendagri (sumber: github.com/cahyadsn/wilayah), disajikan dari public/data.
@@ -46,14 +45,26 @@ export function RegionSelect({
   disabled: boolean;
 }) {
   const hasOptions = options.length > 0;
+  const selectedName = options.find((option) => option.c === value)?.n;
+  const hint = disabled || !hasOptions ? emptyHint : placeholder;
   return (
     <div className="min-w-0">
       <label className="mb-1.5 block text-xs font-medium text-[#1f1f1f]">
         {label} <span className="text-[#D64545]">*</span>
       </label>
-      <Select value={value} onValueChange={onChange} disabled={disabled || !hasOptions} required>
+      {/*
+        Radix memanggil onValueChange("") saat value berubah sebelum <option> native-nya terdaftar
+        (mis. edit proyek: "__saved_*" -> kode asli setelah wilayah.json termuat). Item tidak pernah
+        bernilai "", jadi "" bukan pilihan user dan diabaikan agar nilai tersimpan tidak terhapus.
+      */}
+      <Select value={value} onValueChange={(code) => code && onChange(code)} disabled={disabled || !hasOptions} required>
         <SelectTrigger aria-label={label} data-name={name} className="h-9 w-full text-xs">
-          <SelectValue placeholder={disabled || !hasOptions ? emptyHint : placeholder} />
+          {/*
+            Wajib <SelectValue>: Radix hanya memposisikan dropdown (position="item-aligned") bila valueNode
+            terdaftar. Tanpanya dropdown terbuka tak terlihat dan pointer-events halaman terkunci.
+            Children eksplisit = nama wilayah terpilih, termasuk opsi sementara "__saved_*".
+          */}
+          <SelectValue placeholder={hint}>{selectedName ?? hint}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {options.map((o) => (

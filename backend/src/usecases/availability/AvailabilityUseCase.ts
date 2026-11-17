@@ -339,6 +339,7 @@ export class AvailabilityUseCase {
       return {
         id: unit.id,
         code: unit.code,
+        isHook: unit.isHook,
         type: unit.variant.name,
         price: priceOf(unit),
         block: block?.name ?? '—',

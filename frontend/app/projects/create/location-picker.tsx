@@ -5,8 +5,8 @@ import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseMapsInput } from "./parse-maps-link";
 
-export function LocationPicker() {
-  const [value, setValue] = useState("");
+export function LocationPicker({ initialValue = "" }: { initialValue?: string }) {
+  const [value, setValue] = useState(initialValue);
   const result = useMemo(() => parseMapsInput(value), [value]);
   const preview = result.ok ? result.preview : null;
   const error = !result.ok && value.trim() ? result.error : null;

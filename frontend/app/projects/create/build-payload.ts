@@ -18,6 +18,8 @@ const UNIT_STATUS: Record<string, NonNullable<CreateProjectPayload["units"][numb
   available: "AVAILABLE",
   reserved: "RESERVED",
   sold: "SOLD",
+  booked: "BOOKED",
+  blocked: "BLOCKED",
 };
 
 /** Field unit type -> `product_attributes` (INT; kosong dikirim 0, luas dibulatkan). */
@@ -31,7 +33,7 @@ const ATTRIBUTES: { key: keyof UnitType; name: string; code: string; unit?: stri
 ];
 
 /** Isian lokasi step 1 -> kolom `products`; yang kosong tidak dikirim. */
-const LOCATION_FIELDS = ["province", "city", "subdistrict", "village", "address", "postalCode"] as const;
+const LOCATION_FIELDS = ["province", "city", "subdistrict", "village", "address", "postalCode", "mapsUrl"] as const;
 
 /** Menyusun body `POST /api/products` dari state wizard. Melempar Error berisi pesan untuk user. */
 export function buildProjectPayload(input: {
@@ -39,6 +41,8 @@ export function buildProjectPayload(input: {
   unitTypes: UnitType[];
   nodes: LocationNode[];
   units: UnitItem[];
+  facilityAttributeIds?: string[];
+  includeEmpty?: boolean;
 }): CreateProjectPayload {
   const { info, unitTypes, nodes, units } = input;
 
@@ -46,6 +50,7 @@ export function buildProjectPayload(input: {
   if (new Set(names).size !== names.length) throw new Error("Nama unit type tidak boleh sama.");
 
   const variants = unitTypes.map((t) => ({
+    ...(t.id ? { id: t.id } : {}),
     name: t.name.trim(),
     basePrice: Math.round(Number(t.basePrice) || 0),
     stock: Math.round(Number(t.stock) || 0),
@@ -61,30 +66,33 @@ export function buildProjectPayload(input: {
   const locations = nodes.map((n) => {
     const type = LEVEL_TYPE[n.level.trim().toLowerCase()];
     if (!type) throw new Error(`Level "${n.level}" belum didukung.`);
-    return { key: n.id, parentKey: n.parentId === ROOT ? null : n.parentId, name: n.name, type };
+    return { ...(n.persistedId ? { id: n.persistedId } : {}), key: n.id, parentKey: n.parentId === ROOT ? null : n.parentId, name: n.name, type };
   });
 
   const payloadUnits = units.map((u) => {
     const variantIndex = names.indexOf(u.type.trim());
     if (variantIndex < 0) throw new Error(`Unit ${u.code}: tipe "${u.type}" tidak ada di Unit Type.`);
     return {
+      ...(u.persistedId ? { id: u.persistedId } : {}),
       code: u.code,
       variantIndex,
       // Unit yang menempel di akar (tanpa node) memakai akar proyek di backend.
       ...(nodes.some((n) => n.id === u.locationId) ? { locationKey: u.locationId } : {}),
       status: UNIT_STATUS[u.status.trim().toLowerCase()] ?? "AVAILABLE",
+      isHook: u.hook === "Ya",
     };
   });
 
   return {
     name: info.name.trim(),
     code: info.code.trim(),
-    ...(info.description.trim() ? { description: info.description.trim() } : {}),
+    ...(input.includeEmpty || info.description.trim() ? { description: info.description.trim() } : {}),
     ...Object.fromEntries(
-      LOCATION_FIELDS.filter((k) => info[k].trim()).map((k) => [k, info[k].trim()]),
+      LOCATION_FIELDS.filter((k) => input.includeEmpty || info[k].trim()).map((k) => [k, info[k].trim()]),
     ),
     // "In Development" belum punya kolom; hanya Inactive yang dibedakan.
     isActive: info.status !== "Inactive",
+    facilityAttributeIds: input.facilityAttributeIds ?? [],
     variants,
     locations,
     units: payloadUnits,
