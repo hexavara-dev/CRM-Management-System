@@ -37,7 +37,7 @@ export function ClusterUnitList({
     <section className="mt-4 overflow-hidden rounded-xl border border-[#e5e9ef]">
       {units.map((unit) => (
         <Link
-          href={unitPath(availabilityId, clusterId, unit.id)}
+          href={unitPath(availabilityId, clusterId, unit.code)}
           key={unit.id}
           className="grid grid-cols-[1fr_auto] items-center gap-4 border-b border-[#edf0f3] bg-white px-4 py-3 last:border-b-0"
         >

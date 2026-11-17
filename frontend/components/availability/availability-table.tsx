@@ -85,6 +85,7 @@ export function AvailabilityTable({
                             alt={project.name}
                             width={40}
                             height={40}
+                            unoptimized
                             className="size-10 rounded-md border object-cover"
                           />
                         ) : (
@@ -144,7 +145,7 @@ export function AvailabilityTable({
 
                     <td className="px-3 py-3">
                       <Link
-                        href={availabilityPath(project.id)}
+                        href={availabilityPath(project.code)}
                         aria-label={`View ${project.name}`}
                         className="inline-flex rounded-md border p-1.5 hover:bg-muted"
                       >
