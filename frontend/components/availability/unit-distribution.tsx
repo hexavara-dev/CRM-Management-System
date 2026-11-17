@@ -8,12 +8,14 @@ export function UnitDistribution({
   processing,
   reserved,
   sold,
+  blocked,
   total,
 }: {
   available: number;
   processing: number;
   reserved: number;
   sold: number;
+  blocked: number;
   total: number;
 }) {
   const segments = [
@@ -21,6 +23,7 @@ export function UnitDistribution({
     { key: "processing", value: processing, color: "#3b82f6" },
     { key: "reserved", value: reserved, color: "#f59e0b" },
     { key: "sold", value: sold, color: "#f87171" },
+    { key: "blocked", value: blocked, color: "#94a3b8" },
   ];
 
   let current = 0;

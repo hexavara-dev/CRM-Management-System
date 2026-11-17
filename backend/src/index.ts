@@ -42,6 +42,8 @@ import { ReservationController } from './presentation/controllers/ReservationCon
 import { ReservationUseCase } from './usecases/reservation/ReservationUseCase.js';
 import { UnitPriceUseCase } from './usecases/pricing/UnitPriceUseCase.js';
 import { UnitPriceController } from './presentation/controllers/UnitPriceController.js';
+import { AvailabilityUseCase } from './usecases/availability/AvailabilityUseCase.js';
+import { AvailabilityController } from './presentation/controllers/AvailabilityController.js';
 import { InventoryTrackingUseCase } from './usecases/settings/InventoryTrackingUseCase.js';
 import { InventoryTrackingController } from './presentation/controllers/InventoryTrackingController.js';
 
@@ -360,6 +362,16 @@ app.post('/api/reservations', authMiddleware, reservationController.create);
 app.get('/api/reservations/:id', authMiddleware, reservationController.get);
 app.patch('/api/reservations/:id', authMiddleware, reservationController.update);
 app.patch('/api/reservations/:id/status', authMiddleware, reservationController.updateStatus);
+
+const availabilityController = new AvailabilityController(new AvailabilityUseCase(prisma));
+app.get('/api/availability', authMiddleware, availabilityController.overview);
+app.get('/api/availability/:projectId', authMiddleware, availabilityController.project);
+app.get('/api/availability/:projectId/clusters/:clusterId', authMiddleware, availabilityController.cluster);
+app.get(
+  '/api/availability/:projectId/clusters/:clusterId/units/:unitId',
+  authMiddleware,
+  availabilityController.unit
+);
 
 // Pengaturan global metode inventory. Semua user membaca, owner mengubah.
 const inventoryTracking = new InventoryTrackingController(new InventoryTrackingUseCase(prisma));

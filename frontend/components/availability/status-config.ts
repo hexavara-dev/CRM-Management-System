@@ -24,4 +24,9 @@ export const statusConfig: Record<
     color: "text-red-500",
     bg: "bg-red-50",
   },
+  blocked: {
+    label: "Blocked",
+    color: "text-slate-600",
+    bg: "bg-slate-100",
+  },
 };

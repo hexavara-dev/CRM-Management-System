@@ -1,4 +1,9 @@
-export type UnitStatus = "available" | "processing" | "reserved" | "sold";
+export type UnitStatus =
+  | "available"
+  | "processing"
+  | "reserved"
+  | "sold"
+  | "blocked";
 
 export interface ProjectAvailability {
   id: string;

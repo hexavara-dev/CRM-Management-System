@@ -10,12 +10,7 @@ import type {
 } from "@/components/availability/types";
 import type { UnitDetail } from "@/components/availability/unit/types";
 import { useAuth } from "@/components/auth/auth-provider";
-
-/**
- * Sementara: backend belum punya endpoint availability, jadi hook ini
- * mengembalikan data kosong agar halaman menampilkan empty state.
- * Ganti queryFn dengan pemanggilan API begitu endpoint tersedia.
- */
+import api from "@/lib/api";
 
 export interface AvailabilityOverview {
   summary: AvailabilitySummary;
@@ -35,16 +30,20 @@ export interface ClusterAvailabilityResponse {
   units: ClusterUnit[];
 }
 
-const EMPTY_OVERVIEW: AvailabilityOverview = {
-  summary: { total: 0, available: 0, processing: 0, reserved: 0, sold: 0, blocked: 0 },
-  projects: [],
-};
+function apiPath(...segments: string[]) {
+  return `/api/availability/${segments.map(encodeURIComponent).join("/")}`;
+}
 
 export function useAvailabilityOverview(projectId: string | undefined) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["availability-overview", user?.tenantId, projectId],
-    queryFn: async (): Promise<AvailabilityOverview> => EMPTY_OVERVIEW,
+    queryFn: async () => {
+      const response = await api.get<AvailabilityOverview>("/api/availability", {
+        params: projectId ? { projectId } : undefined,
+      });
+      return response.data;
+    },
     enabled: !!user,
   });
 }
@@ -53,16 +52,25 @@ export function useProjectAvailability(projectId: string | undefined) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["availability-project", user?.tenantId, projectId],
-    queryFn: async (): Promise<ProjectAvailabilityResponse | null> => null,
+    queryFn: async () =>
+      (await api.get<ProjectAvailabilityResponse>(apiPath(projectId as string))).data,
     enabled: !!user && !!projectId,
   });
 }
 
-export function useClusterAvailability(projectId: string | undefined, clusterId: string | undefined) {
+export function useClusterAvailability(
+  projectId: string | undefined,
+  clusterId: string | undefined,
+) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["availability-cluster", user?.tenantId, projectId, clusterId],
-    queryFn: async (): Promise<ClusterAvailabilityResponse | null> => null,
+    queryFn: async () =>
+      (
+        await api.get<ClusterAvailabilityResponse>(
+          apiPath(projectId as string, "clusters", clusterId as string),
+        )
+      ).data,
     enabled: !!user && !!projectId && !!clusterId,
   });
 }
@@ -75,7 +83,12 @@ export function useAvailabilityUnit(
   const { user } = useAuth();
   return useQuery({
     queryKey: ["availability-unit", user?.tenantId, projectId, clusterId, unitId],
-    queryFn: async (): Promise<UnitDetail | null> => null,
+    queryFn: async () =>
+      (
+        await api.get<UnitDetail>(
+          apiPath(projectId as string, "clusters", clusterId as string, "units", unitId as string),
+        )
+      ).data,
     enabled: !!user && !!projectId && !!clusterId && !!unitId,
   });
 }
