@@ -47,6 +47,7 @@ export function ProjectAvailabilityHeader({
             alt={project.name}
             width={100}
             height={60}
+            unoptimized
             className="h-[60px] w-[100px] rounded-lg object-cover"
           />
         ) : (

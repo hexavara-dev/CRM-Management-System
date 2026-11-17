@@ -1,5 +1,6 @@
 export type ClusterAvailability = {
   id: string;
+  code: string;
   name: string;
   units: number;
   blocks: number;
@@ -11,6 +12,8 @@ export type ClusterAvailability = {
 };
 
 export type ProjectAvailabilityDetail = {
+  id: string;
+  code: string;
   name: string;
   location: string;
   image: string | null;

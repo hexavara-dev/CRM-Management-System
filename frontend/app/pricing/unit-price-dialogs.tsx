@@ -27,6 +27,7 @@ import { ErrorText } from "@/components/ui/error-text";
 import { FormInput } from "@/components/ui/form-input";
 import { HelperText } from "@/components/ui/helper-text";
 import { LabelText } from "@/components/ui/label-text";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { FormTextarea } from "@/components/ui/form-textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage } from "@/hooks/use-projects";
@@ -72,9 +73,6 @@ export const adjustmentSchema = z.object({
 });
 export type AdjustmentFormData = z.infer<typeof adjustmentSchema>;
 
-const groupDigits = (digits: string) =>
-  digits ? Number(digits).toLocaleString("id-ID") : "";
-
 /** Input harga jual final dengan prefix Rp dan pemisah ribuan. */
 export function PriceField({ helper }: { helper: string }) {
   const {
@@ -89,27 +87,17 @@ export function PriceField({ helper }: { helper: string }) {
         control={control}
         name="price"
         render={({ field }) => (
-          <div
-            className={cn(
-              "flex h-9 items-center rounded-md border border-input bg-background shadow-sm focus-within:ring-1 focus-within:ring-ring",
-              error && "border-destructive",
-            )}
-          >
-            <span className="pl-3 text-sm text-[#6b6b6b]">Rp</span>
-            <input
-              inputMode="numeric"
-              aria-label="Harga jual baru dalam rupiah"
-              value={groupDigits(field.value)}
-              onChange={(event) =>
-                field.onChange(
-                  event.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""),
-                )
-              }
-              onBlur={field.onBlur}
-              placeholder="0"
-              className="h-full w-full bg-transparent px-2 text-sm outline-none"
-            />
-          </div>
+          <RupiahInput
+            name={field.name}
+            ref={field.ref}
+            value={field.value}
+            onValueChange={field.onChange}
+            onBlur={field.onBlur}
+            aria-label="Harga jual baru dalam rupiah"
+            aria-invalid={!!error}
+            placeholder="0"
+            className={cn(error && "border-destructive")}
+          />
         )}
       />
       {error ? (

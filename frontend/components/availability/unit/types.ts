@@ -2,6 +2,10 @@ export type UnitSpecification = { key: string; label: string };
 
 export type UnitDetail = {
   id: string;
+  code: string;
+  projectId: string;
+  projectCode: string;
+  clusterCode: string;
   number: string;
   status: string;
   project: string;

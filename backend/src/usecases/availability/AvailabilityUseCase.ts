@@ -9,12 +9,13 @@ const unitInclude = (tenantId: string) =>
       name: true,
       currentPrice: true,
       attributes: {
+        where: { tenantId, attribute: { tenantId } },
         include: { attribute: { select: { code: true, name: true, unit: true } } },
       },
     },
   },
   media: {
-    where: { mediaType: 'IMAGE' as const },
+    where: { tenantId, mediaType: 'IMAGE' as const },
     orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
     select: { fileUrl: true, isPrimary: true, sortOrder: true },
   },
@@ -29,6 +30,7 @@ const unitInclude = (tenantId: string) =>
 type AvailabilityUnit = Prisma.ProductUnitGetPayload<{ include: ReturnType<typeof unitInclude> }>;
 type AvailabilityCategory = {
   id: string;
+  code: string;
   parentId: string | null;
   name: string;
   type: ProductCategoryType;
@@ -51,6 +53,15 @@ const emptySummary = (): Summary => ({
   sold: 0,
   blocked: 0,
 });
+
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+function byCodeOrLegacyId<T extends { id: string; code: string }>(rows: Iterable<T>, reference: string) {
+  const items = [...rows];
+  const code = reference.toLowerCase();
+  return items.find((item) => item.code.toLowerCase() === code) ??
+    (isUuid(reference) ? items.find((item) => item.id === reference) : undefined);
+}
 
 function statusKey(status: ProductUnitStatus): keyof Omit<Summary, 'total'> {
   switch (status) {
@@ -138,6 +149,7 @@ export class AvailabilityUseCase {
       orderBy: { name: 'asc' },
       select: {
         id: true,
+        code: true,
         name: true,
         address: true,
         village: true,
@@ -146,7 +158,7 @@ export class AvailabilityUseCase {
         province: true,
         variants: { select: { id: true } },
         media: {
-          where: { mediaType: 'IMAGE', variantId: null, unitId: null },
+          where: { tenantId, mediaType: 'IMAGE', variantId: null, unitId: null },
           orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
           take: 1,
           select: { fileUrl: true },
@@ -200,6 +212,7 @@ export class AvailabilityUseCase {
       }
       return {
         id: product.id,
+        code: product.code,
         name: product.name,
         location: locationOf(product),
         image: product.media[0]?.fileUrl ?? null,
@@ -210,31 +223,38 @@ export class AvailabilityUseCase {
     return { summary, projects: projectRows };
   }
 
-  private async loadProject(tenantId: string, projectId: string) {
-    const product = await this.prisma.product.findFirst({
-      where: { id: projectId, tenantId },
-      select: {
-        id: true,
-        categoryId: true,
-        name: true,
-        address: true,
-        village: true,
-        subdistrict: true,
-        city: true,
-        province: true,
-        media: {
-          where: { mediaType: 'IMAGE', variantId: null, unitId: null },
-          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
-          take: 1,
-          select: { fileUrl: true },
-        },
+  private async loadProject(tenantId: string, projectReference: string) {
+    const projectSelect = {
+      id: true,
+      code: true,
+      categoryId: true,
+      name: true,
+      address: true,
+      village: true,
+      subdistrict: true,
+      city: true,
+      province: true,
+      media: {
+        where: { tenantId, mediaType: 'IMAGE' as const, variantId: null, unitId: null },
+        orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
+        take: 1,
+        select: { fileUrl: true },
       },
-    });
+    } satisfies Prisma.ProductSelect;
+    const product = await this.prisma.product.findUnique({
+      where: { tenantId_code: { tenantId, code: projectReference } },
+      select: projectSelect,
+    }) ?? (isUuid(projectReference)
+      ? await this.prisma.product.findFirst({
+          where: { id: projectReference, tenantId },
+          select: projectSelect,
+        })
+      : null);
     if (!product) return null;
 
     const categoryRows = await this.prisma.productCategory.findMany({
       where: { tenantId },
-      select: { id: true, parentId: true, name: true, type: true },
+      select: { id: true, code: true, parentId: true, name: true, type: true },
     });
     const allCategories = new Map(categoryRows.map((category) => [category.id, category]));
     if (!allCategories.has(product.categoryId)) return null;
@@ -262,7 +282,7 @@ export class AvailabilityUseCase {
     );
 
     const units = await this.prisma.productUnit.findMany({
-      where: { tenantId, variant: { productId: projectId, tenantId } },
+      where: { tenantId, variant: { productId: product.id, tenantId } },
       orderBy: { code: 'asc' },
       include: unitInclude(tenantId),
     });
@@ -276,10 +296,17 @@ export class AvailabilityUseCase {
 
     const location = locationOf(data.product);
     const summary = summarize(data.units);
-    const clusters = [...data.categories.values()].filter((category) => category.type === 'CLUSTER');
+    const root = data.categories.get(data.product.categoryId);
+    const hasRootUnits = data.units.some((unit) => !nearestCategory(unit.categoryId, 'CLUSTER', data.categories));
+    const clusters = [
+      ...[...data.categories.values()].filter((category) => category.type === 'CLUSTER'),
+      ...(hasRootUnits && root ? [{ ...root, name: 'Tanpa cluster' }] : []),
+    ];
     const clusterRows = clusters.map((cluster) => {
       const clusterUnits = data.units.filter(
-        (unit) => nearestCategory(unit.categoryId, 'CLUSTER', data.categories)?.id === cluster.id
+        (unit) => cluster.id === data.product.categoryId
+          ? !nearestCategory(unit.categoryId, 'CLUSTER', data.categories)
+          : nearestCategory(unit.categoryId, 'CLUSTER', data.categories)?.id === cluster.id
       );
       const blocks = [...data.categories.values()].filter(
         (category) =>
@@ -289,6 +316,7 @@ export class AvailabilityUseCase {
       const unitSummary = summarize(clusterUnits);
       return {
         id: cluster.id,
+        code: cluster.code,
         name: cluster.name,
         units: unitSummary.total,
         blocks: blocks.length,
@@ -302,6 +330,8 @@ export class AvailabilityUseCase {
 
     return {
       project: {
+        id: data.product.id,
+        code: data.product.code,
         name: data.product.name,
         location,
         image: data.product.media[0]?.fileUrl ?? null,
@@ -316,20 +346,22 @@ export class AvailabilityUseCase {
     };
   }
 
-  async cluster(tenantId: string, projectId: string, clusterId: string) {
-    const data = await this.loadProject(tenantId, projectId);
-    const cluster = data?.categories.get(clusterId);
-    if (!data || cluster?.type !== 'CLUSTER') return null;
+  async cluster(tenantId: string, projectReference: string, clusterReference: string) {
+    const data = await this.loadProject(tenantId, projectReference);
+    const cluster = data && byCodeOrLegacyId(data.categories.values(), clusterReference);
+    if (!data || !cluster || (cluster.type !== 'CLUSTER' && cluster.id !== data.product.categoryId)) return null;
 
     const clusterUnits = data.units.filter(
-      (unit) => nearestCategory(unit.categoryId, 'CLUSTER', data.categories)?.id === clusterId
+      (unit) => cluster.id === data.product.categoryId
+        ? !nearestCategory(unit.categoryId, 'CLUSTER', data.categories)
+        : nearestCategory(unit.categoryId, 'CLUSTER', data.categories)?.id === cluster.id
     );
     const summary = summarize(clusterUnits);
     const blocks = [...data.categories.values()]
       .filter(
         (category) =>
           category.type === 'BLOCK' &&
-          nearestCategory(category.id, 'CLUSTER', data.categories)?.id === clusterId
+          nearestCategory(category.id, 'CLUSTER', data.categories)?.id === cluster.id
       )
       .map((category) => category.name);
 
@@ -339,6 +371,7 @@ export class AvailabilityUseCase {
       return {
         id: unit.id,
         code: unit.code,
+        isHook: unit.isHook,
         type: unit.variant.name,
         price: priceOf(unit),
         block: block?.name ?? '—',
@@ -352,8 +385,8 @@ export class AvailabilityUseCase {
     });
 
     return {
-      project: { id: data.product.id, name: data.product.name, location: locationOf(data.product) },
-      cluster: { id: cluster.id, name: cluster.name },
+      project: { id: data.product.id, code: data.product.code, name: data.product.name, location: locationOf(data.product) },
+      cluster: { id: cluster.id, code: cluster.code, name: cluster.id === data.product.categoryId ? 'Tanpa cluster' : cluster.name },
       summary: {
         total: summary.total,
         available: summary.available,
@@ -366,14 +399,15 @@ export class AvailabilityUseCase {
     };
   }
 
-  async unit(tenantId: string, projectId: string, clusterId: string, unitId: string) {
-    const data = await this.loadProject(tenantId, projectId);
-    const cluster = data?.categories.get(clusterId);
-    if (!data || cluster?.type !== 'CLUSTER') return null;
-    const unit = data.units.find(
-      (item) =>
-        item.id === unitId &&
-        nearestCategory(item.categoryId, 'CLUSTER', data.categories)?.id === clusterId
+  async unit(tenantId: string, projectReference: string, clusterReference: string, unitReference: string) {
+    const data = await this.loadProject(tenantId, projectReference);
+    const cluster = data && byCodeOrLegacyId(data.categories.values(), clusterReference);
+    if (!data || !cluster || (cluster.type !== 'CLUSTER' && cluster.id !== data.product.categoryId)) return null;
+    const unit = byCodeOrLegacyId(
+      data.units.filter((item) => cluster.id === data.product.categoryId
+        ? !nearestCategory(item.categoryId, 'CLUSTER', data.categories)
+        : nearestCategory(item.categoryId, 'CLUSTER', data.categories)?.id === cluster.id),
+      unitReference
     );
     if (!unit) return null;
 
@@ -395,6 +429,10 @@ export class AvailabilityUseCase {
 
     return {
       id: unit.id,
+      code: unit.code,
+      projectId: data.product.id,
+      projectCode: data.product.code,
+      clusterCode: cluster.code,
       number: unit.name ?? unit.code,
       status:
         unitStatusKey(unit) === 'processing'

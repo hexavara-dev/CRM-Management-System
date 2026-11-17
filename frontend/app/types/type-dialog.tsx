@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import {
   Select,
   SelectContent,
@@ -116,14 +117,11 @@ function TypeForm({
           />
         </label>
         <label className="space-y-1.5 text-xs font-medium text-[#344054]">
-          Harga dasar (Rp)
-          <Input
+          Harga dasar
+          <RupiahInput
             required
-            type="number"
-            min="0"
-            step="1"
             value={basePrice}
-            onChange={(event) => setBasePrice(event.target.value)}
+            onValueChange={setBasePrice}
             placeholder="650000000"
             className="h-9"
           />

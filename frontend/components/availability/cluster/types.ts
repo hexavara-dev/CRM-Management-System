@@ -11,6 +11,7 @@ export type ClusterView = "grid" | "list";
 export type ClusterUnit = {
   id: string;
   code: string;
+  isHook: boolean;
   type: string;
   price: number;
   block: Block;

@@ -3,10 +3,13 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useState } from "react";
 
+import { CreateReservationDialog } from "@/app/reservation/create-reservation-dialog";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { clusterPath } from "@/components/availability/routes";
+import { KprSimulationDialog } from "@/components/availability/unit/kpr-simulation-dialog";
 import { UnitNotesCard } from "@/components/availability/unit/notes-card";
 import { PricingCard } from "@/components/availability/unit/pricing-card";
 import { SpecificationCard } from "@/components/availability/unit/specification-card";
@@ -18,6 +21,8 @@ import { useAvailabilityUnit } from "@/hooks/use-availability";
 import { errorMessage } from "@/hooks/use-projects";
 
 export default function UnitDetailPage() {
+  const [reservationOpen, setReservationOpen] = useState(false);
+  const [kprOpen, setKprOpen] = useState(false);
   const params = useParams<{
     availabilityId: string;
     clusterId: string;
@@ -65,7 +70,7 @@ export default function UnitDetailPage() {
                   className="h-8 rounded-lg px-3 text-[10px] font-semibold shadow-none"
                 >
                   <Link
-                    href={clusterPath(params.availabilityId, params.clusterId)}
+                    href={clusterPath(unit.data.projectCode, unit.data.clusterCode)}
                   >
                     <ArrowLeft className="mr-1.5 size-3" />
                     Back to Cluster
@@ -82,10 +87,39 @@ export default function UnitDetailPage() {
                 </div>
                 <div className="space-y-3">
                   <UnitInfoCard unit={unit.data} />
-                  <PricingCard unit={unit.data} />
+                  <PricingCard
+                    unit={unit.data}
+                    onReserve={() => setReservationOpen(true)}
+                    onSimulate={() => setKprOpen(true)}
+                  />
                   <UnitNotesCard />
                 </div>
               </section>
+              {reservationOpen && (
+                <CreateReservationDialog
+                  open={reservationOpen}
+                  onOpenChange={setReservationOpen}
+                  onCreated={() => void unit.refetch()}
+                  initialSelection={{
+                    projectId: unit.data.projectId,
+                    projectName: unit.data.project,
+                    unitId: unit.data.id,
+                    unitLabel: unit.data.number,
+                    price: unit.data.finalPrice,
+                  }}
+                />
+              )}
+              {kprOpen && (
+                <KprSimulationDialog
+                  open={kprOpen}
+                  onOpenChange={setKprOpen}
+                  unit={unit.data}
+                  onReserve={() => {
+                    setKprOpen(false);
+                    setReservationOpen(true);
+                  }}
+                />
+              )}
             </>
           ) : (
             <AvailabilityState message="Unit tidak ditemukan." />

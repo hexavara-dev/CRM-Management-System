@@ -330,8 +330,9 @@ app.put('/api/categories/:id', authMiddleware, ownerOnly, pc.updateCategory);
 app.delete('/api/categories/:id', authMiddleware, ownerOnly, pc.deleteCategory);
 app.get('/api/products', authMiddleware, pc.listProducts);
 app.get('/api/products/:id', authMiddleware, pc.getProduct);
-app.post('/api/products', authMiddleware, ownerOnly, pc.createProduct);
-app.put('/api/products/:id', authMiddleware, ownerOnly, pc.updateProduct);
+app.get('/api/products/:id/edit-data', authMiddleware, pc.getProductEdit);
+app.post('/api/products', authMiddleware, ownerOnly, upload.array('covers', 10), pc.createProduct);
+app.put('/api/products/:id', authMiddleware, ownerOnly, upload.array('covers', 10), pc.updateProduct);
 app.delete('/api/products/:id', authMiddleware, ownerOnly, pc.deleteProduct);
 app.post('/api/products/:id/variants', authMiddleware, ownerOnly, pc.createVariant);
 app.put('/api/products/:id/variants/:variantId', authMiddleware, ownerOnly, pc.updateVariant);
@@ -363,10 +364,10 @@ app.patch('/api/reservations/:id/status', authMiddleware, reservationController.
 
 const availabilityController = new AvailabilityController(new AvailabilityUseCase(prisma));
 app.get('/api/availability', authMiddleware, availabilityController.overview);
-app.get('/api/availability/:projectId', authMiddleware, availabilityController.project);
-app.get('/api/availability/:projectId/clusters/:clusterId', authMiddleware, availabilityController.cluster);
+app.get('/api/availability/:projectRef', authMiddleware, availabilityController.project);
+app.get('/api/availability/:projectRef/clusters/:clusterRef', authMiddleware, availabilityController.cluster);
 app.get(
-  '/api/availability/:projectId/clusters/:clusterId/units/:unitId',
+  '/api/availability/:projectRef/clusters/:clusterRef/units/:unitRef',
   authMiddleware,
   availabilityController.unit
 );

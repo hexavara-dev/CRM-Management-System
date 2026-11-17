@@ -2,31 +2,38 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { RegionSelect, loadRegions, type Province } from "./region-select";
+import { resolveRegionSelection, type RegionEdits } from "./region-selection";
+import type { ProjectInfo } from "./preview-step";
 
-export function RegionFields({ postal, address }: { postal: ReactNode; address: ReactNode }) {
+export function RegionFields({ postal, address, initial }: { postal: ReactNode; address: ReactNode; initial?: ProjectInfo }) {
   const [regions, setRegions] = useState<Province[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [provinceCode, setProvinceCode] = useState("");
-  const [cityCode, setCityCode] = useState("");
-  const [districtCode, setDistrictCode] = useState("");
-  const [villageCode, setVillageCode] = useState("");
+  // Nilai tersimpan dihitung langsung dari initial; state ini hanya berisi pilihan baru pengguna.
+  const [edited, setEdited] = useState<RegionEdits>({});
 
   useEffect(() => {
     let cancelled = false;
     loadRegions()
-      .then((data) => !cancelled && setRegions(data))
+      .then((data) => {
+        if (cancelled) return;
+        setRegions(data);
+      })
       .catch(() => !cancelled && setError("Gagal memuat data wilayah. Muat ulang halaman."));
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const province = regions?.find((p) => p.c === provinceCode);
-  const cities = province?.r ?? [];
-  const city = cities.find((c) => c.c === cityCode);
-  const districts = city?.d ?? [];
-  const district = districts.find((d) => d.c === districtCode);
-  const villages = district?.v ?? [];
+  // Nilai wilayah tersimpan proyek -> kode selected option tiap select (lihat region-selection.check.ts).
+  const { province, city, district, village } = resolveRegionSelection(regions, initial, edited);
+  const provinceCode = province.code;
+  const provinceOptions = province.options;
+  const cityCode = city.code;
+  const cities = city.options;
+  const districtCode = district.code;
+  const districts = district.options;
+  const villageCode = village.code;
+  const villages = village.options;
 
   const loading = !regions && !error;
   const loadingHint = loading ? "Memuat data…" : error ?? "";
@@ -39,12 +46,9 @@ export function RegionFields({ postal, address }: { postal: ReactNode; address: 
         name="province"
         value={provinceCode}
         onChange={(c) => {
-          setProvinceCode(c);
-          setCityCode("");
-          setDistrictCode("");
-          setVillageCode("");
+          setEdited({ province: c, city: "", district: "", village: "" });
         }}
-        options={(regions ?? []).map(({ c, n }) => ({ c, n }))}
+        options={provinceOptions.map(({ c, n }) => ({ c, n }))}
         placeholder="Pilih provinsi"
         emptyHint={loadingHint || "Data provinsi kosong"}
         disabled={loading}
@@ -55,9 +59,7 @@ export function RegionFields({ postal, address }: { postal: ReactNode; address: 
         name="city"
         value={cityCode}
         onChange={(c) => {
-          setCityCode(c);
-          setDistrictCode("");
-          setVillageCode("");
+          setEdited((current) => ({ ...current, city: c, district: "", village: "" }));
         }}
         options={cities}
         placeholder="Pilih kota/kabupaten"
@@ -70,8 +72,7 @@ export function RegionFields({ postal, address }: { postal: ReactNode; address: 
         name="subdistrict"
         value={districtCode}
         onChange={(c) => {
-          setDistrictCode(c);
-          setVillageCode("");
+          setEdited((current) => ({ ...current, district: c, village: "" }));
         }}
         options={districts}
         placeholder="Pilih kecamatan"
@@ -82,7 +83,7 @@ export function RegionFields({ postal, address }: { postal: ReactNode; address: 
         label="Village"
         name="village"
         value={villageCode}
-        onChange={setVillageCode}
+        onChange={(c) => setEdited((current) => ({ ...current, village: c }))}
         options={villages}
         placeholder="Pilih kelurahan/desa"
         emptyHint={districtCode ? "Tidak ada data kelurahan/desa" : "Pilih kecamatan terlebih dahulu"}

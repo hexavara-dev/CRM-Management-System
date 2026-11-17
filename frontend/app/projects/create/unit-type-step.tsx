@@ -6,11 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { INPUT } from "./form-styles";
+import type { UnitItem } from "./hierarchy-step";
 
 export type UnitType = {
+  id?: string;
   name: string;
   buildingArea: string;
   surfaceArea: string;
@@ -40,7 +44,7 @@ const FIELDS: { key: keyof UnitType; label: string; placeholder: string; numeric
 
 const idr = (v: string) => `Rp ${Number(v).toLocaleString("id-ID")}`;
 
-export function UnitTypeStep({ items, onChange }: { items: UnitType[]; onChange: (items: UnitType[]) => void }) {
+export function UnitTypeStep({ items, units, onChange, onRename }: { items: UnitType[]; units: UnitItem[]; onChange: (items: UnitType[]) => void; onRename?: (oldName: string, newName: string) => void }) {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<UnitType>(EMPTY);
@@ -58,6 +62,13 @@ export function UnitTypeStep({ items, onChange }: { items: UnitType[]; onChange:
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     if (editing === null) return;
+    // Total slot tidak boleh lebih kecil dari unit yang sudah dibuat untuk type ini.
+    const created = editing >= 0 ? units.filter((unit) => unit.type === items[editing]?.name).length : 0;
+    if ((Number(draft.stock) || 0) < created) {
+      toast.error(`Stock ${draft.name} tidak boleh kurang dari ${created} unit yang sudah dibuat.`);
+      return;
+    }
+    if (editing >= 0 && items[editing]?.name !== draft.name) onRename?.(items[editing].name, draft.name);
     onChange(editing >= 0 ? items.map((it, i) => (i === editing ? draft : it)) : [...items, draft]);
     setEditing(null);
   };
@@ -114,7 +125,13 @@ export function UnitTypeStep({ items, onChange }: { items: UnitType[]; onChange:
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onSelect={() => open(start + i)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem className="text-[#D64545]" onSelect={() => onChange(items.filter((_, idx) => idx !== start + i))}>
+                        <DropdownMenuItem className="text-[#D64545]" onSelect={() => {
+                          if (units.some((unit) => unit.type === u.name)) {
+                            toast.error("Hapus unit pada tipe ini terlebih dahulu.");
+                            return;
+                          }
+                          onChange(items.filter((_, idx) => idx !== start + i));
+                        }}>
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -161,15 +178,25 @@ export function UnitTypeStep({ items, onChange }: { items: UnitType[]; onChange:
               {FIELDS.map((f) => (
                 <div key={f.key} className={f.key === "name" ? "col-span-2" : undefined}>
                   <label className="mb-1.5 block text-xs font-medium text-[#1f1f1f]">{f.label}</label>
-                  <Input
-                    required
-                    type={f.numeric ? "number" : "text"}
-                    min={f.numeric ? 0 : undefined}
-                    placeholder={f.placeholder}
-                    value={draft[f.key]}
-                    onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
-                    className={INPUT}
-                  />
+                  {f.key === "basePrice" ? (
+                    <RupiahInput
+                      required
+                      value={draft.basePrice}
+                      onValueChange={(value) => setDraft({ ...draft, basePrice: value })}
+                      placeholder={f.placeholder}
+                      className={INPUT}
+                    />
+                  ) : (
+                    <Input
+                      required
+                      type={f.numeric ? "number" : "text"}
+                      min={f.numeric ? 0 : undefined}
+                      placeholder={f.placeholder}
+                      value={draft[f.key]}
+                      onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
+                      className={INPUT}
+                    />
+                  )}
                 </div>
               ))}
             </div>

@@ -100,6 +100,29 @@ describe('attribute request validation', () => {
   });
 });
 
+describe('ProductUseCase.list cover image', () => {
+  const listPrisma = (media: { fileUrl: string }[]) => ({
+    product: {
+      findMany: fn([{ id: 'p-1', name: 'Rukasa', variants: [{ id: 'v-1', basePrice: 1 }], media }]),
+      count: fn(1),
+    },
+    productUnit: { groupBy: fn([]) },
+  });
+  const filters = { page: 1, limit: 10 };
+
+  it('only picks project-level images (not unit-type or unit images) as the cover', async () => {
+    const prisma = listPrisma([]);
+    await new ProductUseCase(prisma as never).list('t-1', filters as never);
+    const args = prisma.product.findMany.mock.calls[0]?.[0] as { include: { media: { where: unknown } } };
+    expect(args.include.media.where).toEqual({ mediaType: 'IMAGE', variantId: null, unitId: null });
+  });
+
+  it('returns a null coverUrl when the project has no project-level image', async () => {
+    const result = await new ProductUseCase(listPrisma([]) as never).list('t-1', filters as never);
+    expect(result.data[0]?.coverUrl).toBeNull();
+  });
+});
+
 describe('ProductCategoryUseCase', () => {
   it('rejects moving a category under its own descendant', async () => {
     const rows = [
@@ -167,8 +190,28 @@ describe('category request validation', () => {
 });
 
 describe('product request validation', () => {
-  it('rejects variants on a partial update', () => {
-    expect(() => validateProduct({ variants: [] }, true)).toThrow(/only be sent when creating/);
+  it('accepts Google Maps https links and an empty mapsUrl', () => {
+    for (const mapsUrl of ['https://www.google.com/maps?q=Malang', 'https://maps.google.co.id/maps/place/X', 'https://www.google.com/maps/embed?pb=!1m18', '']) {
+      expect(validateProduct({ mapsUrl }, true).mapsUrl).toBe(mapsUrl);
+    }
+  });
+
+  it('rejects mapsUrl outside the Google Maps allowlist', () => {
+    for (const mapsUrl of [
+      'https://google.evil.com/maps/embed',
+      'https://www.google.com.evil.io/maps?q=a',
+      'http://www.google.com/maps?q=a',
+      'https://www.google.com/search?q=a',
+      'javascript:alert(1)',
+      '<iframe src="https://www.google.com/maps/embed"></iframe>',
+    ]) {
+      expect(() => validateProduct({ mapsUrl }, true)).toThrow(/Invalid mapsUrl/);
+    }
+  });
+
+
+  it('accepts variants on a partial update for the edit wizard', () => {
+    expect(validateProduct({ variants: [] }, true).variants).toEqual([]);
   });
 
   it('rejects a negative base price', () => {

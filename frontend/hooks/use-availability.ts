@@ -23,8 +23,8 @@ export interface ProjectAvailabilityResponse {
 }
 
 export interface ClusterAvailabilityResponse {
-  project: { id: string; name: string; location: string };
-  cluster: { id: string; name: string };
+  project: { id: string; code: string; name: string; location: string };
+  cluster: { id: string; code: string; name: string };
   summary: Omit<AvailabilitySummary, "blocked">;
   blocks: string[];
   units: ClusterUnit[];

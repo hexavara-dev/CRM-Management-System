@@ -7,6 +7,7 @@ export type UnitStatus =
 
 export interface ProjectAvailability {
   id: string;
+  code: string;
   name: string;
   location: string;
   image: string | null;

@@ -689,8 +689,7 @@ export default function LeadDetailPage() {
                 <FormInput
                   name="expectedAmount"
                   label="Amount"
-                  type="text"
-                  inputMode="numeric"
+                  currency
                   placeholder="15000000"
                   className="col-span-1"
                 />

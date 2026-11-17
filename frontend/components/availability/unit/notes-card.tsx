@@ -8,14 +8,13 @@ export function UnitNotesCard() {
         <div>
           <p className="text-[10px] font-bold text-[#376bb3]">Catatan:</p>
           <ul className="mt-1 list-disc space-y-1 pl-4 text-[9px] leading-relaxed text-[#445a78]">
-            <li>Pemesanan unit akan membuat status unit menjadi Reserved.</li>
+            <li>Hanya unit Available yang dapat dibuatkan reservasi.</li>
             <li>
-              Anda akan diarahkan untuk mengisi data calon pembeli dan melakukan
-              pembayaran booking fee.
+              Isi data pemesan, sales, harga, dan status di formulir reservasi.
             </li>
             <li>
-              Unit akan otomatis dikunci selama masa reservation sesuai
-              ketentuan proyek.
+              Setelah reservasi tersimpan, unit berubah menjadi Reserved dan
+              tidak tersedia untuk reservasi lain.
             </li>
           </ul>
         </div>

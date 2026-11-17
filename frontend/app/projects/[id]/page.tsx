@@ -3,18 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   
   ChartColumn,
   FileText,
-  House,
   Images,
-  Lightbulb,
   Map as MapIcon,
   MapPin,
+  Pencil,
   Search,
-  ShieldCheck,
-  SquareParking,
+  Trash2,
   Video,
   type LucideIcon,
 } from "lucide-react";
@@ -25,21 +24,15 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useProject} from "@/hooks/use-projects";
+import { useDeleteProject, useProject } from "@/hooks/use-projects";
+import { Button } from "@/components/ui/button";
 import { STATUS_STYLE, fullAddress, projectMetrics, shortLocation, statusOf } from "../projects-data";
 import { UnitDistribution } from "./unit-distribution";
 import { InfoCard } from "@/components/projects/info-card";
 import { CoverGallery } from "./cover-gallery";
+import { FacilityIcon } from "@/components/projects/facility-icon";
 import { SoldSummary } from "./sold-summary";
 
-
-const FACILITIES: { name: string; icon: LucideIcon }[] = [
-  { name: "Smart Home System", icon: House },
-  { name: "Secure Parking", icon: SquareParking },
-  { name: "24 Hour Security", icon: ShieldCheck },
-  { name: "Well Lit Streets", icon: Lightbulb },
-  ...Array.from({ length: 8 }, (_, i) => ({ name: `Facilitas ${i + 5}`, icon: ChartColumn })),
-];
 
 const TABS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "overview", label: "Overview", icon: Video },
@@ -55,11 +48,16 @@ const TAB_TRIGGER =
 
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const deleteProject = useDeleteProject();
   const { data: project, isLoading } = useProject(params.id);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
 
-  const facilities = FACILITIES.filter((f) => f.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const facilities = (project?.attributes ?? [])
+    .filter((row) => row.variantId === null && row.value > 0 && row.attribute.source === "PROJECT")
+    .map((row) => row.attribute)
+    .filter((item) => item.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
     <SidebarProvider className="overflow-hidden">
@@ -100,6 +98,19 @@ export default function ProjectDetailPage() {
           ) : (
             <>
               <CoverGallery project={project} />
+              <div className="flex justify-end gap-3">
+                <Button asChild variant="outline" size="lg" className="gap-2 border-[#F2D27A] bg-[#FFF1C2] px-4 text-sm font-semibold text-[#7A5200] shadow-sm hover:bg-[#FFE79A] hover:text-[#7A5200]">
+                  <Link href={`/projects/${project.id}/edit`}><Pencil className="size-4" />Ubah Proyek</Link>
+                </Button>
+                {/* Tombol disabled tidak menerima hover, jadi alasan (title) dipasang di pembungkusnya. */}
+                <span title={(project.unitSummary?.total ?? 0) > 0 ? "Proyek dengan unit tidak dapat dihapus. Nonaktifkan melalui Ubah Proyek." : undefined}>
+                  <Button type="button" variant="outline" size="lg" className="gap-2 border-[#A82D2D] bg-[#C93A3A] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#B02E2E] hover:text-white" disabled={deleteProject.isPending || (project.unitSummary?.total ?? 0) > 0} onClick={() => {
+                    if (window.confirm(`Hapus proyek ${project.name}? Proyek yang memiliki unit harus dinonaktifkan.`)) {
+                      deleteProject.mutate(project.id, { onSuccess: () => router.push("/projects") });
+                    }
+                  }}><Trash2 className="size-4" />Hapus Proyek</Button>
+                </span>
+              </div>
 
               <div className="flex flex-col gap-4 px-1 md:flex-row md:items-end md:justify-between">
                 <div className="space-y-1">
@@ -154,9 +165,9 @@ export default function ProjectDetailPage() {
                           <p className="text-xs text-[#6b6b6b]">No facilities match your search.</p>
                         ) : (
                           <ul className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-flow-col sm:grid-cols-3 sm:grid-rows-4">
-                            {facilities.map(({ name, icon: Icon }) => (
-                              <li key={name} className="flex items-center gap-2 text-[11px] text-[#3f3f46]">
-                                <Icon className="size-3.5 shrink-0 text-[#6b6b6b]" />
+                            {facilities.map(({ id, name, iconKey }) => (
+                              <li key={id} className="flex items-center gap-2 text-[11px] text-[#3f3f46]">
+                                <FacilityIcon iconKey={iconKey} className="size-3.5 shrink-0 text-[#6b6b6b]" />
                                 {name}
                               </li>
                             ))}
@@ -185,9 +196,12 @@ export default function ProjectDetailPage() {
                           <MapPin className="mt-0.5 size-3.5 shrink-0" />
                           {fullAddress(project) || "Alamat belum diisi."}
                         </p>
-                        <div className="mt-3 flex h-24 items-center justify-center rounded-md bg-gradient-to-br from-[#E3F0E5] to-[#EEF3F7]">
-                          <MapPin className="size-5 text-[#1980C0]" />
-                        </div>
+                        {/* Preview peta hanya tampil bila link Google Maps diisi. */}
+                        {project.mapsUrl?.trim() && (
+                          <div className="mt-3 flex h-24 items-center justify-center rounded-md bg-gradient-to-br from-[#E3F0E5] to-[#EEF3F7]">
+                            <MapPin className="size-5 text-[#1980C0]" />
+                          </div>
+                        )}
                       </InfoCard>
                     </div>
                   </div>
