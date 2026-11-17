@@ -1,7 +1,7 @@
 import type { Response } from 'express';
 
 export type MappedHttpError = {
-  status: 400 | 401 | 403 | 404 | 409 | 500;
+  status: 400 | 401 | 403 | 404 | 409 | 500 | 503;
   message: string;
 };
 
@@ -24,6 +24,24 @@ const SCHEMA_MISMATCH = 'Struktur database belum sesuai dengan aplikasi. Jalanka
 function prismaFieldOf(message: string): string | null {
   const match = message.match(/fields?:?\s*\(`([^`]+)`/i) ?? message.match(/Unknown argument `([^`]+)`/i);
   return match?.[1] ?? null;
+}
+
+const GENERIC_UNIQUE = 'A record with the same unique value already exists.';
+
+/**
+ * Pesan P2002 yang menyebut data mana yang bentrok. Hanya memakai nama model dari meta Prisma,
+ * tidak pernah nilai duplikat atau pesan MySQL mentah (berisi ID tenant).
+ */
+function uniqueViolationMessage(meta: { modelName?: unknown } | undefined): string {
+  switch (meta?.modelName) {
+    case 'ProductUnit':
+      return 'Kode unit sudah dipakai. Kode unit harus unik di semua proyek (termasuk proyek lain), gunakan kode unit yang berbeda.';
+    case 'ProductCategory':
+    case 'Product':
+      return 'Kode proyek sudah dipakai (atau kode lokasi cluster/blok yang dibuat dari kode proyek), termasuk oleh proyek yang sudah dihapus. Gunakan kode proyek yang berbeda.';
+    default:
+      return GENERIC_UNIQUE;
+  }
 }
 
 function mapPrismaError(code: string | undefined, name: string | undefined, message: string): MappedHttpError {
@@ -57,7 +75,7 @@ export function mapHttpError(error: unknown): MappedHttpError {
     message?: string;
     name?: string;
     status?: number;
-    meta?: { target?: unknown };
+    meta?: { target?: unknown; modelName?: unknown };
   };
   const message = typeof candidate?.message === 'string' ? candidate.message : '';
 
@@ -69,13 +87,21 @@ export function mapHttpError(error: unknown): MappedHttpError {
   }
 
   switch (candidate?.code) {
+    case 'P1000':
+      return { status: 500, message: 'Koneksi database gagal karena konfigurasi server. Hubungi administrator.' };
+    case 'P1001':
+      return { status: 503, message: 'Database tidak dapat diakses. Pastikan layanan MySQL aktif, lalu coba lagi.' };
     case 'P2002':
-      return { status: 409, message: 'A record with the same unique value already exists.' };
+      return { status: 409, message: uniqueViolationMessage(candidate.meta) };
     case 'P2025':
       return { status: 404, message: 'The requested record was not found.' };
     case 'P2003':
     case 'P2014':
       return { status: 409, message: 'The operation conflicts with related data.' };
+  }
+
+  if (/ECONNREFUSED|ETIMEDOUT|pool timeout|Can't connect to MySQL server/i.test(message)) {
+    return { status: 503, message: 'Database tidak dapat diakses. Pastikan layanan MySQL aktif, lalu coba lagi.' };
   }
 
   const isPrismaError =
@@ -84,8 +110,6 @@ export function mapHttpError(error: unknown): MappedHttpError {
     message.includes('invocation in') ||
     message.includes('this.delegate');
   if (isPrismaError) {
-    // Pesan lengkap hanya ke log server; klien mendapat pesan yang bisa ditindaklanti.
-    console.error('[Prisma Error]', candidate?.code || candidate?.name || 'unknown', message);
     return mapPrismaError(candidate?.code, candidate?.name, message);
   }
 
@@ -114,11 +138,18 @@ export function mapHttpError(error: unknown): MappedHttpError {
     return { status: 400, message };
   }
 
-  console.error('[Unexpected Error]', error);
   return { status: 500, message: 'An unexpected server error occurred.' };
 }
 
 export function respondWithError(res: Response, error: unknown) {
   const mapped = mapHttpError(error);
-  return res.status(mapped.status).json({ error: mapped.message });
+  const requestId = typeof res.locals?.requestId === 'string' ? res.locals.requestId : undefined;
+  if (mapped.status >= 500) {
+    const candidate = error as { name?: unknown; code?: unknown } | null;
+    const errorType = typeof candidate?.name === 'string' && /^[\w-]{1,60}$/.test(candidate.name) ? candidate.name : 'UnknownError';
+    const errorCode = typeof candidate?.code === 'string' && /^[\w-]{1,30}$/.test(candidate.code) ? candidate.code : undefined;
+    console.error('[Request failure]', JSON.stringify({ requestId, status: mapped.status, errorType, errorCode }));
+  }
+  const message = requestId && mapped.status >= 500 ? `${mapped.message} Kode laporan: ${requestId}` : mapped.message;
+  return res.status(mapped.status).json({ error: message, ...(requestId ? { requestId } : {}) });
 }
