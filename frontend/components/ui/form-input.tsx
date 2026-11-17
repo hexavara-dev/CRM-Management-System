@@ -5,6 +5,7 @@ import * as React from "react";
 import { ErrorText } from "@/components/ui/error-text";
 import { HelperText } from "@/components/ui/helper-text";
 import { LabelText } from "@/components/ui/label-text";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import { cn } from "@/lib/utils";
 import {
   Controller,
@@ -19,6 +20,7 @@ type InputProps = {
   labelClassname?: string;
   validation?: RegisterOptions;
   helperText?: string;
+  currency?: boolean;
 } & React.ComponentProps<"input">;
 
 const FormInput = React.forwardRef<HTMLInputElement, InputProps>(
@@ -31,6 +33,7 @@ const FormInput = React.forwardRef<HTMLInputElement, InputProps>(
       type,
       label,
       helperText,
+      currency,
       ...props
     },
     ref,
@@ -50,7 +53,16 @@ const FormInput = React.forwardRef<HTMLInputElement, InputProps>(
         render={({ field }) => (
           <div className="w-full">
             {label && <LabelText className={labelClassname}>{label}</LabelText>}
-            <input
+            {currency ? <RupiahInput
+              {...props}
+              name={field.name}
+              value={field.value}
+              onValueChange={(digits) => field.onChange(digits === "" ? "" : Number(digits))}
+              onBlur={field.onBlur}
+              ref={ref ?? field.ref}
+              aria-invalid={!!error}
+              className={cn(className, error && "border-destructive")}
+            /> : <input
               type={type}
               {...field}
               className={cn(
@@ -60,7 +72,7 @@ const FormInput = React.forwardRef<HTMLInputElement, InputProps>(
               )}
               ref={ref}
               {...props}
-            />
+            />}
 
             {helperText && !error && <HelperText>{helperText}</HelperText>}
             {error && <ErrorText>{error.message?.toString()}</ErrorText>}
