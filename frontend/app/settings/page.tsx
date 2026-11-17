@@ -7,6 +7,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InventoryTrackingTab } from "./components/inventory-tracking-tab";
 import { LocationManagementTab } from "./components/location-management-tab";
 import { SourceManagementTab } from "./components/source-management-tab";
 import { StatusManagementTab } from "./components/status-management-tab";
@@ -31,6 +32,7 @@ export default function SettingsPage() {
               <TabsTrigger value="viewing-statuses">Visit Statuses</TabsTrigger>
               <TabsTrigger value="viewing-sources">Visit Sources</TabsTrigger>
               <TabsTrigger value="locations">Units</TabsTrigger>
+              <TabsTrigger value="inventory-tracking">Inventory Tracking</TabsTrigger>
             </TabsList>
 
             <TabsContent value="lead-statuses">
@@ -77,6 +79,10 @@ export default function SettingsPage() {
 
             <TabsContent value="locations">
               <LocationManagementTab />
+            </TabsContent>
+
+            <TabsContent value="inventory-tracking">
+              <InventoryTrackingTab />
             </TabsContent>
           </Tabs>
         </div>
