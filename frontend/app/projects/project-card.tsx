@@ -8,7 +8,7 @@ import type { ProjectListItem } from "@/hooks/use-projects";
 import { STATUS_STYLE, projectMetrics, shortLocation, statusOf } from "./projects-data";
 
 export function ProjectCard({ project }: { project: ProjectListItem }) {
-  const { units, sold, reserved, available, soldPct } = projectMetrics(project.unitSummary);
+  const { units, sold, reserved, available, soldPct } = projectMetrics(project.unitSummary, project.totalSlots);
   const status = statusOf(project.isActive);
   return (
     <Link

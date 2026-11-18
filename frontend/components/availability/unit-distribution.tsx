@@ -24,6 +24,7 @@ export function UnitDistribution({
     { key: "reserved", value: reserved, color: "#f59e0b" },
     { key: "sold", value: sold, color: "#f87171" },
     { key: "blocked", value: blocked, color: "#94a3b8" },
+    { key: "uncreated", value: Math.max(0, total - available - processing - reserved - sold - blocked), color: "#e4e4e7" },
   ];
 
   let current = 0;
@@ -64,7 +65,9 @@ export function UnitDistribution({
           {/* Legend */}
           <div className="w-full space-y-3">
             {segments.map((segment) => {
-              const config = statusConfig[segment.key as UnitStatus];
+              const label = segment.key === "uncreated"
+                ? "Belum Dibuat"
+                : statusConfig[segment.key as UnitStatus].label;
 
               const percentage = total > 0 ? (segment.value / total) * 100 : 0;
 
@@ -82,7 +85,7 @@ export function UnitDistribution({
                     />
 
                     <span className="text-xs text-muted-foreground">
-                      {config.label}
+                      {label}
                     </span>
                   </div>
 

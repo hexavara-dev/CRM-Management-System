@@ -32,6 +32,7 @@ export interface ProjectListItem extends ProjectLocation {
   description: string | null;
   isActive: boolean;
   coverUrl: string | null;
+  totalSlots: number;
   unitSummary?: UnitSummary;
   variantCount: number;
   minBasePrice: number | null;
@@ -51,6 +52,7 @@ export interface ProjectDetail extends ProjectLocation {
   isActive: boolean;
   category: { id: string; name: string; type: string };
   variants: { id: string; name: string; basePrice: number; currentPrice: number; stock: number }[];
+  totalSlots: number;
   media: { id: string; fileUrl: string; mediaType: string; isPrimary: boolean; variantId: string | null; unitId: string | null }[];
   unitSummary?: UnitSummary;
   attributes: { id: string; variantId: string | null; value: number; attribute: ProjectAttribute }[];

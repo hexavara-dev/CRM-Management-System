@@ -166,7 +166,7 @@ export default function TypesPage() {
         row.attributes.bedroom,
         row.attributes.bathroom,
         row.attributes.carport,
-        row.unitCount,
+        row.stock,
         row.isActive ? "Aktif" : "Nonaktif",
       ]
         .map(escapeCsv)
@@ -439,7 +439,7 @@ export default function TypesPage() {
                             </div>
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-center font-semibold text-[#344054]">
-                            {numberFormat.format(row.unitCount)}
+                            {numberFormat.format(row.stock)}
                           </TableCell>
                           <TableCell className="px-3 py-2.5">
                             <Badge

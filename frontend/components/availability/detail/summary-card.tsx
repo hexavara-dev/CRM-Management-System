@@ -23,7 +23,7 @@ export function AvailabilitySummaryCard({
 }: SummaryCardProps) {
   return (
     <Card className="rounded-xl border-[#edf0f4] shadow-none">
-      <CardContent className="flex h-[40px] items-center gap-3 px-3 py-2">
+      <CardContent className="flex min-h-[40px] items-center gap-3 px-3 py-2">
         <div
           className={`flex size-11 shrink-0 items-center justify-center rounded-full ${iconContainerClassName}`}
         >
@@ -32,7 +32,6 @@ export function AvailabilitySummaryCard({
 
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-medium text-[#667085]">{title}</p>
-
           <div className="mt-0.5 flex items-center justify-between gap-2">
             <h3 className="text-[22px] font-bold leading-none text-[#101828]">
               {value}

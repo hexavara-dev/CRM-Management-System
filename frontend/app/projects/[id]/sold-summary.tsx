@@ -3,7 +3,7 @@ import type { ProjectDetail } from "@/hooks/use-projects";
 import { projectMetrics } from "../projects-data";
 
 export function SoldSummary({ project }: { project: ProjectDetail }) {
-  const { units, sold, reserved, available, soldPct } = projectMetrics(project.unitSummary);
+  const { units, sold, reserved, available, soldPct } = projectMetrics(project.unitSummary, project.totalSlots);
   return (
     <div className="w-full space-y-1.5 md:w-[330px]">
       <p className="text-right text-[11px] font-medium text-[#3f3f46]">Sold {soldPct}%</p>

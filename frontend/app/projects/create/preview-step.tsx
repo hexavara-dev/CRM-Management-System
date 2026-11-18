@@ -84,8 +84,8 @@ export function PreviewStep({ info, coverUrls, unitTypes, nodes, units, facility
     return { cluster: top.id === leaf.id ? "-" : top.name, blok: leaf.name, total: units.filter((u) => u.locationId === leaf.id).length };
   });
 
-  const typeStats = unitTypes.map((t, i) => ({ name: t.name, count: units.filter((u) => u.type === t.name).length, color: COLORS[i % COLORS.length] })).filter((t) => t.count > 0);
-  const totalUnits = units.length;
+  const typeStats = unitTypes.map((t, i) => ({ name: t.name, count: Number(t.stock) || 0, color: COLORS[i % COLORS.length] })).filter((t) => t.count > 0);
+  const totalUnits = typeStats.reduce((total, type) => total + type.count, 0);
   let acc = 0;
   const donut = typeStats.length
     ? `conic-gradient(${typeStats
@@ -163,7 +163,7 @@ export function PreviewStep({ info, coverUrls, unitTypes, nodes, units, facility
 
         <SectionCard title="Unit distribution by house type">
           {typeStats.length === 0 ? (
-            <p className="text-xs text-[#9CA3AF]">Belum ada unit yang ditambahkan.</p>
+            <p className="text-xs text-[#9CA3AF]">Belum ada slot unit yang ditentukan.</p>
           ) : (
             <div className="flex items-center gap-4">
               <div className="relative size-24 shrink-0 rounded-full" style={{ background: donut }}>
@@ -197,7 +197,7 @@ export function PreviewStep({ info, coverUrls, unitTypes, nodes, units, facility
               <tr className="border-b border-[#E4E4E7] text-left text-[#1f1f1f]">
                 <th className="py-1.5 font-medium">Cluster</th>
                 <th className="py-1.5 font-medium">Blok</th>
-                <th className="py-1.5 text-right font-medium">Total Unit</th>
+                <th className="py-1.5 text-right font-medium">Unit Dibuat</th>
               </tr>
             </thead>
             <tbody>
