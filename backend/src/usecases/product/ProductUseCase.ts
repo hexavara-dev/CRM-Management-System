@@ -132,7 +132,7 @@ export class ProductUseCase {
         orderBy: { createdAt: 'desc' },
         include: {
           category: { select: { id: true, name: true } },
-          variants: { select: { id: true, basePrice: true } },
+          variants: { select: { id: true, basePrice: true, stock: true } },
           media: {
             where: { mediaType: 'IMAGE', variantId: null, unitId: null },
             orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
@@ -155,6 +155,7 @@ export class ProductUseCase {
       return {
         ...product,
         unitSummary: summaries.get(product.id),
+        totalSlots: variants.reduce((total, variant) => total + variant.stock, 0),
         variantCount: variants.length,
         minBasePrice: prices.length ? Math.min(...prices) : null,
         coverUrl: media[0]?.fileUrl ?? null,
@@ -198,7 +199,12 @@ export class ProductUseCase {
       tenantId,
       new Map([[product.id, variants.map((v) => v.id)]])
     );
-    return { ...product, variants, unitSummary: summaries.get(product.id) };
+    return {
+      ...product,
+      variants,
+      totalSlots: variants.reduce((total, variant) => total + variant.stock, 0),
+      unitSummary: summaries.get(product.id),
+    };
   }
 
   /** Snapshot for the edit wizard; IDs retain existing variant, location and unit relations. */
@@ -741,6 +747,12 @@ export class ProductUseCase {
 
   async updateVariant(productId: string, variantId: string, tenantId: string, input: VariantInput) {
     await this.assertVariant(productId, variantId, tenantId);
+    if (input.stock !== undefined) {
+      const unitCount = await this.prisma.productUnit.count({ where: { variantId, tenantId } });
+      if (input.stock < unitCount) {
+        throw new Error(`Invalid stock: total unit must be at least ${unitCount} for this type.`);
+      }
+    }
     const data: Prisma.ProductVariantUpdateInput = {};
     if (input.name !== undefined) data.name = input.name;
     if (input.basePrice !== undefined) data.basePrice = input.basePrice;

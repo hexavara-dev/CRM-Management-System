@@ -109,7 +109,7 @@ export default function ClusterDetailPage() {
 
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                   <ClusterSummaryCard
-                    title="Total Unit"
+                    title="Unit Terdaftar"
                     value={availability.data.summary.total}
                     variant="total"
                     icon={<Layers3 className="size-6" />}

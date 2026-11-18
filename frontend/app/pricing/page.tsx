@@ -180,7 +180,7 @@ export default function PricingPage() {
               />
             )}
             <StatCard
-              label="Total Unit"
+              label="Unit Terdaftar"
               value={summary?.totalUnits ?? 0}
               color="text-[#1f1f1f]"
               hint={

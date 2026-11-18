@@ -12,15 +12,15 @@ export const STATUS_STYLE: Record<Status, string> = {
 
 const EMPTY_SUMMARY: UnitSummary = { total: 0, available: 0, reserved: 0, booked: 0, sold: 0, blocked: 0 };
 
-/** Angka untuk kartu/ringkasan; `booked` dihitung sebagai reserved agar total tetap sama. */
-export const projectMetrics = (summary: UnitSummary | undefined) => {
+/** Total slot berasal dari stock tipe; status hanya menghitung unit yang sudah dibuat. */
+export const projectMetrics = (summary: UnitSummary | undefined, totalSlots: number) => {
   const s = summary ?? EMPTY_SUMMARY;
   return {
-    units: s.total,
+    units: totalSlots,
     sold: s.sold,
     reserved: s.reserved + s.booked,
     available: s.available,
-    soldPct: s.total ? Math.round((s.sold / s.total) * 100) : 0,
+    soldPct: totalSlots ? Math.round((s.sold / totalSlots) * 100) : 0,
   };
 };
 

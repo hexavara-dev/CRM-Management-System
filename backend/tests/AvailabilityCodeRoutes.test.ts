@@ -15,6 +15,7 @@ const project = {
   subdistrict: null,
   city: 'Bandung',
   province: null,
+  variants: [{ stock: 2 }],
   media: [],
 };
 const categories = [
@@ -96,6 +97,7 @@ describe('Availability code routes and company ownership', () => {
     mocks.unitFindMany.mockResolvedValue([{ ...unit, categoryId: 'root' }] as never);
 
     const projectOverview = await mocks.useCase.project('company-a', 'GREEN-HARMONY');
+    expect(projectOverview?.project.totalUnits).toBe(2);
     const rootGroup = projectOverview?.clusters.find((item) => item.name === 'Tanpa cluster');
     expect(rootGroup).toEqual(expect.objectContaining({ units: 1, available: 1 }));
 

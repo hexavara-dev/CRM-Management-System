@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeleteProject, useProject } from "@/hooks/use-projects";
 import { Button } from "@/components/ui/button";
-import { STATUS_STYLE, fullAddress, projectMetrics, shortLocation, statusOf } from "../projects-data";
+import { STATUS_STYLE, fullAddress, shortLocation, statusOf } from "../projects-data";
 import { UnitDistribution } from "./unit-distribution";
 import { InfoCard } from "@/components/projects/info-card";
 import { CoverGallery } from "./cover-gallery";
@@ -182,7 +182,7 @@ export default function ProjectDetailPage() {
                           {[
                             ["Code:", project.code],
                             ["Status:", statusOf(project.isActive)],
-                            ["Total Units:", String(projectMetrics(project.unitSummary).units)],
+                            ["Total Units:", String(project.totalSlots)],
                           ].map(([label, value]) => (
                             <div key={label} className="flex items-center justify-between gap-2">
                               <dt className="text-[#6b6b6b]">{label}</dt>

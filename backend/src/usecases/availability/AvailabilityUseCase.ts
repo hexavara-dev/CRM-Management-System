@@ -156,7 +156,7 @@ export class AvailabilityUseCase {
         subdistrict: true,
         city: true,
         province: true,
-        variants: { select: { id: true } },
+        variants: { select: { id: true, stock: true } },
         media: {
           where: { tenantId, mediaType: 'IMAGE', variantId: null, unitId: null },
           orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
@@ -207,8 +207,9 @@ export class AvailabilityUseCase {
     const summary = emptySummary();
     const projectRows = products.map((product) => {
       const projectSummary = counts.get(product.id) ?? emptySummary();
+      const totalSlots = product.variants.reduce((total, variant) => total + variant.stock, 0);
       for (const key of Object.keys(summary) as (keyof Summary)[]) {
-        summary[key] += projectSummary[key];
+        summary[key] += key === 'total' ? totalSlots : projectSummary[key];
       }
       return {
         id: product.id,
@@ -217,6 +218,7 @@ export class AvailabilityUseCase {
         location: locationOf(product),
         image: product.media[0]?.fileUrl ?? null,
         ...projectSummary,
+        total: totalSlots,
       };
     });
 
@@ -234,6 +236,7 @@ export class AvailabilityUseCase {
       subdistrict: true,
       city: true,
       province: true,
+      variants: { select: { stock: true } },
       media: {
         where: { tenantId, mediaType: 'IMAGE' as const, variantId: null, unitId: null },
         orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
@@ -335,7 +338,7 @@ export class AvailabilityUseCase {
         name: data.product.name,
         location,
         image: data.product.media[0]?.fileUrl ?? null,
-        totalUnits: summary.total,
+        totalUnits: data.product.variants.reduce((total, variant) => total + variant.stock, 0),
         available: summary.available,
         processing: summary.processing,
         reserved: summary.reserved,
