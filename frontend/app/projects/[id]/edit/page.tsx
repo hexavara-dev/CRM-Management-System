@@ -12,6 +12,7 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
   const unitTypes = project.variants.map((variant) => ({
     id: variant.id,
     name: variant.name,
+    imageUrl: project.media.find((media) => media.mediaType === "IMAGE" && media.variantId === variant.id)?.fileUrl,
     buildingArea: attributeValue(variant.id, "building_area"),
     surfaceArea: attributeValue(variant.id, "surface_area"),
     floors: attributeValue(variant.id, "floors"),

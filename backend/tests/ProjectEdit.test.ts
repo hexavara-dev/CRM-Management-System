@@ -113,4 +113,34 @@ describe('project edit wizard persistence', () => {
     expect(tx.productMedia.update).toHaveBeenCalledWith({ where: { id: 'm-2' }, data: { isPrimary: true } });
     expect(storage.remove).toHaveBeenCalledWith(['t-1/old.jpg']);
   });
+
+  it('replaces a type image without changing its variant and removes the previous file after commit', async () => {
+    const { tx, prisma } = fixture();
+    prisma.product.findFirst.mockResolvedValue({
+      ...project,
+      media: [{ id: 'type-image-1', mediaType: 'IMAGE', variantId: 'v-1', unitId: null,
+        isPrimary: true, fileUrl: 'http://localhost:3000/uploads/t-1/old-type.jpg' }],
+    });
+    const storage = {
+      upload: fn(), remove: fn(),
+      getPublicUrl: jest.fn((path: string) => ({ publicUrl: `http://localhost:3000/uploads/${path}` })),
+      getFilePathFromPublicUrl: jest.fn(() => 't-1/old-type.jpg'),
+    };
+    const image = {
+      originalname: 'type.jpg', mimetype: 'image/jpeg',
+      buffer: Buffer.from([0xff, 0xd8, 0xff, 0x00]), size: 4,
+    } as Express.Multer.File;
+
+    await new ProductUseCase(prisma as never, storage as never).update(
+      'p-1', 't-1', baseInput, [], [{ variantIndex: 0, file: image }],
+    );
+
+    expect(tx.productMedia.deleteMany).toHaveBeenCalledWith({
+      where: { tenantId: 't-1', productId: 'p-1', variantId: { in: ['v-1'] }, mediaType: 'IMAGE' },
+    });
+    expect(tx.productMedia.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ productId: 'p-1', variantId: 'v-1', mediaType: 'IMAGE', isPrimary: true })],
+    });
+    expect(storage.remove).toHaveBeenCalledWith(['t-1/old-type.jpg']);
+  });
 });

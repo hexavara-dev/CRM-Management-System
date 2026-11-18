@@ -125,6 +125,8 @@ export type UpdateProjectPayload = Partial<CreateProjectPayload> & {
   primaryMediaId?: string;
 };
 
+type TypeImageUpload = { variantIndex: number; file: File };
+
 export interface ProjectFilters {
   page: number;
   limit: number;
@@ -176,17 +178,20 @@ export function useProjectEditData(id: string | undefined) {
 export function useCreateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ payload, covers }: { payload: CreateProjectPayload; covers: File[] }) => {
-      if (covers.length === 0) return (await api.post<ProjectDetail>("/api/products", payload)).data;
+    mutationFn: async ({ payload, covers, typeImages }: { payload: CreateProjectPayload; covers: File[]; typeImages: TypeImageUpload[] }) => {
+      if (covers.length === 0 && typeImages.length === 0) return (await api.post<ProjectDetail>("/api/products", payload)).data;
       const form = new FormData();
       form.append("payload", JSON.stringify(payload));
+      form.append("typeImageIndexes", JSON.stringify(typeImages.map((image) => image.variantIndex)));
       for (const file of covers) {
         form.append("covers", file);
       }
+      for (const image of typeImages) form.append("typeImages", image.file);
       return (await api.post<ProjectDetail>("/api/products", form)).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project-types"] });
       toast.success("Proyek berhasil disimpan.");
     },
     onError: (error) => toast.error(errorMessage(error, "Gagal menyimpan proyek.")),
@@ -196,17 +201,20 @@ export function useCreateProject() {
 export function useUpdateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, payload, covers }: { id: string; payload: UpdateProjectPayload; covers: File[] }) => {
-      if (covers.length === 0) return (await api.put<ProjectDetail>(`/api/products/${id}`, payload)).data;
+    mutationFn: async ({ id, payload, covers, typeImages }: { id: string; payload: UpdateProjectPayload; covers: File[]; typeImages: TypeImageUpload[] }) => {
+      if (covers.length === 0 && typeImages.length === 0) return (await api.put<ProjectDetail>(`/api/products/${id}`, payload)).data;
       const form = new FormData();
       form.append("payload", JSON.stringify(payload));
+      form.append("typeImageIndexes", JSON.stringify(typeImages.map((image) => image.variantIndex)));
       for (const file of covers) form.append("covers", file);
+      for (const image of typeImages) form.append("typeImages", image.file);
       return (await api.put<ProjectDetail>(`/api/products/${id}`, form)).data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["project"] });
       queryClient.invalidateQueries({ queryKey: ["project-edit"] });
+      queryClient.invalidateQueries({ queryKey: ["project-types"] });
       queryClient.invalidateQueries({ queryKey: ["availability-project"] });
       toast.success("Proyek diperbarui.");
     },

@@ -74,6 +74,33 @@ describe('ProductUseCase.create (whole project)', () => {
     expect(storage.remove).not.toHaveBeenCalled();
   });
 
+  it('links a type image to its variant in the project transaction', async () => {
+    const tx = {
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
+      productVariant: { create: fn({ id: 'v-1' }) },
+      productMedia: { createMany: fn({ count: 1 }) },
+    };
+    const prisma = {
+      product: { findFirst: fn({ id: 'p-1', variants: [], media: [] }) },
+      $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
+    };
+    const storage = {
+      upload: fn(), remove: fn(),
+      getPublicUrl: jest.fn((path: string) => ({ publicUrl: `http://localhost:3000/uploads/${path}` })),
+    };
+
+    await new ProductUseCase(prisma as never, storage as never).create('t-1', {
+      name: 'Project', code: 'PRJ', variants: [{ name: 'Type 36', basePrice: 1 }],
+    }, [], [{ variantIndex: 0, file: jpegCover() }]);
+
+    expect(tx.productMedia.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ productId: 'p-1', variantId: 'v-1', mediaType: 'IMAGE', isPrimary: true })],
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
   it('cleans staged covers when the database transaction fails', async () => {
     const tx = {
       productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
