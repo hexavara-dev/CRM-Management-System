@@ -43,7 +43,7 @@ describe('ProductUseCase', () => {
   });
 
   it('creates the product and its variants in one transaction', async () => {
-    const tx = { product: { create: fn({ id: 'p-1' }) }, productVariant: { create: fn({ id: 'v-1' }) } };
+    const tx = { product: { findFirst: fn(null), create: fn({ id: 'p-1' }) }, productCategory: { findFirst: fn(null) }, productVariant: { create: fn({ id: 'v-1' }) } };
     const prisma = productPrisma({ tx, product: { findFirst: fn({ id: 'p-1', media: [] }) } });
     const useCase = new ProductUseCase(prisma as never);
     await useCase.create('t-1', baseProduct);
@@ -57,6 +57,21 @@ describe('ProductUseCase', () => {
         stock: 0,
       }),
     });
+  });
+
+  it('adds a numeric suffix when the requested project code already exists', async () => {
+    const tx = {
+      product: {
+        findFirst: jest.fn<(...args: any[]) => any>().mockImplementation(async ({ where }) =>
+          where.code === 'GREEN' ? { id: 'existing' } : null),
+        create: fn({ id: 'p-1' }),
+      },
+      productCategory: { findFirst: fn(null) },
+      productVariant: { create: fn({ id: 'v-1' }) },
+    };
+    const prisma = productPrisma({ tx, product: { findFirst: fn({ id: 'p-1', media: [] }) } });
+    await new ProductUseCase(prisma as never).create('t-1', baseProduct);
+    expect(tx.product.create.mock.calls[0][0].data.code).toBe('GREEN-1');
   });
 
   it('keeps at least one variant', async () => {

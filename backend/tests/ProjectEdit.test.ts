@@ -15,8 +15,9 @@ const baseInput = {
 
 function fixture(unitStatus = 'AVAILABLE') {
   const tx = {
-    product: { update: fn() },
+    product: { findFirst: fn(null), update: fn() },
     productCategory: {
+      findFirst: fn(null),
       update: fn({ id: 'c-1' }),
       findMany: fn([
         { id: 'root', parentId: null, code: 'PRJ' },

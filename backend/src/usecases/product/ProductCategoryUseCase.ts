@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient, ProductCategoryType } from '@prisma/client';
 import { categoryWithDescendants } from './catalogRules.js';
+import { retryUniqueCode, uniqueCode } from './uniqueCode.js';
 
 export type CategoryInput = {
   parentId?: string | null;
@@ -53,16 +54,23 @@ export class ProductCategoryUseCase {
       throw new Error('name, code, and type are required');
     }
     if (input.parentId) await this.assertParent(tenantId, input.parentId);
+    return retryUniqueCode(async () => {
+    const code = await uniqueCode(input.code as string, 100, async (candidate) =>
+      Boolean(await this.prisma.productCategory.findFirst({
+        where: { tenantId, code: candidate }, select: { id: true },
+      }))
+    );
     return this.prisma.productCategory.create({
       data: {
         tenantId,
         parentId: input.parentId ?? null,
-        name: input.name,
-        code: input.code,
-        type: input.type,
+        name: input.name as string,
+        code,
+        type: input.type as ProductCategoryType,
         siteplanImg: input.siteplanImg ?? null,
         isActive: input.isActive ?? true,
       },
+    });
     });
   }
 
@@ -76,7 +84,14 @@ export class ProductCategoryUseCase {
     if (input.type !== undefined) data.type = input.type;
     if (input.siteplanImg !== undefined) data.siteplanImg = input.siteplanImg;
     if (input.isActive !== undefined) data.isActive = input.isActive;
-    return this.prisma.productCategory.update({ where: { id }, data });
+    return retryUniqueCode(async () => {
+      if (input.code !== undefined) data.code = await uniqueCode(input.code as string, 100, async (candidate) =>
+        Boolean(await this.prisma.productCategory.findFirst({
+          where: { tenantId, code: candidate, id: { not: id } }, select: { id: true },
+        }))
+      );
+      return this.prisma.productCategory.update({ where: { id }, data });
+    });
   }
 
   async remove(id: string, tenantId: string) {
