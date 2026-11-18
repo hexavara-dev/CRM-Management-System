@@ -3,6 +3,7 @@ import type { AttributeDataType, Prisma, PrismaClient } from '@prisma/client';
 import { localStorage } from '../../infrastructure/storage/localStorage.js';
 import { validateProductImage } from './ProductMediaUseCase.js';
 import { assertCategory, categoryWithDescendants } from './catalogRules.js';
+import { retryUniqueCode, uniqueCode } from './uniqueCode.js';
 import {
   assertUnits,
   assertUnitsWithinStock,
@@ -280,8 +281,12 @@ export class ProductUseCase {
         await this.storage.upload(path, file.buffer);
       }
 
-      created = await this.prisma.$transaction(
+      created = await retryUniqueCode(() => this.prisma.$transaction(
       async (tx) => {
+        const code = await uniqueCode(input.code as string, 100, async (candidate) =>
+          Boolean(await tx.product.findFirst({ where: { tenantId, code: candidate }, select: { id: true } })) ||
+          Boolean(await tx.productCategory.findFirst({ where: { tenantId, code: candidate }, select: { id: true } }))
+        );
         const rootId =
           input.categoryId ??
           (
@@ -289,7 +294,7 @@ export class ProductUseCase {
               data: {
                 tenantId,
                 name: input.name as string,
-                code: input.code as string,
+                code,
                 type: 'PROJECT',
                 isActive: input.isActive ?? true,
               },
@@ -301,7 +306,7 @@ export class ProductUseCase {
             tenantId,
             categoryId: rootId,
             name: input.name as string,
-            code: input.code as string,
+            code,
             description: input.description ?? null,
             province: input.province ?? null,
             city: input.city ?? null,
@@ -376,17 +381,20 @@ export class ProductUseCase {
           }
         }
 
-        // ponytail: node codes are generated as `<product code>-001`, `-002`, ...; a manual code with the same value conflicts (409).
+        // Location codes share one tenant-wide namespace with other categories.
         const locationIds = new Map<string, string>();
         let sequence = 0;
         for (const location of locations) {
           sequence += 1;
+          const locationCode = await uniqueCode(location.code ?? `${code}-${String(sequence).padStart(3, '0')}`, 100, async (candidate) =>
+            Boolean(await tx.productCategory.findFirst({ where: { tenantId, code: candidate }, select: { id: true } }))
+          );
           const row = await tx.productCategory.create({
             data: {
               tenantId,
               parentId: location.parentKey ? (locationIds.get(location.parentKey) as string) : rootId,
               name: location.name,
-              code: location.code ?? `${input.code}-${String(sequence).padStart(3, '0')}`,
+              code: locationCode,
               type: location.type,
             },
           });
@@ -425,7 +433,7 @@ export class ProductUseCase {
         return product;
       },
       { timeout: 30000 }
-    );
+    ));
     } catch (error) {
       await this.storage.remove(storedCovers.map((cover) => cover.path));
       throw error;
@@ -479,14 +487,20 @@ export class ProductUseCase {
         storedCovers.push({ file, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, file.buffer);
       }
-      await this.prisma.$transaction(async (tx) => {
+      await retryUniqueCode(() => this.prisma.$transaction(async (tx) => {
+      if (input.code !== undefined) {
+        data.code = await uniqueCode(input.code, 100, async (candidate) =>
+          Boolean(await tx.product.findFirst({ where: { tenantId, code: candidate, id: { not: id } }, select: { id: true } })) ||
+          Boolean(await tx.productCategory.findFirst({ where: { tenantId, code: candidate, id: { not: project.categoryId } }, select: { id: true } }))
+        );
+      }
       await tx.product.update({ where: { id }, data });
       if (input.name !== undefined || input.code !== undefined || input.isActive !== undefined) {
         await tx.productCategory.update({
           where: { id: project.categoryId },
           data: {
             ...(input.name !== undefined ? { name: input.name } : {}),
-            ...(input.code !== undefined ? { code: input.code } : {}),
+            ...(input.code !== undefined ? { code: data.code as string } : {}),
             ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
           },
         });
@@ -529,7 +543,7 @@ export class ProductUseCase {
         });
         if (replacement) await tx.productMedia.update({ where: { id: replacement.id }, data: { isPrimary: true } });
       }
-      }, { timeout: 30000 });
+      }, { timeout: 30000 }));
     } catch (error) {
       await this.storage.remove(storedCovers.map((cover) => cover.path));
       throw error;
@@ -666,7 +680,9 @@ export class ProductUseCase {
           })
         : await tx.productCategory.create({
             data: { tenantId, parentId, name: location.name, type: location.type,
-              code: location.code ?? `${(input.code ?? '').slice(0, 75)}-${randomUUID().slice(0, 8)}-${index}` },
+              code: await uniqueCode(location.code ?? `${(input.code ?? '').slice(0, 75)}-${randomUUID().slice(0, 8)}-${index}`, 100, async (candidate) =>
+                Boolean(await tx.productCategory.findFirst({ where: { tenantId, code: candidate }, select: { id: true } }))
+              ) },
           });
       locationIds.set(location.key, row.id);
     }

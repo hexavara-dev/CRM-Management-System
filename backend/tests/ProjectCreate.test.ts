@@ -43,8 +43,8 @@ describe('ProductUseCase.create (whole project)', () => {
 
   it('saves cover records with all wizard data in the same database transaction', async () => {
     const tx = {
-      productCategory: { create: fn({ id: 'root' }) },
-      product: { create: fn({ id: 'p-1' }) },
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       productMedia: { createMany: fn({ count: 1 }) },
     };
@@ -76,8 +76,8 @@ describe('ProductUseCase.create (whole project)', () => {
 
   it('cleans staged covers when the database transaction fails', async () => {
     const tx = {
-      productCategory: { create: fn({ id: 'root' }) },
-      product: { create: fn({ id: 'p-1' }) },
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       productMedia: { createMany: jest.fn<(...args: any[]) => any>().mockRejectedValue(new Error('write failed')) },
     };
@@ -123,13 +123,14 @@ describe('ProductUseCase.create (whole project)', () => {
   it('creates the PROJECT root, variants, attributes, tree and units in one transaction', async () => {
     const tx = {
       productCategory: {
+        findFirst: fn(null),
         create: jest
           .fn<(...args: any[]) => any>()
           .mockResolvedValueOnce({ id: 'root' })
           .mockResolvedValueOnce({ id: 'n-cluster' })
           .mockResolvedValueOnce({ id: 'n-block' }),
       },
-      product: { create: fn({ id: 'p-1' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       attribute: { findFirst: fn(null), create: fn({ id: 'attr-1' }) },
       productAttribute: { createMany: fn({ count: 1 }) },
@@ -182,8 +183,8 @@ describe('ProductUseCase.create (whole project)', () => {
 
   it('reuses an existing master attribute instead of creating it again', async () => {
     const tx = {
-      productCategory: { create: fn({ id: 'root' }) },
-      product: { create: fn({ id: 'p-1' }) },
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: jest.fn<(...args: any[]) => any>().mockResolvedValueOnce({ id: 'v-1' }).mockResolvedValueOnce({ id: 'v-2' }) },
       attribute: { findFirst: fn({ id: 'attr-9' }), create: fn() },
       productAttribute: { createMany: fn({ count: 1 }) },
@@ -208,8 +209,8 @@ describe('ProductUseCase.create (whole project)', () => {
 
   it('stores 0 for an attribute sent without a value', async () => {
     const tx = {
-      productCategory: { create: fn({ id: 'root' }) },
-      product: { create: fn({ id: 'p-1' }) },
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       attribute: { findFirst: fn({ id: 'attr-1' }), create: fn() },
       productAttribute: { createMany: fn({ count: 1 }) },
