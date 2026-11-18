@@ -58,6 +58,7 @@ import * as React from "react";
 import { useForm } from "react-hook-form";
 import { useAuth } from "./auth/auth-provider";
 import { isAdmin } from "@/lib/helper";
+import { useInventoryTracking } from "@/hooks/use-inventory-tracking";
 
 interface SearchFormData {
   query: string;
@@ -175,8 +176,11 @@ function NavParentItem({
   );
 }
 
-/** Single source of truth for the sidebar menu and the page breadcrumb. */
-export function buildMenuSections(admin: boolean): MenuSection[] {
+/**
+ * Single source of truth for the sidebar menu and the page breadcrumb.
+ * `unitTracking` false (inventory tracking QUANTITY) hides the unit-based modules.
+ */
+export function buildMenuSections(admin: boolean, unitTracking = true): MenuSection[] {
   return [
     {
       visible: true,
@@ -191,7 +195,7 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
           title: "Product Management",
           url: "/projects",
           icon: CreditCard,
-          visible: true,
+          visible: unitTracking,
           children: [
             { title: "Projects", url: "/projects", icon: TextAlignStart },
             { title: "Types", url: "/types", icon: Barcode },
@@ -207,7 +211,7 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
           title: "Availability & Reservation",
           url: "/availability",
           icon: Building,
-          visible: true,
+          visible: unitTracking,
           children: [
             { title: "Availability", url: "/availability", icon: Building },
             {
@@ -221,7 +225,7 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
           title: "Pricing Management",
           url: "/pricing",
           icon: FileClock,
-          visible: true,
+          visible: unitTracking,
           children: [
             { title: "Pricing", url: "/pricing", icon: DollarSign },
           ],
@@ -298,7 +302,8 @@ export function AppSidebar({
     email: authUser?.email || defaultUser.email,
   };
 
-  const menuSections = buildMenuSections(isAdmin());
+  const tracking = useInventoryTracking();
+  const menuSections = buildMenuSections(isAdmin(), tracking.data?.unitTrackingEnabled ?? true);
 
   const { register, handleSubmit } = useForm<SearchFormData>({
     defaultValues: {

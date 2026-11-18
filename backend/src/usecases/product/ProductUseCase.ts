@@ -4,6 +4,7 @@ import { localStorage } from '../../infrastructure/storage/localStorage.js';
 import { validateProductImage } from './ProductMediaUseCase.js';
 import { assertCategory, categoryWithDescendants } from './catalogRules.js';
 import { retryUniqueCode, uniqueCode } from './uniqueCode.js';
+import { InventoryTrackingUseCase } from '../settings/InventoryTrackingUseCase.js';
 import {
   assertUnits,
   assertUnitsWithinStock,
@@ -271,6 +272,7 @@ export class ProductUseCase {
     const units = input.units ?? [];
     assertUnits(units, variants.length, new Set(locations.map((l) => l.key)));
     assertUnitsWithinStock(units, variants.map((variant) => ({ name: variant.name, stock: variant.stock ?? 0 })));
+    if (units.length > 0) await new InventoryTrackingUseCase(this.prisma).assertUnitTracking(tenantId);
     await this.assertProductRelations(tenantId, input);
 
     if (covers.length > 10) throw new Error('Invalid cover count');

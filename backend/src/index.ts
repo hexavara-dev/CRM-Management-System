@@ -45,6 +45,8 @@ import { UnitPriceUseCase } from './usecases/pricing/UnitPriceUseCase.js';
 import { UnitPriceController } from './presentation/controllers/UnitPriceController.js';
 import { AvailabilityUseCase } from './usecases/availability/AvailabilityUseCase.js';
 import { AvailabilityController } from './presentation/controllers/AvailabilityController.js';
+import { InventoryTrackingUseCase } from './usecases/settings/InventoryTrackingUseCase.js';
+import { InventoryTrackingController } from './presentation/controllers/InventoryTrackingController.js';
 
 // Prisma returns BigInt for price columns; JSON.stringify cannot serialize it.
 // Prices stay below Number.MAX_SAFE_INTEGER (enforced by request validation).
@@ -374,6 +376,11 @@ app.get(
   authMiddleware,
   availabilityController.unit
 );
+
+// Pengaturan global metode inventory. Semua user membaca, owner mengubah.
+const inventoryTracking = new InventoryTrackingController(new InventoryTrackingUseCase(prisma));
+app.get('/api/company/inventory-tracking', authMiddleware, inventoryTracking.get);
+app.patch('/api/company/inventory-tracking', authMiddleware, ownerOnly, inventoryTracking.update);
 
 // Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
 const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));
