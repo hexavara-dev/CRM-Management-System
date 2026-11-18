@@ -4,7 +4,15 @@ import { Calculator, Percent, ShoppingBag } from "lucide-react";
 import { formatRupiah } from "./format";
 import type { UnitDetail } from "./types";
 
-export function PricingCard({ unit }: { unit: UnitDetail }) {
+export function PricingCard({
+  unit,
+  onReserve,
+  onSimulate,
+}: {
+  unit: UnitDetail;
+  onReserve: () => void;
+  onSimulate: () => void;
+}) {
   return (
     <Card className="rounded-xl border-[#e7ebf0] shadow-none">
       <CardContent className="p-3">
@@ -38,13 +46,20 @@ export function PricingCard({ unit }: { unit: UnitDetail }) {
           </p>
         </div>
         <div className="mt-3 space-y-2">
-          <Button className="h-10 w-full rounded-lg bg-[#0878ff] text-[11px] font-semibold hover:bg-[#006be8]">
+          <Button
+            className="h-10 w-full rounded-lg bg-[#0878ff] text-[11px] font-semibold hover:bg-[#006be8]"
+            onClick={onReserve}
+            disabled={unit.status !== "Available"}
+          >
             <ShoppingBag className="mr-2 size-4" />
-            Pesan Unit Ini
+            {unit.status === "Available"
+              ? "Pesan Unit Ini"
+              : "Unit Tidak Tersedia"}
           </Button>
           <Button
             variant="outline"
             className="h-10 w-full rounded-lg border-[#1684ff] text-[11px] font-semibold text-[#126df5] shadow-none hover:bg-[#f2f7ff] hover:text-[#126df5]"
+            onClick={onSimulate}
           >
             <Calculator className="mr-2 size-4" />
             Simulasi KPR

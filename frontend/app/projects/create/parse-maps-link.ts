@@ -8,7 +8,9 @@ const fromCoords = (lat: number, lng: number): ParseResult =>
     ? { ok: true, preview: { embedUrl: embedFor(`${lat},${lng}`), lat, lng } }
     : { ok: false, error: "Koordinat di luar jangkauan." };
 
-const COORD_PAIR = /^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/;
+const GOOGLE_MAPS_HOST = /^(?:www\.|maps\.)?google\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/;
+
+const COORD_PAIR =/^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/;
 
 /**
  * Mengubah isian user menjadi URL preview peta tanpa API key.
@@ -39,11 +41,12 @@ export function parseMapsInput(raw: string): ParseResult {
       error: "Link pendek tidak bisa dibaca. Buka link itu di browser, lalu salin URL panjang dari address bar (atau pakai Bagikan → Sematkan peta).",
     };
   }
-  if (!/(^|\.)google\.[a-z.]+$/.test(host) || !url.pathname.startsWith("/maps")) {
+  // Allowlist eksak (sama dengan backend): `google.evil.com` atau http:// tidak boleh lolos ke iframe.
+  if (url.protocol !== "https:" || url.username || url.password || url.port || !GOOGLE_MAPS_HOST.test(host) || !url.pathname.startsWith("/maps")) {
     return { ok: false, error: "Bukan link Google Maps." };
   }
 
-  // Kode "Sematkan peta": pakai URL embed apa adanya (host sudah divalidasi google.*).
+  // Kode "Sematkan peta": pakai URL embed apa adanya (host sudah divalidasi allowlist Google).
   if (url.pathname.startsWith("/maps/embed")) {
     const lng = Number(text.match(/!2d(-?\d+\.\d+)/)?.[1]);
     const lat = Number(text.match(/!3d(-?\d+\.\d+)/)?.[1]);

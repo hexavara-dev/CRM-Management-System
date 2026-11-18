@@ -7,7 +7,6 @@ import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { PageHeading } from "@/components/PageHeading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { errorMessage, useProjects} from "@/hooks/use-projects";
@@ -24,7 +23,7 @@ export default function ProjectsPage() {
   const [page, setPage] = useState(1);
   const search = useDebouncedValue(query.trim());
 
-  const { data, isLoading, isError, error } = useProjects({
+  const { data, isError, error } = useProjects({
     page,
     limit: PAGE_SIZE,
     search,
@@ -58,9 +57,9 @@ export default function ProjectsPage() {
           <hr className="border-[#EDEDED]" />
 
           <div className="grid grid-cols-3 gap-3">
-            <StatCard label="Total Project" value={data?.summary.total ?? 0} color="text-[#1f1f1f]" />
-            <StatCard label="Active" value={data?.summary.active ?? 0} color="text-[#1E9E55]" />
-            <StatCard label="In Active" value={data?.summary.inactive ?? 0} color="text-[#D64545]" />
+            <StatCard label="Total Project" value={data?.summary.total ?? "—"} color="text-[#1f1f1f]" />
+            <StatCard label="Active" value={data?.summary.active ?? "—"} color="text-[#1E9E55]" />
+            <StatCard label="In Active" value={data?.summary.inactive ?? "—"} color="text-[#D64545]" />
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -96,19 +95,17 @@ export default function ProjectsPage() {
             </div>
           </div>
 
-          {isLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 3 }, (_, i) => (
-                <Skeleton key={i} className="h-72 rounded-xl" />
-              ))}
-            </div>
-          ) : isError ? (
+          {isError ? (
             <div className="rounded-xl border border-dashed border-[#D64545]/40 py-16 text-center text-sm text-[#D64545]">
               {errorMessage(error, "Gagal memuat proyek.")}
             </div>
+          ) : !data ? (
+            <div className="rounded-xl border border-dashed border-[#E4E4E7] py-16 text-center text-sm text-[#6b6b6b]">
+              Memuat daftar proyek...
+            </div>
           ) : projects.length === 0 ? (
             <div className="rounded-xl border border-dashed border-[#E4E4E7] py-16 text-center text-sm text-[#6b6b6b]">
-              No properties found.
+              {data.summary.total === 0 ? "Belum ada proyek. Klik Add Property untuk membuat proyek pertama." : "Tidak ada proyek yang cocok dengan pencarian atau filter."}
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -118,31 +115,33 @@ export default function ProjectsPage() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#6b6b6b]">
-            <p>
-              Showing {total === 0 ? 0 : start + 1} - {start + projects.length} of {total} properties.
-            </p>
-            <div className="flex flex-wrap items-center gap-1">
-              <Button type="button" variant="outline" size="icon-sm" aria-label="Previous page" disabled={page === 1} onClick={() => setPage(page - 1)}>
-                <ChevronLeft className="size-3.5" />
-              </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <Button
-                  key={n}
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  onClick={() => setPage(n)}
-                  className={cn(n === page && "border-[#1980C0] bg-[#1980C0] text-white hover:bg-[#166ea6] hover:text-white")}
-                >
-                  {n}
+          {data && !isError && total > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#6b6b6b]">
+              <p>
+                Showing {start + 1} - {start + projects.length} of {total} properties.
+              </p>
+              <div className="flex flex-wrap items-center gap-1">
+                <Button type="button" variant="outline" size="icon-sm" aria-label="Previous page" disabled={page === 1} onClick={() => setPage(page - 1)}>
+                  <ChevronLeft className="size-3.5" />
                 </Button>
-              ))}
-              <Button type="button" variant="outline" size="icon-sm" aria-label="Next page" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
-                <ChevronRight className="size-3.5" />
-              </Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                  <Button
+                    key={n}
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => setPage(n)}
+                    className={cn(n === page && "border-[#1980C0] bg-[#1980C0] text-white hover:bg-[#166ea6] hover:text-white")}
+                  >
+                    {n}
+                  </Button>
+                ))}
+                <Button type="button" variant="outline" size="icon-sm" aria-label="Next page" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>

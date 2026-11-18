@@ -126,7 +126,7 @@ export function DealHeader({ deal, onEdit }: DealHeaderProps) {
                   <FormInput
                     name="expectedAmount"
                     label="Value (IDR)"
-                    type="number"
+                    currency
                     min={0}
                   />
                   <div className="col-span-2">

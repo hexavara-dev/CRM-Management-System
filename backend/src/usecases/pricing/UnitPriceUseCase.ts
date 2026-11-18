@@ -23,7 +23,8 @@ export type UnitPriceFilters = {
   date?: string;
 };
 
-export type AdjustmentInput = { amount: number; reason: string; effectiveDate: string };
+/** `price` adalah harga jual final yang diinginkan, bukan selisih. */
+export type AdjustmentInput = { price: number; reason: string; effectiveDate: string };
 
 export type Actor = { tenantId: string; userId: string };
 
@@ -256,10 +257,9 @@ export class UnitPriceUseCase {
     const unit = await this.findUnit(unitId, actor.tenantId);
     if (unit.status === 'SOLD') throw new Error('Price of a sold unit cannot be adjusted (conflict)');
 
-    if (input.amount === 0) throw new Error('amount must not be 0');
     const [priced] = await this.price(actor.tenantId, [unit], input.effectiveDate);
     const data = this.adjustmentData(priced!, actor, input);
-    if (data.priceAfter < ZERO) throw new Error('Selling price after adjustment must be at least 0');
+    if (data.priceAfter === data.priceBefore) throw new Error('price must differ from the current selling price');
 
     return this.prisma.$transaction(async (tx) => {
       const pending = await tx.unitPriceAdjustment.count({
@@ -277,18 +277,18 @@ export class UnitPriceUseCase {
 
   /**
    * Baris penyesuaian untuk satu unit yang sudah dihitung harganya.
-   * input.amount adalah selisih terhadap harga jual pada tanggal efektif. Yang
-   * disimpan adalah total penyesuaian unit (penyesuaian aktif + selisih), sehingga
-   * rumus harga dan kenaikan tipe/blok tetap berlaku.
+   * input.price adalah harga jual final yang diinginkan pada tanggal efektif. Yang
+   * disimpan adalah total penyesuaian unit (harga final - harga dasar - kenaikan
+   * tipe/blok aktif), sehingga rumus harga jual tetap berlaku.
    */
   private adjustmentData(
     priced: Awaited<ReturnType<UnitPriceUseCase['price']>>[number],
     actor: Actor,
     input: AdjustmentInput
   ) {
-    const { unit, basePrice, logTotal, amount: currentAmount, price } = priced;
-    const amount = currentAmount + BigInt(input.amount);
-    const priceAfter = sellingPrice(basePrice, logTotal, amount);
+    const { unit, basePrice, logTotal, price } = priced;
+    const priceAfter = BigInt(input.price);
+    const amount = priceAfter - basePrice - logTotal;
     const minPrice = unit.variant.minPrice;
     const status: PriceAdjustmentStatus = needsApproval(priceAfter, minPrice) ? 'PENDING' : 'APPROVED';
     return {
@@ -307,13 +307,12 @@ export class UnitPriceUseCase {
   }
 
   /**
-   * Menyesuaikan harga jual banyak unit dari satu project sekaligus. Nominal yang
-   * sama diterapkan kumulatif ke harga jual masing-masing unit, dalam satu transaksi.
+   * Menetapkan harga jual final yang sama untuk banyak unit dari satu project
+   * sekaligus, dalam satu transaksi. Unit yang harganya sudah sama dilewati.
    */
   async createBulkAdjustment(unitIds: string[], actor: Actor, input: AdjustmentInput) {
     const today = todayInPriceZone();
     if (input.effectiveDate < today) throw new Error('effectiveDate must be today or later');
-    if (input.amount === 0) throw new Error('amount must not be 0');
 
     const units = await this.prisma.productUnit.findMany({
       where: { id: { in: unitIds }, tenantId: actor.tenantId },
@@ -333,11 +332,10 @@ export class UnitPriceUseCase {
     }
 
     const priced = await this.price(actor.tenantId, units, input.effectiveDate);
-    const rows = priced.map((p) => this.adjustmentData(p, actor, input));
-    const negative = rows.filter((r) => r.priceAfter < ZERO).map((r) => units.find((u) => u.id === r.unitId)!.code);
-    if (negative.length > 0) {
-      throw new Error(`Selling price after adjustment must be at least 0: ${negative.join(', ')}`);
-    }
+    const rows = priced
+      .map((p) => this.adjustmentData(p, actor, input))
+      .filter((r) => r.priceAfter !== r.priceBefore);
+    if (rows.length === 0) throw new Error('price must differ from the current selling price of at least one unit');
 
     const created = await this.prisma.$transaction(async (tx) => {
       const pending = await tx.unitPriceAdjustment.findMany({

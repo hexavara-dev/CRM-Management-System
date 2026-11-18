@@ -34,16 +34,130 @@ describe('assertUnits', () => {
 });
 
 describe('ProductUseCase.create (whole project)', () => {
+  const jpegCover = () => ({
+    originalname: 'cover.jpg',
+    mimetype: 'image/jpeg',
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+    size: 4,
+  }) as Express.Multer.File;
+
+  it('saves cover records with all wizard data in the same database transaction', async () => {
+    const tx = {
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
+      productVariant: { create: fn({ id: 'v-1' }) },
+      productMedia: { createMany: fn({ count: 1 }) },
+    };
+    const prisma = {
+      product: { findFirst: fn({ id: 'p-1', variants: [], media: [] }) },
+      $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
+    };
+    const storage = {
+      upload: fn(),
+      remove: fn(),
+      getPublicUrl: jest.fn((path: string) => ({ publicUrl: `http://localhost:3000/uploads/${path}` })),
+    };
+
+    await new ProductUseCase(prisma as never, storage as never).create('t-1', {
+      name: 'Project', code: 'PRJ', variants: [{ name: 'Type 36', basePrice: 1 }],
+    }, [jpegCover()]);
+
+    const createdId = tx.product.create.mock.calls[0][0].data.id;
+    expect(storage.upload.mock.calls[0][0]).toContain(`/product/${createdId}/`);
+    expect(tx.productMedia.createMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({
+        tenantId: 't-1', productId: 'p-1', mediaType: 'IMAGE',
+        isPrimary: true, fileType: 'image/jpeg', fileSize: 4,
+      }),
+    ]);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('links a type image to its variant in the project transaction', async () => {
+    const tx = {
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
+      productVariant: { create: fn({ id: 'v-1' }) },
+      productMedia: { createMany: fn({ count: 1 }) },
+    };
+    const prisma = {
+      product: { findFirst: fn({ id: 'p-1', variants: [], media: [] }) },
+      $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)),
+    };
+    const storage = {
+      upload: fn(), remove: fn(),
+      getPublicUrl: jest.fn((path: string) => ({ publicUrl: `http://localhost:3000/uploads/${path}` })),
+    };
+
+    await new ProductUseCase(prisma as never, storage as never).create('t-1', {
+      name: 'Project', code: 'PRJ', variants: [{ name: 'Type 36', basePrice: 1 }],
+    }, [], [{ variantIndex: 0, file: jpegCover() }]);
+
+    expect(tx.productMedia.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ productId: 'p-1', variantId: 'v-1', mediaType: 'IMAGE', isPrimary: true })],
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('cleans staged covers when the database transaction fails', async () => {
+    const tx = {
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
+      productVariant: { create: fn({ id: 'v-1' }) },
+      productMedia: { createMany: jest.fn<(...args: any[]) => any>().mockRejectedValue(new Error('write failed')) },
+    };
+    const prisma = { $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)) };
+    const storage = {
+      upload: fn(),
+      remove: fn(),
+      getPublicUrl: jest.fn((path: string) => ({ publicUrl: `http://localhost:3000/uploads/${path}` })),
+    };
+
+    await expect(new ProductUseCase(prisma as never, storage as never).create('t-1', {
+      name: 'Project', code: 'PRJ', variants: [{ name: 'Type 36', basePrice: 1 }],
+    }, [jpegCover()])).rejects.toThrow('write failed');
+    expect(storage.remove).toHaveBeenCalledWith([storage.upload.mock.calls[0][0]]);
+  });
+
+  it('cleans earlier files if a later cover cannot be written', async () => {
+    const prisma = { $transaction: jest.fn() };
+    const storage = {
+      upload: jest.fn<(...args: any[]) => any>()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('disk write failed')),
+      remove: fn(),
+      getPublicUrl: jest.fn((path: string) => ({ publicUrl: `http://localhost:3000/uploads/${path}` })),
+    };
+    await expect(new ProductUseCase(prisma as never, storage as never).create('t-1', {
+      name: 'Project', code: 'PRJ', variants: [{ name: 'Type 36', basePrice: 1 }],
+    }, [jpegCover(), jpegCover()])).rejects.toThrow('disk write failed');
+    expect(storage.remove).toHaveBeenCalledWith(storage.upload.mock.calls.map((call) => call[0]));
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects spoofed image data before storing files or opening a transaction', async () => {
+    const prisma = { $transaction: jest.fn() };
+    const storage = { upload: fn() };
+    await expect(new ProductUseCase(prisma as never, storage as never).create('t-1', {
+      name: 'Project', code: 'PRJ', variants: [{ name: 'Type 36', basePrice: 1 }],
+    }, [{ ...jpegCover(), buffer: Buffer.from('not an image') }])).rejects.toThrow('Unsupported file type');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
   it('creates the PROJECT root, variants, attributes, tree and units in one transaction', async () => {
     const tx = {
       productCategory: {
+        findFirst: fn(null),
         create: jest
           .fn<(...args: any[]) => any>()
           .mockResolvedValueOnce({ id: 'root' })
           .mockResolvedValueOnce({ id: 'n-cluster' })
           .mockResolvedValueOnce({ id: 'n-block' }),
       },
-      product: { create: fn({ id: 'p-1' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       attribute: { findFirst: fn(null), create: fn({ id: 'attr-1' }) },
       productAttribute: { createMany: fn({ count: 1 }) },
@@ -97,8 +211,8 @@ describe('ProductUseCase.create (whole project)', () => {
 
   it('reuses an existing master attribute instead of creating it again', async () => {
     const tx = {
-      productCategory: { create: fn({ id: 'root' }) },
-      product: { create: fn({ id: 'p-1' }) },
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: jest.fn<(...args: any[]) => any>().mockResolvedValueOnce({ id: 'v-1' }).mockResolvedValueOnce({ id: 'v-2' }) },
       attribute: { findFirst: fn({ id: 'attr-9' }), create: fn() },
       productAttribute: { createMany: fn({ count: 1 }) },
@@ -123,8 +237,8 @@ describe('ProductUseCase.create (whole project)', () => {
 
   it('stores 0 for an attribute sent without a value', async () => {
     const tx = {
-      productCategory: { create: fn({ id: 'root' }) },
-      product: { create: fn({ id: 'p-1' }) },
+      productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
+      product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       attribute: { findFirst: fn({ id: 'attr-1' }), create: fn() },
       productAttribute: { createMany: fn({ count: 1 }) },
@@ -176,7 +290,7 @@ describe('project request validation', () => {
     expect(() => validateProduct({ ...base, locations: [{ key: 'a', name: 'R', type: 'ROOM' }] })).toThrow(
       /type must be one of/
     );
-    expect(() => validateProduct({ locations: [] }, true)).toThrow(/only be sent when creating/);
+    expect(validateProduct({ locations: [] }, true).locations).toEqual([]);
   });
 
   it('reads unit status filters case-insensitively', () => {

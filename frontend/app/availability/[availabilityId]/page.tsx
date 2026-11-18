@@ -49,7 +49,7 @@ export default function AvailabilityDetailPage() {
 
               <ClusterAvailabilityOverview
                 clusters={availability.data.clusters}
-                availabilityId={params.availabilityId}
+                availabilityId={availability.data.project.code}
               />
             </>
           ) : (

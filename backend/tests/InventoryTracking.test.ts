@@ -81,7 +81,7 @@ describe('unit creation guard', () => {
     const input = {
       name: 'Project',
       code: 'PRJ',
-      variants: [{ name: 'Type 36', basePrice: 1 }],
+      variants: [{ name: 'Type 36', basePrice: 1, stock: 1 }],
       units: [{ code: 'A-01', variantIndex: 0 }],
     };
     await expect(new ProductUseCase(db as never).create('t-1', input as never)).rejects.toThrow(

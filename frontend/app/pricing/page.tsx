@@ -180,7 +180,7 @@ export default function PricingPage() {
               />
             )}
             <StatCard
-              label="Total Unit"
+              label="Unit Terdaftar"
               value={summary?.totalUnits ?? 0}
               color="text-[#1f1f1f]"
               hint={
@@ -429,7 +429,9 @@ export default function PricingPage() {
                                   <MoreVertical className="size-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
+                              {/* Tanpa batas tinggi agar menu berpindah ke atas pada baris terbawah, bukan terpotong. */}
+                              <DropdownMenuContent align="end" collisionPadding={8} className="max-h-none min-w-48">
+
                                 <DropdownMenuItem onSelect={() => setHistoryUnit(row.unitId)}>
                                   <History className="size-4" />
                                   Riwayat harga

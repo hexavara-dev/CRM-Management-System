@@ -19,7 +19,7 @@ export function ClusterAvailabilityCard({
 }: ClusterCardProps) {
   return (
     <Link
-      href={clusterPath(availabilityId, cluster.id)}
+      href={clusterPath(availabilityId, cluster.code)}
       className="block rounded-xl"
       aria-label={`View ${cluster.name}`}
     >

@@ -16,12 +16,12 @@ function parseDay(value: unknown, field: string) {
 
 export function validateAdjustment(body: unknown): AdjustmentInput {
   const data = validateBody(body, {
-    amount: { type: 'number', required: true, integer: true, min: -PRICE_MAX, max: PRICE_MAX },
+    price: { type: 'number', required: true, integer: true, min: 0, max: PRICE_MAX },
     reason: { type: 'string', required: true, min: 3, max: 500 },
     effectiveDate: { type: 'string', required: true, max: 10 },
   });
   return {
-    amount: data.amount as number,
+    price: data.price as number,
     reason: (data.reason as string).trim(),
     effectiveDate: parseDay(data.effectiveDate, 'effectiveDate'),
   };

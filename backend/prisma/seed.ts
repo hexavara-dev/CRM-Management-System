@@ -3,6 +3,7 @@ import { prisma } from '../src/infrastructure/database/prisma.js';
 import { PrismaGenericRepository } from '../src/infrastructure/repositories/PrismaGenericRepository.js';
 import { AuthUseCases } from '../src/usecases/auth/AuthUseCases.js';
 import { seedReservationData } from './seed/reservationSeed.js';
+import { seedAttributeCatalog } from './seed/attributeCatalog.js';
 
 const TENANT_NAME = 'Demo Organization';
 // Hanya untuk akun demo lokal. Jangan dipakai di server yang bisa diakses orang lain.
@@ -77,6 +78,7 @@ async function main() {
     salesUsers.push(created);
   }
 
+  await seedAttributeCatalog(prisma, owner!.tenantId);
   await seedReservationData(prisma, owner!.tenantId, salesUsers);
 }
 

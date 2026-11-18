@@ -63,7 +63,7 @@ harga jual  = harga dasar + kenaikan + penyesuaian
 
 - **Price log aktif:** `effective_start <= tanggal acuan` dan `end_date` kosong atau `>= tanggal acuan`. Kolom `status` pada price log diabaikan.
 - **Penyesuaian aktif:** hanya satu yang berlaku per unit, yaitu baris `APPROVED` dengan `effective_date <= tanggal acuan` yang paling baru (urut `effective_date`, lalu `approved_at`). Kolom `amount` pada baris itu adalah total penyesuaian unit.
-- **Nominal input bersifat menambah.** User mengisi selisih terhadap harga jual saat ini. Sistem menyimpan `amount` = penyesuaian aktif pada tanggal efektif + nominal. Contoh: harga jual 350 juta dengan penyesuaian aktif +40 juta, lalu diinput +5 juta, maka `amount` = +45 juta dan harga jual menjadi 355 juta. Nominal 0 ditolak.
+- **Input adalah harga jual final** (diperbarui 2026-11-17, permintaan client). User mengisi harga jual yang diinginkan. Sistem menyimpan `amount` = harga final - harga dasar - kenaikan tipe/blok aktif pada tanggal efektif. Contoh: harga jual 200 juta diubah menjadi 600 juta, maka harga jual menjadi 600 juta (bukan 800 juta). Harga yang sama dengan harga saat ini ditolak.
 - **Tanggal acuan:** hari ini dalam zona waktu `Asia/Jakarta`, atau parameter `date` pada API.
 - **Harga jual tidak boleh negatif.** Penyesuaian yang membuatnya negatif ditolak.
 
@@ -84,7 +84,7 @@ Contoh: Type 45 dengan harga dasar 450.000.000, kenaikan Blok B +20.000.000 yang
 | `id` | VARCHAR(36) | UUID |
 | `company_id` | VARCHAR(36) | Dari JWT |
 | `unit_id` | VARCHAR(36) | Unit milik company yang sama |
-| `amount` | BIGINT | Total penyesuaian unit terhadap harga dasar + kenaikan, yaitu penyesuaian aktif ditambah nominal input. Boleh negatif. |
+| `amount` | BIGINT | Total penyesuaian unit terhadap harga dasar + kenaikan, yaitu harga final dikurangi harga dasar dan kenaikan aktif. Boleh negatif. |
 | `price_before` | BIGINT | Harga jual pada `effective_date`, dihitung saat diajukan |
 | `price_after` | BIGINT | `price_before` + nominal input |
 | `min_price` | BIGINT, nullable | Salinan batas minimum saat diajukan |
@@ -145,7 +145,7 @@ Semua endpoint berada di `/api`, membutuhkan autentikasi, dan mengikuti bentuk r
 | GET | `/unit-prices` | Semua | Daftar harga unit. Filter `productId`, `categoryId` (termasuk turunan), `variantId`, `status`, `search` (kode unit), `date`, `page`, `limit`. Juga mengembalikan `summary`. |
 | GET | `/unit-prices/:unitId` | Semua | Rincian harga satu unit: harga dasar, daftar price log aktif, penyesuaian aktif, pengajuan `PENDING`, dan harga jual |
 | GET | `/unit-prices/:unitId/history` | Semua | Riwayat penyesuaian unit, terbaru dulu, dengan paginasi |
-| POST | `/unit-prices/:unitId/adjustments` | Owner | Body `{ amount, reason, effectiveDate }` |
+| POST | `/unit-prices/:unitId/adjustments` | Owner | Body `{ price, reason, effectiveDate }` (`price` = harga jual final) |
 | GET | `/unit-price-adjustments?status=PENDING` | Semua | Daftar pengajuan untuk approval |
 | POST | `/unit-price-adjustments/:id/approve` | Owner | |
 | POST | `/unit-price-adjustments/:id/reject` | Owner | Body `{ note }` |

@@ -12,7 +12,7 @@ Lanjutan dari: `2026-11-13-unit-price-management-design.md` (CRM-14)
 
 | # | Topik | Keputusan |
 |---|---|---|
-| 1 | Bentuk perubahan | Nominal Rp naik/turun, kumulatif per unit (sama dengan penyesuaian satuan). Persen dan "set harga sama" belum. |
+| 1 | Bentuk perubahan | **Diperbarui 2026-11-17 (permintaan client):** input adalah harga jual final, bukan selisih. Satu harga final berlaku untuk semua unit terpilih; unit yang harganya sudah sama dilewati. Berlaku juga untuk penyesuaian satuan (payload `price`, bukan `amount`). |
 | 2 | Cara memilih | Checkbox per baris dan per halaman. Pilihan tetap tersimpan saat pindah halaman. Belum ada "pilih semua yang cocok dengan filter". |
 | 3 | Batas pilihan | Maksimal 100 unit per simpan, semua dari **satu project**. Tipe boleh campur. |
 | 4 | Unit SOLD | Tidak bisa dipilih (checkbox nonaktif) dan ditolak di backend. |

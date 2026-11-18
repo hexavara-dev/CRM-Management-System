@@ -12,6 +12,7 @@ import { DealUseCases } from './usecases/deal/DealUseCases.js';
 import { AuthController } from './presentation/controllers/AuthController.js';
 import { AuthUseCases } from './usecases/auth/AuthUseCases.js';
 import { authMiddleware, requireRole } from './presentation/middlewares/AuthMiddleware.js';
+import { requestLogMiddleware } from './presentation/middlewares/RequestLogMiddleware.js';
 import { uploadTenantAccessMiddleware } from './presentation/middlewares/UploadAccessMiddleware.js';
 import { StatisticsUseCases } from './usecases/statistics/StatisticsUseCases.js';
 import { StatisticsController } from './presentation/controllers/StatisticsController.js';
@@ -54,6 +55,7 @@ import { InventoryTrackingController } from './presentation/controllers/Inventor
 };
 
 const app = express();
+app.use(requestLogMiddleware);
 app.use(express.json());
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
   .split(',')
@@ -332,8 +334,10 @@ app.put('/api/categories/:id', authMiddleware, ownerOnly, pc.updateCategory);
 app.delete('/api/categories/:id', authMiddleware, ownerOnly, pc.deleteCategory);
 app.get('/api/products', authMiddleware, pc.listProducts);
 app.get('/api/products/:id', authMiddleware, pc.getProduct);
-app.post('/api/products', authMiddleware, ownerOnly, pc.createProduct);
-app.put('/api/products/:id', authMiddleware, ownerOnly, pc.updateProduct);
+app.get('/api/products/:id/edit-data', authMiddleware, pc.getProductEdit);
+const projectUploads = upload.fields([{ name: 'covers', maxCount: 10 }, { name: 'typeImages', maxCount: 100 }]);
+app.post('/api/products', authMiddleware, ownerOnly, projectUploads, pc.createProduct);
+app.put('/api/products/:id', authMiddleware, ownerOnly, projectUploads, pc.updateProduct);
 app.delete('/api/products/:id', authMiddleware, ownerOnly, pc.deleteProduct);
 app.post('/api/products/:id/variants', authMiddleware, ownerOnly, pc.createVariant);
 app.put('/api/products/:id/variants/:variantId', authMiddleware, ownerOnly, pc.updateVariant);
@@ -365,10 +369,10 @@ app.patch('/api/reservations/:id/status', authMiddleware, reservationController.
 
 const availabilityController = new AvailabilityController(new AvailabilityUseCase(prisma));
 app.get('/api/availability', authMiddleware, availabilityController.overview);
-app.get('/api/availability/:projectId', authMiddleware, availabilityController.project);
-app.get('/api/availability/:projectId/clusters/:clusterId', authMiddleware, availabilityController.cluster);
+app.get('/api/availability/:projectRef', authMiddleware, availabilityController.project);
+app.get('/api/availability/:projectRef/clusters/:clusterRef', authMiddleware, availabilityController.cluster);
 app.get(
-  '/api/availability/:projectId/clusters/:clusterId/units/:unitId',
+  '/api/availability/:projectRef/clusters/:clusterRef/units/:unitRef',
   authMiddleware,
   availabilityController.unit
 );

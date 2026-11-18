@@ -2,6 +2,7 @@ import type { ProductCategoryType, ProductUnitStatus } from '@prisma/client';
 
 /** A node of the location tree sent with a new product. `key` is a client-side id. */
 export type LocationInput = {
+  id?: string;
   key: string;
   parentKey?: string | null;
   name: string;
@@ -11,11 +12,13 @@ export type LocationInput = {
 
 /** A physical unit sent with a new product. Variant is referenced by its index in `variants`. */
 export type UnitInput = {
+  id?: string;
   code: string;
   name?: string | null;
   variantIndex: number;
   locationKey?: string;
   status?: ProductUnitStatus;
+  isHook?: boolean;
 };
 
 /** Orders locations parent-first. Rejects duplicate keys, unknown parents and cycles. */
@@ -58,4 +61,14 @@ export function assertUnits(units: UnitInput[], variantCount: number, locationKe
     if (codes.has(unit.code)) throw new Error(`Duplicate unit code: ${unit.code}`);
     codes.add(unit.code);
   }
+}
+
+/** Jumlah unit fisik per tipe tidak boleh melebihi total slot (stock) tipe tersebut. */
+export function assertUnitsWithinStock(units: UnitInput[], variants: { name?: string | undefined; stock: number }[]) {
+  variants.forEach((variant, index) => {
+    const count = units.filter((unit) => unit.variantIndex === index).length;
+    if (count > variant.stock) {
+      throw new Error(`Invalid unit count: ${variant.name ?? `Type ${index + 1}`} has ${count} units, exceeding its total of ${variant.stock} slots`);
+    }
+  });
 }

@@ -43,6 +43,7 @@ type ProductVariant = {
   basePrice: number;
   currentPrice: number;
   minPrice: number | null;
+  stock: number;
   unitCount: number;
 };
 
@@ -91,6 +92,7 @@ export type ProjectTypeRow = {
   name: string;
   basePrice: number;
   currentPrice: number;
+  stock: number;
   unitCount: number;
   image: string | null;
   attributes: Record<TypeAttributeCode, number>;
@@ -102,6 +104,7 @@ export type ProjectTypeForm = {
   variantId?: string;
   name: string;
   basePrice: number;
+  stock: number;
   attributes: Record<TypeAttributeCode, number>;
   image?: File;
 };
@@ -178,13 +181,6 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
             Number(right.isPrimary) - Number(left.isPrimary) ||
             left.sortOrder - right.sortOrder,
         )[0];
-      const projectMedia = product.media
-        .filter((item) => item.mediaType === "IMAGE" && item.variantId === null)
-        .sort(
-          (left, right) =>
-            Number(right.isPrimary) - Number(left.isPrimary) ||
-            left.sortOrder - right.sortOrder,
-        )[0];
 
       return {
         id: variant.id,
@@ -201,8 +197,10 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
         name: variant.name,
         basePrice: Number(variant.basePrice),
         currentPrice: Number(variant.currentPrice),
+        stock: variant.stock,
         unitCount: variant.unitCount,
-        image: media?.fileUrl ?? projectMedia?.fileUrl ?? null,
+        // Gambar type hanya dari media milik variant ini; gambar proyek (variantId null) tidak dipakai sebagai fallback.
+        image: media?.fileUrl ?? null,
         attributes,
         attributeRows,
       } satisfies ProjectTypeRow;
@@ -217,7 +215,7 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
     summary: {
       totalTypes,
       totalProjects,
-      totalUnits: rows.reduce((total, row) => total + row.unitCount, 0),
+      totalUnits: rows.reduce((total, row) => total + row.stock, 0),
       averageTypes: totalProjects ? totalTypes / totalProjects : 0,
     },
   };
@@ -286,6 +284,7 @@ export function useCreateProjectType() {
             name: form.name.trim(),
             basePrice: form.basePrice,
             currentPrice: form.basePrice,
+            stock: form.stock,
           },
         )
       ).data;
@@ -317,6 +316,8 @@ export function useCreateProjectType() {
     onSuccess: async ({ partial }) => {
       await queryClient.invalidateQueries({ queryKey: ["project-types"] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["project"] });
+      await queryClient.invalidateQueries({ queryKey: ["project-edit"] });
       toast[partial ? "warning" : "success"](
         partial
           ? "Tipe tersimpan, tetapi sebagian spesifikasi atau gambar gagal disimpan."
@@ -343,6 +344,7 @@ export function useUpdateProjectType() {
         {
           name: form.name.trim(),
           basePrice: form.basePrice,
+          stock: form.stock,
         },
       );
 
@@ -384,6 +386,8 @@ export function useUpdateProjectType() {
     onSuccess: async ({ partial }) => {
       await queryClient.invalidateQueries({ queryKey: ["project-types"] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["project"] });
+      await queryClient.invalidateQueries({ queryKey: ["project-edit"] });
       toast[partial ? "warning" : "success"](
         partial
           ? "Tipe diperbarui, tetapi sebagian spesifikasi atau gambar gagal disimpan."

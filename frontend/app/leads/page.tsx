@@ -251,7 +251,7 @@ export default function LeadsPage() {
   const convertForm = useForm({
     defaultValues: {
       expectedAmount: 0,
-      currency: "USD",
+      currency: "IDR",
     },
   });
 
@@ -297,7 +297,7 @@ export default function LeadsPage() {
       try {
         await convertToDeal({
           id: selectedLead.id,
-          dealData: data,
+          dealData: { ...data, currency: "IDR" },
         });
         setIsConvertDialogOpen(false);
         setSelectedLead(null);
@@ -703,9 +703,8 @@ export default function LeadsPage() {
               <FormInput
                 name="expectedAmount"
                 label="Expected Amount"
-                type="number"
+                currency
               />
-              <FormInput name="currency" label="Currency" />
               <DialogFooter>
                 <Button
                   type="button"

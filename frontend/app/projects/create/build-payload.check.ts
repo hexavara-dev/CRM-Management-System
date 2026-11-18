@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { buildProjectPayload } from "./build-payload";
 
-const info = { code: "CL", name: " Citraland ", status: "Inactive", description: "", province: "Jawa Timur", city: "Malang", subdistrict: " Bululawang ", village: "", address: "", postalCode: "" };
+const info = { code: "CL", name: " Citraland ", status: "Inactive", description: "", province: "Jawa Timur", city: "Malang", subdistrict: " Bululawang ", village: "", address: "", postalCode: "", mapsUrl: "" };
 const type36 = { name: "Type 36", buildingArea: "36.4", surfaceArea: "", floors: "1", bedroom: "2", bathroom: "1", carport: "", stock: "3", basePrice: "350000000" };
 const nodes = [
   { id: "n1", parentId: "root", name: "Cluster A", level: "Cluster" },

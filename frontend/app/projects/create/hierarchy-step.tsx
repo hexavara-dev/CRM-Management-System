@@ -14,11 +14,12 @@ import { FIELD_LABEL, INPUT } from "./form-styles";
 import { AddUnitDialog } from "./add-unit-dialog";
 import { DetailStat } from "./detail-stat";
 import { TreeRow } from "./tree-row";
+import { toast } from "sonner";
 
 /** Flat list; parentId "root" = langsung di bawah proyek. */
-export type LocationNode = { id: string; parentId: string; name: string; level: string };
+export type LocationNode = { id: string; persistedId?: string; parentId: string; name: string; level: string };
 /** Unit fisik; dimiliki oleh lokasi terbawah (block) melalui locationId. */
-export type UnitItem = { id: string; locationId: string; code: string; type: string; hook: string; status: string };
+export type UnitItem = { id: string; persistedId?: string; locationId: string; code: string; type: string; hook: string; status: string };
 
 const ROOT = "root";
 const LEVEL_SUGGESTIONS = ["Cluster", "Zone", "Block", "Tower", "Floor"];
@@ -83,6 +84,11 @@ export function HierarchyStep({
   const openEdit = (n: LocationNode) => setDraft({ id: n.id, parentId: n.parentId, name: n.name, level: n.level });
 
   const remove = (id: string) => {
+    if (kids(id).length > 0) {
+      const name = nodes.find((node) => node.id === id)?.name ?? "Level";
+      toast.error(`Level ${name} belum bisa dihapus karena masih memiliki level di bawahnya. Hapus level di bawahnya terlebih dahulu.`);
+      return;
+    }
     const gone = new Set([id, ...descendants(id).map((d) => d.id)]);
     onChange(nodes.filter((n) => !gone.has(n.id)));
     onUnitsChange(units.filter((u) => !gone.has(u.locationId)));
@@ -92,7 +98,8 @@ export function HierarchyStep({
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft) return;
-    const node: LocationNode = { id: draft.id ?? crypto.randomUUID(), parentId: draft.parentId, name: draft.name.trim(), level: draft.level.trim() };
+    const previous = nodes.find((item) => item.id === draft.id);
+    const node: LocationNode = { id: draft.id ?? crypto.randomUUID(), ...(previous?.persistedId ? { persistedId: previous.persistedId } : {}), parentId: draft.parentId, name: draft.name.trim(), level: draft.level.trim() };
     onChange(draft.id ? nodes.map((n) => (n.id === draft.id ? node : n)) : [...nodes, node]);
     if (!draft.id) setExpanded((s) => new Set(s).add(draft.parentId));
     setDraft(null);
@@ -107,7 +114,13 @@ export function HierarchyStep({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => openEdit(n)}>Edit</DropdownMenuItem>
-        <DropdownMenuItem className="text-[#D64545]" onSelect={() => setPendingDelete(n)}>Hapus</DropdownMenuItem>
+        <DropdownMenuItem className="text-[#D64545]" onSelect={() => {
+          if (kids(n.id).length > 0) {
+            toast.error(`Level ${n.name} belum bisa dihapus karena masih memiliki level di bawahnya. Hapus level di bawahnya terlebih dahulu.`);
+            return;
+          }
+          setPendingDelete(n);
+        }}>Hapus</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -117,7 +130,7 @@ export function HierarchyStep({
       const hasKids = kids(n.id).length > 0;
       return (
         <div key={n.id}>
-          <TreeRow label={n.name} depth={depth} open={expanded.has(n.id)} hasKids={hasKids} active={selectedId === n.id} onToggle={() => toggle(n.id)} onSelect={() => setSelectedId(n.id)} actions={rowActions(n)} />
+          <TreeRow label={n.name} depth={depth} open={expanded.has(n.id)} hasKids={hasKids} active={selectedId === n.id} onToggle={() => toggle(n.id)} onSelect={() => setSelectedId(n.id)} onEdit={() => openEdit(n)} actions={rowActions(n)} />
           {hasKids && expanded.has(n.id) && renderTree(n.id, depth + 1)}
         </div>
       );
@@ -138,7 +151,7 @@ export function HierarchyStep({
         <div className="rounded-lg border border-[#E4E4E7] p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-[#1f1f1f]">Project Location Structure</span>
-            <Button type="button" variant="outline" onClick={() => openAdd(ROOT)} className="h-8 gap-1 rounded-lg border-[#1980C0] bg-[#E8F3FA] px-3 text-xs text-[#1980C0] hover:bg-[#d6eaf6]">
+            <Button type="button" variant="outline" onClick={() => openAdd(selectedId)} className="h-8 gap-1 rounded-lg border-[#1980C0] bg-[#E8F3FA] px-3 text-xs text-[#1980C0] hover:bg-[#d6eaf6]">
               <Plus className="size-3.5" />
               Add Level
             </Button>
@@ -165,7 +178,13 @@ export function HierarchyStep({
                     <Pencil className="size-3" />
                     Edit
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => setPendingDelete(selected)} className="h-8 gap-1 border-[#D64545] bg-[#FDECEC] px-4 text-xs text-[#D64545] hover:bg-[#fbd9d9]">
+                  <Button type="button" variant="outline" onClick={() => {
+                    if (children.length > 0) {
+                      toast.error(`Level ${selected.name} belum bisa dihapus karena masih memiliki level di bawahnya. Hapus level di bawahnya terlebih dahulu.`);
+                      return;
+                    }
+                    setPendingDelete(selected);
+                  }} className="h-8 gap-1 border-[#D64545] bg-[#FDECEC] px-4 text-xs text-[#D64545] hover:bg-[#fbd9d9]">
                     <Trash2 className="size-3" />
                     Delete
                   </Button>
@@ -175,7 +194,7 @@ export function HierarchyStep({
             <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
               <DetailStat icon={<LayoutGrid className="size-4" />} label="Level" value={selected.level} />
               <DetailStat icon={<Layers className="size-4" />} label="Total child" value={children.length ? `${children.length} ${children[0].level}` : "-"} />
-              <DetailStat icon={<Boxes className="size-4" />} label={leaves.length ? `Total ${leaves[0].level}` : "Total Unit"} value={leaves.length ? `${leaves.length} ${leaves[0].level}` : `${totalUnits(selected.id)} Unit`} />
+              <DetailStat icon={<Boxes className="size-4" />} label={leaves.length ? `Total ${leaves[0].level}` : "Unit Dibuat"} value={leaves.length ? `${leaves.length} ${leaves[0].level}` : `${totalUnits(selected.id)} Unit`} />
             </div>
           </div>
 
@@ -192,7 +211,7 @@ export function HierarchyStep({
                 <Table className="text-xs">
                   <TableHeader>
                     <TableRow>
-                      {["No Unit", "Type", "Hook", "Status Unit", "Action"].map((h) => (
+                      {["No Unit", "Type", "Status Unit", "Action"].map((h) => (
                         <TableHead key={h} className="h-10 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -207,7 +226,6 @@ export function HierarchyStep({
                         <TableRow key={u.id}>
                           <TableCell className="whitespace-nowrap">{u.code}</TableCell>
                           <TableCell>{u.type}</TableCell>
-                          <TableCell>{u.hook}</TableCell>
                           <TableCell>{u.status}</TableCell>
                           <TableCell>
                             <button type="button" aria-label="Delete unit" onClick={() => onUnitsChange(units.filter((x) => x.id !== u.id))} className="rounded p-1 text-[#D64545] hover:bg-[#FDECEC]">

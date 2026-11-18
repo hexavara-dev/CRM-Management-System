@@ -86,7 +86,7 @@ export default function ClusterDetailPage() {
                   variant="outline"
                   className="h-8 rounded-lg px-3 text-[10px] font-semibold shadow-none"
                 >
-                  <Link href={availabilityPath(params.availabilityId)}>
+                  <Link href={availabilityPath(availability.data.project.code)}>
                     <ArrowLeft className="mr-1 size-3" />
                     Back to Project
                   </Link>
@@ -109,7 +109,7 @@ export default function ClusterDetailPage() {
 
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                   <ClusterSummaryCard
-                    title="Total Unit"
+                    title="Unit Terdaftar"
                     value={availability.data.summary.total}
                     variant="total"
                     icon={<Layers3 className="size-6" />}
@@ -153,8 +153,8 @@ export default function ClusterDetailPage() {
               <ClusterUnitList
                 units={filteredUnits}
                 view={view}
-                availabilityId={params.availabilityId}
-                clusterId={params.clusterId}
+                availabilityId={availability.data.project.code}
+                clusterId={availability.data.cluster.code}
               />
 
               {filteredUnits.length === 0 && (

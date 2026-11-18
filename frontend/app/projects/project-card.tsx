@@ -8,7 +8,7 @@ import type { ProjectListItem } from "@/hooks/use-projects";
 import { STATUS_STYLE, projectMetrics, shortLocation, statusOf } from "./projects-data";
 
 export function ProjectCard({ project }: { project: ProjectListItem }) {
-  const { units, sold, reserved, available, soldPct } = projectMetrics(project.unitSummary);
+  const { units, sold, reserved, available, soldPct } = projectMetrics(project.unitSummary, project.totalSlots);
   const status = statusOf(project.isActive);
   return (
     <Link
@@ -17,7 +17,7 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
     >
       <div className="relative flex h-36 items-center justify-center overflow-hidden rounded-lg bg-[#F4F4F5]">
         {project.coverUrl ? (
-          <Image src={project.coverUrl} alt={project.name} fill unoptimized className="object-cover" />
+          <Image src={project.coverUrl} alt={project.name} fill unoptimized className="object-contain" />
         ) : (
           <NoImagePlaceholder className="absolute inset-0" />
         )}

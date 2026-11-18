@@ -8,6 +8,13 @@ const tenantOf = (req: Request): string => {
   return tenantId;
 };
 
+const referenceOf = (value: unknown): string => {
+  if (typeof value !== 'string' || !value.trim() || value.length > 100) {
+    throw new Error('Invalid availability reference');
+  }
+  return value;
+};
+
 function handle(
   action: (tenantId: string, req: Request) => Promise<unknown>,
   statusCode = 200
@@ -35,23 +42,23 @@ export class AvailabilityController {
   });
 
   project = handle((tenantId, req) =>
-    this.availability.project(tenantId, String(req.params.projectId))
+    this.availability.project(tenantId, referenceOf(req.params.projectRef))
   );
 
   cluster = handle((tenantId, req) =>
     this.availability.cluster(
       tenantId,
-      String(req.params.projectId),
-      String(req.params.clusterId)
+      referenceOf(req.params.projectRef),
+      referenceOf(req.params.clusterRef)
     )
   );
 
   unit = handle((tenantId, req) =>
     this.availability.unit(
       tenantId,
-      String(req.params.projectId),
-      String(req.params.clusterId),
-      String(req.params.unitId)
+      referenceOf(req.params.projectRef),
+      referenceOf(req.params.clusterRef),
+      referenceOf(req.params.unitRef)
     )
   );
 }

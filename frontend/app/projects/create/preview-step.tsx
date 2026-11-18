@@ -7,6 +7,8 @@ import type { LocationNode, UnitItem } from "./hierarchy-step";
 import type { UnitType } from "./unit-type-step";
 import { Stat } from "@/components/projects/stat";
 import { SectionCard } from "@/components/projects/section-card";
+import { FacilityIcon } from "@/components/projects/facility-icon";
+import { useProjectFacilities } from "@/hooks/use-projects";
 
 export type ProjectInfo = {
   code: string;
@@ -19,9 +21,10 @@ export type ProjectInfo = {
   village: string;
   address: string;
   postalCode: string;
+  mapsUrl: string;
 };
 
-export const EMPTY_INFO: ProjectInfo = { code: "", name: "", status: "", description: "", province: "", city: "", subdistrict: "", village: "", address: "", postalCode: "" };
+export const EMPTY_INFO: ProjectInfo = { code: "", name: "", status: "", description: "", province: "", city: "", subdistrict: "", village: "", address: "", postalCode: "", mapsUrl: "" };
 
 const COLORS = ["#3BB4F2", "#F5D33F", "#4CAF50", "#E57373", "#9575CD", "#FF8A65"];
 const STATUS_STYLE: Record<string, string> = {
@@ -30,9 +33,10 @@ const STATUS_STYLE: Record<string, string> = {
   Inactive: "bg-[#F1F1F3] text-[#6b6b6b]",
 };
 
-type Props = { info: ProjectInfo; coverUrls: string[]; unitTypes: UnitType[]; nodes: LocationNode[]; units: UnitItem[] };
+type Props = { info: ProjectInfo; coverUrls: string[]; unitTypes: UnitType[]; nodes: LocationNode[]; units: UnitItem[]; facilityAttributeIds: string[] };
 
-export function PreviewStep({ info, coverUrls, unitTypes, nodes, units }: Props) {
+export function PreviewStep({ info, coverUrls, unitTypes, nodes, units, facilityAttributeIds }: Props) {
+  const facilities = useProjectFacilities().data?.filter((item) => facilityAttributeIds.includes(item.id)) ?? [];
   const [expanded, setExpanded] = useState(false);
 
   const childrenOf = (id: string) => nodes.filter((n) => n.parentId === id);
@@ -80,8 +84,8 @@ export function PreviewStep({ info, coverUrls, unitTypes, nodes, units }: Props)
     return { cluster: top.id === leaf.id ? "-" : top.name, blok: leaf.name, total: units.filter((u) => u.locationId === leaf.id).length };
   });
 
-  const typeStats = unitTypes.map((t, i) => ({ name: t.name, count: units.filter((u) => u.type === t.name).length, color: COLORS[i % COLORS.length] })).filter((t) => t.count > 0);
-  const totalUnits = units.length;
+  const typeStats = unitTypes.map((t, i) => ({ name: t.name, count: Number(t.stock) || 0, color: COLORS[i % COLORS.length] })).filter((t) => t.count > 0);
+  const totalUnits = typeStats.reduce((total, type) => total + type.count, 0);
   let acc = 0;
   const donut = typeStats.length
     ? `conic-gradient(${typeStats
@@ -105,7 +109,7 @@ export function PreviewStep({ info, coverUrls, unitTypes, nodes, units }: Props)
         <div className="relative h-24 w-full shrink-0 overflow-hidden rounded-lg bg-[#F6F7F9] md:w-44">
           {coverUrls[0] ? (
             // eslint-disable-next-line @next/next/no-img-element -- object URL lokal, tidak bisa dioptimasi next/image
-            <img src={coverUrls[0]} alt="Project cover" className="size-full object-cover" />
+            <img src={coverUrls[0]} alt="Project cover" className="size-full object-contain" />
           ) : (
             <div className="grid size-full place-items-center text-[#9CA3AF]">
               <ImageIcon className="size-6" />
@@ -150,12 +154,16 @@ export function PreviewStep({ info, coverUrls, unitTypes, nodes, units }: Props)
 
       <div className="grid gap-3 lg:grid-cols-[1fr_1.2fr_1.3fr]">
         <SectionCard title="Facilities">
-          <p className="text-xs text-[#9CA3AF]">Belum ada data fasilitas.</p>
+          {facilities.length ? facilities.map((item) => (
+            <div key={item.id} className="flex items-center gap-2 py-1 text-xs">
+              <FacilityIcon iconKey={item.iconKey} className="size-4" />{item.name}
+            </div>
+          )) : <p className="text-xs text-[#9CA3AF]">Belum ada fasilitas dipilih.</p>}
         </SectionCard>
 
         <SectionCard title="Unit distribution by house type">
           {typeStats.length === 0 ? (
-            <p className="text-xs text-[#9CA3AF]">Belum ada unit yang ditambahkan.</p>
+            <p className="text-xs text-[#9CA3AF]">Belum ada slot unit yang ditentukan.</p>
           ) : (
             <div className="flex items-center gap-4">
               <div className="relative size-24 shrink-0 rounded-full" style={{ background: donut }}>
@@ -189,7 +197,7 @@ export function PreviewStep({ info, coverUrls, unitTypes, nodes, units }: Props)
               <tr className="border-b border-[#E4E4E7] text-left text-[#1f1f1f]">
                 <th className="py-1.5 font-medium">Cluster</th>
                 <th className="py-1.5 font-medium">Blok</th>
-                <th className="py-1.5 text-right font-medium">Total Unit</th>
+                <th className="py-1.5 text-right font-medium">Unit Dibuat</th>
               </tr>
             </thead>
             <tbody>

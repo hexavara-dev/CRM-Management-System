@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { RupiahInput } from "@/components/ui/rupiah-input";
 import {
   Select,
   SelectContent,
@@ -52,6 +53,7 @@ function TypeForm({
   const [projectId, setProjectId] = useState(initial?.projectId ?? "");
   const [name, setName] = useState(initial?.name ?? "");
   const [basePrice, setBasePrice] = useState(String(initial?.basePrice ?? ""));
+  const [stock, setStock] = useState(initial ? String(initial.stock) : "");
   const [attributes, setAttributes] = useState<
     Record<TypeAttributeCode, number>
   >(initial?.attributes ?? EMPTY_ATTRIBUTES);
@@ -64,6 +66,7 @@ function TypeForm({
       projectId,
       name,
       basePrice: Number(basePrice),
+      stock: Number(stock),
       attributes,
       image,
     };
@@ -116,27 +119,37 @@ function TypeForm({
           />
         </label>
         <label className="space-y-1.5 text-xs font-medium text-[#344054]">
-          Harga dasar (Rp)
-          <Input
+          Harga dasar
+          <RupiahInput
             required
-            type="number"
-            min="0"
-            step="1"
             value={basePrice}
-            onChange={(event) => setBasePrice(event.target.value)}
-            placeholder="650000000"
+            onValueChange={setBasePrice}
+            placeholder="Masukkan nominal"
             className="h-9"
           />
         </label>
-        <div className="space-y-1.5 text-xs font-medium text-[#344054]">
-          <p>Total unit</p>
-          <div className="flex h-9 items-center rounded-md border border-[#D0D5DD] bg-[#F9FAFB] px-3 text-sm text-[#344054]">
-            {initial?.unitCount ?? 0} unit
-          </div>
+        <label className="space-y-1.5 text-xs font-medium text-[#344054]">
+          Total unit
+          <Input
+            type="number"
+            required
+            min={initial?.unitCount ?? 0}
+            max={2147483647}
+            step="1"
+            value={stock}
+            onChange={(event) => setStock(event.target.value)}
+            onFocus={(event) => event.currentTarget.select()}
+            placeholder="0"
+            className="h-9"
+          />
           <p className="text-[10px] font-normal text-[#667085]">
-            Dihitung dari unit yang terhubung ke tipe ini.
+            {Number(stock || 0).toLocaleString("id-ID")} slot total ·{" "}
+            {(initial?.unitCount ?? 0).toLocaleString("id-ID")} unit sudah diatur.
+            {initial && Number(stock || 0) < initial.unitCount
+              ? ` Minimal ${initial.unitCount.toLocaleString("id-ID")} unit.`
+              : ""}
           </p>
-        </div>
+        </label>
         {TYPE_ATTRIBUTES.map((attribute) => (
           <label
             key={attribute.code}
@@ -149,6 +162,7 @@ function TypeForm({
               min="0"
               step="1"
               value={attributes[attribute.code]}
+              onFocus={(event) => event.currentTarget.select()}
               onChange={(event) =>
                 setAttributes((current) => ({
                   ...current,

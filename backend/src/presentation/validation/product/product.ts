@@ -8,6 +8,7 @@ import { newAttributeRules } from './attribute.js';
 import { unitRules } from './unit.js';
 
 const variantRules: Record<string, FieldRule> = {
+  id: { type: 'string', max: 36 },
   name: { type: 'string', required: true, max: 150 },
   basePrice: { type: 'number', required: true, integer: true, min: 0, max: PRICE_MAX },
   currentPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
@@ -32,13 +33,18 @@ const productRules: Record<string, FieldRule> = {
   village: { type: 'string', nullable: true, allowEmpty: true, max: 100 },
   address: { type: 'string', nullable: true, allowEmpty: true, max: 255 },
   postalCode: { type: 'string', nullable: true, allowEmpty: true, max: 10 },
+  mapsUrl: { type: 'string', nullable: true, allowEmpty: true, max: 4096 },
   isActive: { type: 'boolean' },
   variants: { type: 'array' },
   locations: { type: 'array' },
   units: { type: 'array' },
+  facilityAttributeIds: { type: 'array' },
+  removeMediaIds: { type: 'array' },
+  primaryMediaId: { type: 'string', max: 36 },
 };
 
 const locationRules: Record<string, FieldRule> = {
+  id: { type: 'string', max: 36 },
   key: { type: 'string', required: true, max: 64 },
   parentKey: { type: 'string', nullable: true, max: 64 },
   name: { type: 'string', required: true, max: 150 },
@@ -55,15 +61,38 @@ function arrayOf<T>(value: unknown, max: number, field: string, validate: (item:
   return items.map(validate);
 }
 
+/** Host Google Maps yang boleh disimpan: google.com, google.co.id, google.de, maps.google.com, dll. */
+const GOOGLE_MAPS_HOST = /^(?:www\.|maps\.)?google\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/;
+
+/** mapsUrl dirender sebagai iframe di frontend, jadi hanya link https Google Maps yang diterima. */
+export function assertGoogleMapsUrl(value: string) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Invalid mapsUrl: must be a Google Maps https link');
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port || !GOOGLE_MAPS_HOST.test(url.hostname.toLowerCase()) || !url.pathname.startsWith('/maps')) {
+    throw new Error('Invalid mapsUrl: must be a Google Maps https link');
+  }
+}
+
 export function validateProduct(body: unknown, partial = false) {
   const result = validateBody(body, productRules, { partial }) as ProductInput;
-  if (partial) {
-    for (const field of ['variants', 'locations', 'units'] as const) {
-      if (result[field] !== undefined) {
-        throw new Error(`${field} can only be sent when creating a product`);
-      }
+  if (typeof result.mapsUrl === 'string' && result.mapsUrl.trim()) {
+    assertGoogleMapsUrl(result.mapsUrl.trim());
+  }
+  if (result.facilityAttributeIds !== undefined) {
+    const ids = result.facilityAttributeIds;
+    if (ids.length > 100 || ids.some((id) => typeof id !== 'string' || !id || id.length > 36) || new Set(ids).size !== ids.length) {
+      throw new Error('Invalid facility attribute IDs');
     }
-    return result;
+  }
+  if (result.removeMediaIds !== undefined) {
+    const ids = result.removeMediaIds;
+    if (ids.length > 10 || ids.some((id) => typeof id !== 'string' || !id || id.length > 36) || new Set(ids).size !== ids.length) {
+      throw new Error('Invalid project media IDs');
+    }
   }
   if (result.variants !== undefined) {
     result.variants = arrayOf(result.variants, MAX_VARIANTS, 'variants', (v) => {
