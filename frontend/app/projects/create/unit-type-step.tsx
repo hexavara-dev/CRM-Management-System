@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, MoreVertical, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { ChevronLeft, ChevronRight, ImagePlus, MoreVertical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -15,6 +16,9 @@ import type { UnitItem } from "./hierarchy-step";
 
 export type UnitType = {
   id?: string;
+  image?: File;
+  imageUrl?: string;
+  imagePreviewUrl?: string;
   name: string;
   buildingArea: string;
   surfaceArea: string;
@@ -30,7 +34,7 @@ const PAGE_SIZE = 6;
 // Field INT default 0 (sama dengan default di backend).
 const EMPTY: UnitType = { name: "", buildingArea: "0", surfaceArea: "0", floors: "0", bedroom: "0", bathroom: "0", carport: "0", stock: "0", basePrice: "0" };
 
-const FIELDS: { key: keyof UnitType; label: string; placeholder: string; numeric?: boolean }[] = [
+const FIELDS: { key: Exclude<keyof UnitType, "id" | "image" | "imageUrl" | "imagePreviewUrl">; label: string; placeholder: string; numeric?: boolean }[] = [
   { key: "name", label: "Type Name", placeholder: "Contoh: Type 36" },
   { key: "buildingArea", label: "Building Area (m²)", placeholder: "0", numeric: true },
   { key: "surfaceArea", label: "Surface Area (m²)", placeholder: "0", numeric: true },
@@ -48,6 +52,8 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState<UnitType>(EMPTY);
+  const previewUrls = useRef<string[]>([]);
+  useEffect(() => () => previewUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
   const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const current = Math.min(page, pages);
@@ -90,7 +96,7 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
         <Table className="text-xs">
           <TableHeader>
             <TableRow>
-              {["Type", "Building area", "Surface area", "Floors", "Bedroom", "Bathroom", "Carport", "Stock", "Base Price", "Action"].map((h) => (
+              {["Type", "Gambar", "Building area", "Surface area", "Floors", "Bedroom", "Bathroom", "Carport", "Stock", "Base Price", "Action"].map((h) => (
                 <TableHead key={h} className="h-10 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">
                   {h}
                 </TableHead>
@@ -100,7 +106,7 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center text-[#9CA3AF]">
+                <TableCell colSpan={11} className="h-24 text-center text-[#9CA3AF]">
                   Belum ada unit type. Klik “Add Unit Type” untuk menambahkan.
                 </TableCell>
               </TableRow>
@@ -108,6 +114,13 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
               visible.map((u, i) => (
                 <TableRow key={start + i}>
                   <TableCell className="whitespace-nowrap">{u.name}</TableCell>
+                  <TableCell>
+                    <div className="relative flex size-14 items-center justify-center overflow-hidden rounded-md border border-[#E4E4E7] bg-[#F6F7F9] text-[10px] text-[#9CA3AF]">
+                      {u.imagePreviewUrl || u.imageUrl ? (
+                        <Image src={u.imagePreviewUrl ?? u.imageUrl ?? ""} alt={`Gambar ${u.name}`} fill unoptimized className="object-cover" />
+                      ) : "No image"}
+                    </div>
+                  </TableCell>
                   <TableCell className="whitespace-nowrap">{u.buildingArea} m2</TableCell>
                   <TableCell className="whitespace-nowrap">{u.surfaceArea} m2</TableCell>
                   <TableCell>{u.floors}</TableCell>
@@ -169,7 +182,7 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
       </div>
 
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing !== null && editing >= 0 ? "Edit Unit Type" : "Add Unit Type"}</DialogTitle>
           </DialogHeader>
@@ -199,6 +212,29 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
                   )}
                 </div>
               ))}
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-[#1f1f1f]">Gambar tipe (opsional)</label>
+              <div className="flex items-center gap-3">
+                <div className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E4E4E7] bg-[#F6F7F9] text-[10px] text-[#9CA3AF]">
+                  {draft.imagePreviewUrl || draft.imageUrl ? (
+                    <Image src={draft.imagePreviewUrl ?? draft.imageUrl ?? ""} alt={`Preview ${draft.name || "tipe"}`} fill unoptimized className="object-cover" />
+                  ) : <ImagePlus className="size-5" />}
+                </div>
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="min-w-0 text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[#E8F3FA] file:px-2 file:py-1.5 file:text-[#1980C0]" onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
+                    toast.error("Gunakan JPEG, PNG, atau WebP maksimal 10 MB.");
+                    event.target.value = "";
+                    return;
+                  }
+                  const imagePreviewUrl = URL.createObjectURL(file);
+                  previewUrls.current.push(imagePreviewUrl);
+                  setDraft((current) => ({ ...current, image: file, imagePreviewUrl }));
+                }} />
+              </div>
+              <p className="text-[10px] text-[#6b6b6b]">JPEG, PNG, atau WebP; maksimal 10 MB.</p>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditing(null)} className="h-9 text-xs">

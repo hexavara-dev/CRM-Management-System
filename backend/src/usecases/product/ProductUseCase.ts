@@ -40,6 +40,8 @@ export type VariantInput = {
   attributes?: NewAttributeInput[];
 };
 
+export type ProjectTypeImage = { variantIndex: number; file: Express.Multer.File };
+
 export type ProductInput = {
   /** Omit to create a PROJECT category named after the product and use it as the root. */
   categoryId?: string;
@@ -244,7 +246,7 @@ export class ProductUseCase {
    * location tree and the units in the same transaction, so a project is saved as a whole.
    * Without `categoryId`, a PROJECT category with the same name and code becomes the tree root.
    */
-  async create(tenantId: string, input: ProductInput, covers: Express.Multer.File[] = []) {
+  async create(tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = []) {
     if (!input.name || !input.code) throw new Error('name and code are required');
     const facilityIds = input.facilityAttributeIds ?? [];
     if (facilityIds.length) {
@@ -255,6 +257,10 @@ export class ProductUseCase {
     }
     const variants = input.variants ?? [];
     if (variants.length === 0) throw new Error('variants must contain at least one variant');
+    if (typeImages.some((image) => image.variantIndex < 0 || image.variantIndex >= variants.length) ||
+      new Set(typeImages.map((image) => image.variantIndex)).size !== typeImages.length) {
+      throw new Error('Invalid type image indexes');
+    }
     for (const variant of variants) {
       const codes = (variant.attributes ?? []).map((a) => a.code);
       if (new Set(codes).size !== codes.length) {
@@ -269,8 +275,10 @@ export class ProductUseCase {
 
     if (covers.length > 10) throw new Error('Invalid cover count');
     const extensions = covers.map(validateProductImage);
-    const productId = covers.length ? randomUUID() : undefined;
+    const typeExtensions = typeImages.map((image) => validateProductImage(image.file));
+    const productId = covers.length || typeImages.length ? randomUUID() : undefined;
     const storedCovers: { file: Express.Multer.File; path: string; url: string }[] = [];
+    const storedTypeImages: { file: Express.Multer.File; variantIndex: number; path: string; url: string }[] = [];
 
     let created: { id: string };
     try {
@@ -279,6 +287,11 @@ export class ProductUseCase {
         // Track the path before writing so a partial filesystem write is cleaned up too.
         storedCovers.push({ file, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, file.buffer);
+      }
+      for (const [index, image] of typeImages.entries()) {
+        const path = `${tenantId}/product/${productId}/${randomUUID()}.${typeExtensions[index]}`;
+        storedTypeImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
+        await this.storage.upload(path, image.file.buffer);
       }
 
       created = await retryUniqueCode(() => this.prisma.$transaction(
@@ -430,18 +443,27 @@ export class ProductUseCase {
             })),
           });
         }
+        if (storedTypeImages.length) {
+          await tx.productMedia.createMany({
+            data: storedTypeImages.map(({ file, variantIndex, url }) => ({
+              tenantId, productId: product.id, variantId: variantIds[variantIndex] as string,
+              mediaType: 'IMAGE', fileName: file.originalname.slice(0, 255), fileUrl: url,
+              fileType: file.mimetype, fileSize: file.buffer.length, sortOrder: 0, isPrimary: true,
+            })),
+          });
+        }
         return product;
       },
       { timeout: 30000 }
     ));
     } catch (error) {
-      await this.storage.remove(storedCovers.map((cover) => cover.path));
+      await this.storage.remove([...storedCovers, ...storedTypeImages].map((image) => image.path));
       throw error;
     }
     return this.get(created.id, tenantId);
   }
 
-  async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = []) {
+  async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = []) {
     const project = await this.get(id, tenantId);
     await this.assertProductRelations(tenantId, input);
     const structureProvided = [input.variants, input.locations, input.units].some((part) => part !== undefined);
@@ -450,6 +472,11 @@ export class ProductUseCase {
     }
     if (structureProvided && (project.category.type !== 'PROJECT' || input.categoryId !== undefined)) {
       throw new Error('Invalid project category for wizard update');
+    }
+    if (typeImages.length && (!structureProvided ||
+      typeImages.some((image) => image.variantIndex < 0 || image.variantIndex >= (input.variants?.length ?? 0)) ||
+      new Set(typeImages.map((image) => image.variantIndex)).size !== typeImages.length)) {
+      throw new Error('Invalid type image indexes');
     }
     const projectImages = project.media.filter((media) => media.mediaType === 'IMAGE' && !media.variantId && !media.unitId);
     const removeMediaIds = input.removeMediaIds ?? [];
@@ -480,12 +507,22 @@ export class ProductUseCase {
     if (input.isActive !== undefined) data.isActive = input.isActive;
     if (covers.length > 10) throw new Error('Invalid cover count');
     const extensions = covers.map(validateProductImage);
+    const typeExtensions = typeImages.map((image) => validateProductImage(image.file));
     const storedCovers: { file: Express.Multer.File; path: string; url: string }[] = [];
+    const storedTypeImages: { file: Express.Multer.File; variantIndex: number; path: string; url: string }[] = [];
+    const replacedTypeMedia = typeImages.flatMap(({ variantIndex }) =>
+      project.media.filter((media) => media.variantId === input.variants?.[variantIndex]?.id && media.mediaType === 'IMAGE')
+    );
     try {
       for (const [index, file] of covers.entries()) {
         const path = `${tenantId}/product/${id}/${randomUUID()}.${extensions[index]}`;
         storedCovers.push({ file, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, file.buffer);
+      }
+      for (const [index, image] of typeImages.entries()) {
+        const path = `${tenantId}/product/${id}/${randomUUID()}.${typeExtensions[index]}`;
+        storedTypeImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
+        await this.storage.upload(path, image.file.buffer);
       }
       await retryUniqueCode(() => this.prisma.$transaction(async (tx) => {
       if (input.code !== undefined) {
@@ -513,7 +550,20 @@ export class ProductUseCase {
           data: facilityIds.map((attributeId) => ({ tenantId, productId: id, variantId: null, attributeId, value: 1 })),
         });
       }
-      if (structureProvided) await this.syncStructure(tx, id, tenantId, project.categoryId, input);
+      const variantIds = structureProvided ? await this.syncStructure(tx, id, tenantId, project.categoryId, input) : [];
+      if (storedTypeImages.length) {
+        const selectedIds = storedTypeImages.map((image) => variantIds[image.variantIndex] as string);
+        await tx.productMedia.deleteMany({
+          where: { tenantId, productId: id, variantId: { in: selectedIds }, mediaType: 'IMAGE' },
+        });
+        await tx.productMedia.createMany({
+          data: storedTypeImages.map(({ file, variantIndex, url }) => ({
+            tenantId, productId: id, variantId: variantIds[variantIndex] as string,
+            mediaType: 'IMAGE', fileName: file.originalname.slice(0, 255), fileUrl: url,
+            fileType: file.mimetype, fileSize: file.buffer.length, sortOrder: 0, isPrimary: true,
+          })),
+        });
+      }
       if (removeMediaIds.length) {
         await tx.productMedia.deleteMany({ where: { tenantId, productId: id, id: { in: removeMediaIds } } });
       }
@@ -545,10 +595,10 @@ export class ProductUseCase {
       }
       }, { timeout: 30000 }));
     } catch (error) {
-      await this.storage.remove(storedCovers.map((cover) => cover.path));
+      await this.storage.remove([...storedCovers, ...storedTypeImages].map((image) => image.path));
       throw error;
     }
-    const removedPaths = removedMedia.flatMap((media) => {
+    const removedPaths = [...removedMedia, ...replacedTypeMedia].flatMap((media) => {
       try { return [this.storage.getFilePathFromPublicUrl(media.fileUrl)]; }
       catch { return []; }
     });
@@ -725,6 +775,7 @@ export class ProductUseCase {
       }
       await tx.productCategory.delete({ where: { id: row.id } });
     }
+    return variantIds;
   }
 
   /** Deletes the product and returns the stored file URLs of its media for cleanup. */

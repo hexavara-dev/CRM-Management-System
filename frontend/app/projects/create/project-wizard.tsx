@@ -75,18 +75,21 @@ export function ProjectWizard({ projectId, initial }: { projectId?: string; init
       toast.error(error instanceof Error ? error.message : "Data proyek belum valid.");
       return;
     }
+    const typeImages = unitTypes.flatMap((type, variantIndex) =>
+      type.image ? [{ variantIndex, file: type.image }] : []
+    );
     if (projectId) {
       updateProject.mutate(
         { id: projectId, payload: {
           ...payload,
           removeMediaIds: removedMediaIds,
           ...(existingMedia.find((media) => media.isPrimary) ? { primaryMediaId: existingMedia.find((media) => media.isPrimary)?.id } : {}),
-        }, covers: coverFiles },
+        }, covers: coverFiles, typeImages },
         { onSuccess: () => router.push(`/projects/${projectId}`) },
       );
     } else {
       createProject.mutate(
-        { payload, covers: coverFiles },
+        { payload, covers: coverFiles, typeImages },
         { onSuccess: (project) => router.push(`/projects/${project.id}`) },
       );
     }

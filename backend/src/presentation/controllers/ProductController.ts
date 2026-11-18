@@ -3,6 +3,7 @@ import { respondWithError } from '../../infrastructure/utils/HttpErrorMapper.js'
 import { parsePagination, parseSearch } from '../../infrastructure/utils/RequestValidation.js';
 import type { ProductCategoryUseCase } from '../../usecases/product/ProductCategoryUseCase.js';
 import type { ProductUseCase } from '../../usecases/product/ProductUseCase.js';
+import type { ProjectTypeImage } from '../../usecases/product/ProductUseCase.js';
 import type { CharacteristicUseCase } from '../../usecases/product/CharacteristicUseCase.js';
 import type { ProductMediaUseCase } from '../../usecases/product/ProductMediaUseCase.js';
 import type { AttributeUseCase } from '../../usecases/product/AttributeUseCase.js';
@@ -31,6 +32,24 @@ const tenantOf = (req: Request): string => {
 };
 
 const param = (req: Request, name: string) => String(req.params[name]);
+
+function projectUploads(req: Request, variantCount: number) {
+  const files = req.files && !Array.isArray(req.files) ? req.files : {};
+  const covers = files.covers ?? (Array.isArray(req.files) ? req.files : []);
+  const typeFiles = files.typeImages ?? [];
+  const raw = req.body?.typeImageIndexes;
+  let indexes: unknown = [];
+  if (raw !== undefined) {
+    try { indexes = JSON.parse(raw); }
+    catch { throw new Error('Invalid type image indexes'); }
+  }
+  if (!Array.isArray(indexes) || indexes.length !== typeFiles.length ||
+    indexes.some((index) => !Number.isInteger(index) || index < 0 || index >= variantCount) ||
+    new Set(indexes).size !== indexes.length) {
+    throw new Error('Invalid type image indexes');
+  }
+  return { covers, typeImages: typeFiles.map((file, index): ProjectTypeImage => ({ file, variantIndex: indexes[index] as number })) };
+}
 
 function sanitizeProjectLogBody(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sanitizeProjectLogBody);
@@ -113,10 +132,10 @@ export class ProductController {
         throw new Error('Invalid project payload');
       }
     }
-    const covers = Array.isArray(req.files) ? req.files : [];
     const payload = validateProduct(body);
+    const { covers, typeImages } = projectUploads(req, payload.variants?.length ?? 0);
     try {
-      const project = await this.products.create(tenantId, payload, covers);
+      const project = await this.products.create(tenantId, payload, covers, typeImages);
       console.info('[Project insert succeeded]', JSON.stringify({
         requestId: res.locals.requestId,
         projectId: project.id,
@@ -145,8 +164,9 @@ export class ProductController {
         throw new Error('Invalid project payload');
       }
     }
-    const covers = Array.isArray(req.files) ? req.files : [];
-    res.json(await this.products.update(param(req, 'id'), tenantId, validateProduct(body, true), covers));
+    const payload = validateProduct(body, true);
+    const { covers, typeImages } = projectUploads(req, payload.variants?.length ?? 0);
+    res.json(await this.products.update(param(req, 'id'), tenantId, payload, covers, typeImages));
   });
   deleteProduct = handle(async (req, res, tenantId) => {
     const fileUrls = await this.products.remove(param(req, 'id'), tenantId);
