@@ -32,6 +32,19 @@ const tenantOf = (req: Request): string => {
 
 const param = (req: Request, name: string) => String(req.params[name]);
 
+function sanitizeProjectLogBody(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeProjectLogBody);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [
+      key,
+      /password|token|secret|authorization|credential|private.?key/i.test(key)
+        ? '[REDACTED]'
+        : sanitizeProjectLogBody(entry),
+    ]),
+  );
+}
+
 /** Wraps a handler with tenant extraction and error mapping. */
 function handle(fn: Handler) {
   return async (req: Request, res: Response) => {
@@ -101,7 +114,26 @@ export class ProductController {
       }
     }
     const covers = Array.isArray(req.files) ? req.files : [];
-    res.status(201).json(await this.products.create(tenantId, validateProduct(body), covers));
+    const payload = validateProduct(body);
+    try {
+      const project = await this.products.create(tenantId, payload, covers);
+      console.info('[Project insert succeeded]', JSON.stringify({
+        requestId: res.locals.requestId,
+        projectId: project.id,
+        body: sanitizeProjectLogBody(body),
+      }));
+      res.status(201).json(project);
+    } catch (error) {
+      const candidate = error as { name?: unknown; code?: unknown; message?: unknown } | null;
+      console.error('[Project insert failed]', JSON.stringify({
+        requestId: res.locals.requestId,
+        body: sanitizeProjectLogBody(body),
+        errorType: typeof candidate?.name === 'string' ? candidate.name : 'UnknownError',
+        errorCode: typeof candidate?.code === 'string' ? candidate.code : undefined,
+        errorMessage: typeof candidate?.message === 'string' ? candidate.message : 'Unknown error',
+      }));
+      throw error;
+    }
   });
   updateProduct = handle(async (req, res, tenantId) => {
     let body: unknown = req.body;
