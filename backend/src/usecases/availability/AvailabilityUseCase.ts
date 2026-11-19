@@ -112,7 +112,7 @@ function locationOf(product: {
 }
 
 function priceOf(unit: AvailabilityUnit) {
-  return Number(unit.variant.currentPrice) + Number(unit.adjustmentAmount);
+  return Number(unit.variant.currentPrice);
 }
 
 function ancestorsOf(categoryId: string, categories: Map<string, AvailabilityCategory>) {
@@ -383,7 +383,8 @@ export class AvailabilityUseCase {
           status === 'available' || status === 'blocked'
             ? null
             : (unit.reservations[0]?.customerName ?? null),
-        discount: Number(unit.adjustmentAmount) < 0,
+        // Kolom adjustment_amount sudah dihapus; kontrak respons dipertahankan untuk frontend.
+        discount: false,
       };
     });
 
@@ -448,7 +449,7 @@ export class AvailabilityUseCase {
       buildingArea: attributeLabel('building_area') ?? '—',
       landArea: attributeLabel('surface_area') ?? '—',
       price,
-      promo: Math.max(0, -Number(unit.adjustmentAmount)),
+      promo: 0,
       finalPrice: price,
       images: unit.media.map((media) => media.fileUrl),
       floorPlan: null,

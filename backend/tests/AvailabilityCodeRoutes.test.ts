@@ -29,7 +29,6 @@ const unit = {
   name: null,
   categoryId: 'block',
   status: 'AVAILABLE',
-  adjustmentAmount: 0,
   variant: { name: 'Type 45', currentPrice: 650_000_000n, attributes: [] },
   media: [],
   reservations: [],
