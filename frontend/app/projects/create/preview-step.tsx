@@ -259,7 +259,7 @@ export function PreviewStep({
         </div>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-[1fr_1.2fr_1.3fr]">
+      <div className="grid gap-3 lg:grid-cols-2">
         <SectionCard title="Facilities">
           {facilities.length ? (
             facilities.map((item) => (
@@ -322,6 +322,7 @@ export function PreviewStep({
           )}
         </SectionCard>
 
+        <div className="lg:col-span-2">
         <SectionCard title="Unit distribution by blok">
           <table className="w-full text-[11px]">
             <thead>
@@ -359,6 +360,7 @@ export function PreviewStep({
             </tbody>
           </table>
         </SectionCard>
+        </div>
       </div>
 
       <div className="flex items-start gap-2 rounded-md border border-[#BFE0F3] bg-[#E8F3FA] px-3 py-2 text-[11px] text-[#1f1f1f]">
