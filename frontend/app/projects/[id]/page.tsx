@@ -38,6 +38,7 @@ import { InfoCard } from "@/components/projects/info-card";
 import { CoverGallery } from "./cover-gallery";
 import { FacilityIcon } from "@/components/projects/facility-icon";
 import { SoldSummary } from "./sold-summary";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 
 const TABS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "overview", label: "Overview", icon: Video },
@@ -60,6 +61,8 @@ export default function ProjectDetailPage() {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   const facilities = (project?.attributes ?? [])
     .filter(
@@ -149,15 +152,8 @@ export default function ProjectDetailPage() {
                           (project.unitSummary?.total ?? 0) > 0
                         }
                         onClick={() => {
-                          if (
-                            window.confirm(
-                              `Hapus proyek ${project.name}? Proyek yang memiliki unit harus dinonaktifkan.`,
-                            )
-                          ) {
-                            deleteProject.mutate(project.id, {
-                              onSuccess: () => router.push("/projects"),
-                            });
-                          }
+                          setDeleteConfirmation("");
+                          setDeleteOpen(true);
                         }}
                       >
                         <Trash2 className="size-4" />
@@ -339,12 +335,47 @@ export default function ProjectDetailPage() {
                     t.value !== "overview" && t.value !== "unit-distribution",
                 ).map(({ value, label }) => (
                   <TabsContent key={value} value={value}>
-                    <div className="rounded-xl border border-dashed border-[#E4E4E7] py-16 text-center text-sm text-[#6b6b6b]">
-                      {label} belum tersedia.
-                    </div>
+                    {value === "siteplan" && project.category.siteplanImg ? (
+                      <div className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#F8FAFC] p-3">
+                        <img src={project.category.siteplanImg} alt={`Siteplan ${project.name}`} className="mx-auto max-h-[70vh] w-full object-contain" />
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-[#E4E4E7] py-16 text-center text-sm text-[#6b6b6b]">
+                        {value === "siteplan" ? "Siteplan belum tersedia." : `${label} belum tersedia.`}
+                      </div>
+                    )}
                   </TabsContent>
                 ))}
               </Tabs>
+              <ConfirmModal
+                isOpen={deleteOpen}
+                onClose={() => setDeleteOpen(false)}
+                onConfirm={() => {
+                  deleteProject.mutate(project.id, {
+                    onSuccess: () => router.push("/projects"),
+                  });
+                }}
+                title={`Hapus project “${project.name}”?`}
+                description="Tindakan ini permanen dan tidak dapat dibatalkan. Project yang masih memiliki unit harus dinonaktifkan terlebih dahulu."
+                loading={deleteProject.isPending}
+                confirmDisabled={deleteConfirmation.trim().toLowerCase() !== "delete"}
+                cancelLabel="Batal"
+                confirmLabel="Hapus project"
+              >
+                <div className="space-y-1.5 py-2">
+                  <label htmlFor="delete-project-confirmation" className="text-xs font-medium text-[#344054]">
+                    Ketik <strong>delete</strong> untuk melanjutkan
+                  </label>
+                  <Input
+                    id="delete-project-confirmation"
+                    value={deleteConfirmation}
+                    onChange={(event) => setDeleteConfirmation(event.target.value)}
+                    placeholder="delete"
+                    autoComplete="off"
+                    className="h-9 text-xs"
+                  />
+                </div>
+              </ConfirmModal>
             </>
           )}
         </div>

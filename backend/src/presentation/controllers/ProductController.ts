@@ -3,7 +3,7 @@ import { respondWithError } from '../../infrastructure/utils/HttpErrorMapper.js'
 import { parsePagination, parseSearch } from '../../infrastructure/utils/RequestValidation.js';
 import type { ProductCategoryUseCase } from '../../usecases/product/ProductCategoryUseCase.js';
 import type { ProductUseCase } from '../../usecases/product/ProductUseCase.js';
-import type { ProjectTypeImage } from '../../usecases/product/ProductUseCase.js';
+import type { ProjectTypeImage, ProjectUnitImage } from '../../usecases/product/ProductUseCase.js';
 import type { CharacteristicUseCase } from '../../usecases/product/CharacteristicUseCase.js';
 import type { ProductMediaUseCase } from '../../usecases/product/ProductMediaUseCase.js';
 import type { AttributeUseCase } from '../../usecases/product/AttributeUseCase.js';
@@ -37,6 +37,8 @@ function projectUploads(req: Request, variantCount: number) {
   const files = req.files && !Array.isArray(req.files) ? req.files : {};
   const covers = files.covers ?? (Array.isArray(req.files) ? req.files : []);
   const typeFiles = files.typeImages ?? [];
+  const unitFiles = files.unitImages ?? [];
+  const siteplan = files.siteplan?.[0];
   const raw = req.body?.typeImageIndexes;
   let indexes: unknown = [];
   if (raw !== undefined) {
@@ -48,7 +50,22 @@ function projectUploads(req: Request, variantCount: number) {
     new Set(indexes).size !== indexes.length) {
     throw new Error('Invalid type image indexes');
   }
-  return { covers, typeImages: typeFiles.map((file, index): ProjectTypeImage => ({ file, variantIndex: indexes[index] as number })) };
+  const rawUnitIndexes = req.body?.unitImageIndexes;
+  let unitIndexes: unknown = [];
+  if (rawUnitIndexes !== undefined) {
+    try { unitIndexes = JSON.parse(rawUnitIndexes); }
+    catch { throw new Error('Invalid unit image indexes'); }
+  }
+  if (!Array.isArray(unitIndexes) || unitIndexes.length !== unitFiles.length ||
+    unitIndexes.some((index) => !Number.isInteger(index) || index < 0 || index >= (Number(req.body?.unitCount) || 0))) {
+    throw new Error('Invalid unit image indexes');
+  }
+  return {
+    covers,
+    siteplan,
+    typeImages: typeFiles.map((file, index): ProjectTypeImage => ({ file, variantIndex: indexes[index] as number })),
+    unitImages: unitFiles.map((file, index): ProjectUnitImage => ({ file, unitIndex: unitIndexes[index] as number })),
+  };
 }
 
 function sanitizeProjectLogBody(value: unknown): unknown {
@@ -133,9 +150,9 @@ export class ProductController {
       }
     }
     const payload = validateProduct(body);
-    const { covers, typeImages } = projectUploads(req, payload.variants?.length ?? 0);
+    const { covers, siteplan, typeImages, unitImages } = projectUploads(req, payload.variants?.length ?? 0);
     try {
-      const project = await this.products.create(tenantId, payload, covers, typeImages);
+      const project = await this.products.create(tenantId, payload, covers, typeImages, siteplan, unitImages);
       console.info('[Project insert succeeded]', JSON.stringify({
         requestId: res.locals.requestId,
         projectId: project.id,
@@ -165,8 +182,8 @@ export class ProductController {
       }
     }
     const payload = validateProduct(body, true);
-    const { covers, typeImages } = projectUploads(req, payload.variants?.length ?? 0);
-    res.json(await this.products.update(param(req, 'id'), tenantId, payload, covers, typeImages));
+    const { covers, siteplan, typeImages, unitImages } = projectUploads(req, payload.variants?.length ?? 0);
+    res.json(await this.products.update(param(req, 'id'), tenantId, payload, covers, typeImages, siteplan, unitImages));
   });
   deleteProduct = handle(async (req, res, tenantId) => {
     const fileUrls = await this.products.remove(param(req, 'id'), tenantId);

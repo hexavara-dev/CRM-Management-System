@@ -2,13 +2,13 @@
 import assert from "node:assert/strict";
 import { buildProjectPayload } from "./build-payload";
 
-const info = { code: "CL", name: " Citraland ", status: "Inactive", description: "", province: "Jawa Timur", city: "Malang", subdistrict: " Bululawang ", village: "", address: "", postalCode: "", mapsUrl: "" };
-const type36 = { name: "Type 36", buildingArea: "36.4", surfaceArea: "", floors: "1", bedroom: "2", bathroom: "1", carport: "", stock: "3", basePrice: "350000000" };
+const info = { code: "CL", name: " Citraland ", status: "Inactive", description: "", province: "Jawa Timur", city: "Malang", subdistrict: " Bululawang ", village: "", address: "", postalCode: "", mapsUrl: "", siteplanImg: "" };
+const type36 = { name: "Type 36", buildingArea: "36.4", surfaceArea: "", floors: "1", bedroom: "2", bathroom: "1", carport: "", variants: [{ key: "standard", name: "Standard", code: "", stock: "3", basePrice: "350000000" }] };
 const nodes = [
   { id: "n1", parentId: "root", name: "Cluster A", level: "Cluster" },
   { id: "n2", parentId: "n1", name: "Block A", level: "Block" },
 ];
-const units = [{ id: "u1", locationId: "n2", code: "A-01", type: "Type 36", hook: "1", status: "Reserved" }];
+const units = [{ id: "u1", locationId: "n2", code: "A-01", type: "Type 36", typeVariantKey: "standard", typeVariantName: "Standard", hook: "1", status: "Reserved" }];
 
 const payload = buildProjectPayload({ info, unitTypes: [type36], nodes, units });
 assert.equal(payload.name, "Citraland");
@@ -28,7 +28,7 @@ assert.deepEqual(payload.locations, [
   { key: "n1", parentKey: null, name: "Cluster A", type: "CLUSTER" },
   { key: "n2", parentKey: "n1", name: "Block A", type: "BLOCK" },
 ]);
-assert.deepEqual(payload.units, [{ code: "A-01", variantIndex: 0, locationKey: "n2", status: "RESERVED" }]);
+assert.deepEqual(payload.units, [{ code: "A-01", variantIndex: 0, typeVariantIndex: 0, locationKey: "n2", status: "RESERVED" }]);
 
 assert.throws(() => buildProjectPayload({ info, unitTypes: [type36], nodes: [{ ...nodes[0], level: "Room" }], units: [] }), /belum didukung/);
 assert.throws(() => buildProjectPayload({ info, unitTypes: [type36, type36], nodes, units }), /tidak boleh sama/);

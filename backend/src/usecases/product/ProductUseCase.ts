@@ -31,6 +31,8 @@ export type NewAttributeInput = {
 export type VariantInput = {
   id?: string;
   name?: string;
+  typeVariants?: TypeVariantInput[];
+  /** Legacy single-variant input; normalized to a child named "Default". */
   basePrice?: number;
   currentPrice?: number;
   /** Batas minimum harga jual unit; null menghapus batas. */
@@ -40,7 +42,19 @@ export type VariantInput = {
   attributes?: NewAttributeInput[];
 };
 
+export type TypeVariantInput = {
+  id?: string;
+  name?: string;
+  code?: string | null;
+  basePrice?: number;
+  currentPrice?: number;
+  minPrice?: number | null;
+  stock?: number;
+  isActive?: boolean;
+};
+
 export type ProjectTypeImage = { variantIndex: number; file: Express.Multer.File };
+export type ProjectUnitImage = { unitIndex: number; file: Express.Multer.File };
 
 export type ProductInput = {
   /** Omit to create a PROJECT category named after the product and use it as the root. */
@@ -62,6 +76,7 @@ export type ProductInput = {
   facilityAttributeIds?: string[];
   removeMediaIds?: string[];
   primaryMediaId?: string;
+  siteplanImg?: string | null;
 };
 
 export type UnitSummary = {
@@ -83,6 +98,18 @@ export type ProductListFilters = {
 
 export class ProductUseCase {
   constructor(private prisma: PrismaClient, private storage: typeof localStorage = localStorage) {}
+
+  private typeVariantsOf(variant: VariantInput): TypeVariantInput[] {
+    if (variant.typeVariants?.length) return variant.typeVariants;
+    return [{
+      name: 'Default',
+      basePrice: variant.basePrice ?? 0,
+      currentPrice: variant.currentPrice ?? variant.basePrice ?? 0,
+      minPrice: variant.minPrice ?? null,
+      stock: variant.stock ?? 0,
+      isActive: true,
+    }];
+  }
 
   private async assertProductRelations(tenantId: string, input: ProductInput) {
     if (input.categoryId) {
@@ -135,7 +162,7 @@ export class ProductUseCase {
         orderBy: { createdAt: 'desc' },
         include: {
           category: { select: { id: true, name: true } },
-          variants: { select: { id: true, basePrice: true, stock: true } },
+          variants: { select: { id: true, typeVariants: { select: { basePrice: true, stock: true } } } },
           media: {
             where: { mediaType: 'IMAGE', variantId: null, unitId: null },
             orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
@@ -154,11 +181,17 @@ export class ProductUseCase {
       new Map(rows.map((row) => [row.id, row.variants.map((v) => v.id)]))
     );
     const data = rows.map(({ variants, media, ...product }) => {
-      const prices = variants.map((v) => Number(v.basePrice));
+      const prices = variants.flatMap((v) => {
+        const legacy = v as typeof v & { basePrice?: bigint | number };
+        return v.typeVariants?.length ? v.typeVariants.map((item) => Number(item.basePrice)) : [Number(legacy.basePrice ?? 0)];
+      });
       return {
         ...product,
         unitSummary: summaries.get(product.id),
-        totalSlots: variants.reduce((total, variant) => total + variant.stock, 0),
+        totalSlots: variants.reduce((total, variant) => {
+          const legacy = variant as typeof variant & { stock?: number };
+          return total + (variant.typeVariants?.reduce((sum, item) => sum + item.stock, 0) ?? legacy.stock ?? 0);
+        }, 0),
         variantCount: variants.length,
         minBasePrice: prices.length ? Math.min(...prices) : null,
         coverUrl: media[0]?.fileUrl ?? null,
@@ -181,10 +214,13 @@ export class ProductUseCase {
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId },
       include: {
-        category: { select: { id: true, name: true, type: true } },
+        category: { select: { id: true, name: true, type: true, siteplanImg: true } },
         variants: {
           orderBy: { createdAt: 'asc' },
-          include: { _count: { select: { units: true } } },
+          include: {
+            typeVariants: { orderBy: { createdAt: 'asc' }, include: { _count: { select: { units: true } } } },
+            _count: { select: { units: true } },
+          },
         },
         attributes: {
           orderBy: [{ variantId: 'asc' }, { attribute: { name: 'asc' } }],
@@ -194,10 +230,23 @@ export class ProductUseCase {
       },
     });
     if (!product) throw new Error('Product not found');
-    const variants = (product.variants ?? []).map(({ _count, ...variant }) => ({
-      ...variant,
-      unitCount: _count?.units ?? 0,
-    }));
+    const variants = (product.variants ?? []).map(({ _count, typeVariants, ...variant }) => {
+      const normalized = typeVariants.map(({ _count: optionCount, ...option }) => ({
+        ...option,
+        unitCount: optionCount.units,
+      }));
+      const first = normalized[0];
+      return {
+        ...variant,
+        typeVariants: normalized,
+        // Compatibility aggregates for existing read-only consumers.
+        basePrice: first?.basePrice ?? BigInt(0),
+        currentPrice: first?.currentPrice ?? BigInt(0),
+        minPrice: first?.minPrice ?? null,
+        stock: first?.stock ?? 0,
+        unitCount: _count?.units ?? 0,
+      };
+    });
     const summaries = await this.unitSummaries(
       tenantId,
       new Map([[product.id, variants.map((v) => v.id)]])
@@ -205,7 +254,7 @@ export class ProductUseCase {
     return {
       ...product,
       variants,
-      totalSlots: variants.reduce((total, variant) => total + variant.stock, 0),
+      totalSlots: variants.reduce((total, variant) => total + variant.typeVariants.reduce((sum, option) => sum + option.stock, 0), 0),
       unitSummary: summaries.get(product.id),
     };
   }
@@ -236,7 +285,7 @@ export class ProductUseCase {
     const units = await this.prisma.productUnit.findMany({
       where: { tenantId, variant: { productId: id, tenantId } },
       orderBy: { code: 'asc' },
-      select: { id: true, categoryId: true, variantId: true, code: true, status: true, isHook: true },
+      select: { id: true, categoryId: true, variantId: true, typeVariantId: true, code: true, status: true, isHook: true, media: { select: { id: true, fileUrl: true, isPrimary: true, sortOrder: true } } },
     });
     return { ...product, locations, units };
   }
@@ -246,7 +295,7 @@ export class ProductUseCase {
    * location tree and the units in the same transaction, so a project is saved as a whole.
    * Without `categoryId`, a PROJECT category with the same name and code becomes the tree root.
    */
-  async create(tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = []) {
+  async create(tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = []) {
     if (!input.name || !input.code) throw new Error('name and code are required');
     const facilityIds = input.facilityAttributeIds ?? [];
     if (facilityIds.length) {
@@ -269,16 +318,24 @@ export class ProductUseCase {
     }
     const locations = orderLocations(input.locations ?? []);
     const units = input.units ?? [];
-    assertUnits(units, variants.length, new Set(locations.map((l) => l.key)));
-    assertUnitsWithinStock(units, variants.map((variant) => ({ name: variant.name, stock: variant.stock ?? 0 })));
+    if (unitImages.some((image) => image.unitIndex < 0 || image.unitIndex >= units.length)) throw new Error('Invalid unit image indexes');
+    const childVariants = variants.map((variant) => this.typeVariantsOf(variant));
+    assertUnits(units, childVariants.map((items) => items.length), new Set(locations.map((l) => l.key)));
+    assertUnitsWithinStock(units, variants.map((variant, index) => ({
+      name: variant.name,
+      typeVariants: childVariants[index]!.map((item) => ({ name: item.name, stock: item.stock ?? 0 })),
+    })));
     await this.assertProductRelations(tenantId, input);
 
     if (covers.length > 10) throw new Error('Invalid cover count');
     const extensions = covers.map(validateProductImage);
     const typeExtensions = typeImages.map((image) => validateProductImage(image.file));
-    const productId = covers.length || typeImages.length ? randomUUID() : undefined;
+    const siteplanExtension = siteplan ? validateProductImage(siteplan) : undefined;
+    const productId = covers.length || typeImages.length || siteplan || unitImages.length ? randomUUID() : undefined;
     const storedCovers: { file: Express.Multer.File; path: string; url: string }[] = [];
     const storedTypeImages: { file: Express.Multer.File; variantIndex: number; path: string; url: string }[] = [];
+    let storedSiteplan: { file: Express.Multer.File; path: string; url: string } | undefined;
+    const storedUnitImages: { file: Express.Multer.File; unitIndex: number; path: string; url: string }[] = [];
 
     let created: { id: string };
     try {
@@ -291,6 +348,17 @@ export class ProductUseCase {
       for (const [index, image] of typeImages.entries()) {
         const path = `${tenantId}/product/${productId}/${randomUUID()}.${typeExtensions[index]}`;
         storedTypeImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
+        await this.storage.upload(path, image.file.buffer);
+      }
+      if (siteplan && siteplanExtension) {
+        const path = `${tenantId}/product/${productId as string}/siteplan-${randomUUID()}.${siteplanExtension}`;
+        storedSiteplan = { file: siteplan, path, url: this.storage.getPublicUrl(path).publicUrl };
+        await this.storage.upload(path, siteplan.buffer);
+      }
+      for (const image of unitImages) {
+        const extension = validateProductImage(image.file);
+        const path = `${tenantId}/product/${productId as string}/unit-${image.unitIndex}-${randomUUID()}.${extension}`;
+        storedUnitImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, image.file.buffer);
       }
 
@@ -309,6 +377,7 @@ export class ProductUseCase {
                 name: input.name as string,
                 code,
                 type: 'PROJECT',
+                siteplanImg: storedSiteplan?.url ?? input.siteplanImg ?? null,
                 isActive: input.isActive ?? true,
               },
             })
@@ -366,19 +435,33 @@ export class ProductUseCase {
         };
 
         const variantIds: string[] = [];
-        for (const variant of variants) {
+        const typeVariantIds: string[][] = [];
+        for (const [variantIndex, variant] of variants.entries()) {
           const row = await tx.productVariant.create({
             data: {
               tenantId,
               productId: product.id,
               name: variant.name as string,
-              basePrice: variant.basePrice as number,
-              currentPrice: variant.currentPrice ?? (variant.basePrice as number),
-              minPrice: variant.minPrice ?? null,
-              stock: variant.stock ?? 0,
             },
           });
           variantIds.push(row.id);
+          const optionRows = [];
+          for (const option of childVariants[variantIndex]!) {
+            optionRows.push(await tx.productTypeVariant.create({
+              data: {
+                tenantId,
+                productVariantId: row.id,
+                name: option.name as string,
+                code: option.code?.trim() || null,
+                basePrice: option.basePrice ?? 0,
+                currentPrice: option.currentPrice ?? option.basePrice ?? 0,
+                minPrice: option.minPrice ?? null,
+                stock: option.stock ?? 0,
+                isActive: option.isActive ?? true,
+              },
+            }));
+          }
+          typeVariantIds.push(optionRows.map((option) => option.id));
           if (variant.attributes?.length) {
             const pivots = [];
             for (const a of variant.attributes) {
@@ -415,17 +498,35 @@ export class ProductUseCase {
         }
 
         if (units.length > 0) {
-          await tx.productUnit.createMany({
-            data: units.map((u) => ({
+          const createdUnits = unitImages.length
+            ? await Promise.all(units.map((u) => tx.productUnit.create({ data: {
               tenantId,
               variantId: variantIds[u.variantIndex] as string,
+              typeVariantId: typeVariantIds[u.variantIndex]?.[u.typeVariantIndex ?? 0] as string,
               categoryId: u.locationKey ? (locationIds.get(u.locationKey) as string) : rootId,
               code: u.code,
               name: u.name ?? null,
               status: u.status ?? 'AVAILABLE',
               isHook: u.isHook ?? false,
-            })),
-          });
+            } })))
+            : [];
+          if (unitImages.length) {
+            await tx.productMedia.createMany({
+              data: storedUnitImages.map((image) => ({
+                tenantId, productId: product.id, unitId: createdUnits[image.unitIndex]?.id ?? null,
+                mediaType: 'IMAGE' as const, fileName: image.file.originalname.slice(0, 255), fileUrl: image.url,
+                fileType: image.file.mimetype, fileSize: image.file.buffer.length,
+                sortOrder: 0, isPrimary: image === storedUnitImages.find((item) => item.unitIndex === image.unitIndex),
+              })).filter((media) => Boolean(media.unitId)),
+            });
+          } else {
+            await tx.productUnit.createMany({ data: units.map((u) => ({
+              tenantId, variantId: variantIds[u.variantIndex] as string,
+              typeVariantId: typeVariantIds[u.variantIndex]?.[u.typeVariantIndex ?? 0] as string,
+              categoryId: u.locationKey ? (locationIds.get(u.locationKey) as string) : rootId,
+              code: u.code, name: u.name ?? null, status: u.status ?? 'AVAILABLE', isHook: u.isHook ?? false,
+            })) });
+          }
         }
         if (storedCovers.length) {
           await tx.productMedia.createMany({
@@ -457,24 +558,76 @@ export class ProductUseCase {
       { timeout: 30000 }
     ));
     } catch (error) {
-      await this.storage.remove([...storedCovers, ...storedTypeImages].map((image) => image.path));
+      await this.storage.remove([...storedCovers, ...storedTypeImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
       throw error;
     }
     return this.get(created.id, tenantId);
   }
 
-  async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = []) {
+  async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = []) {
     const project = await this.get(id, tenantId);
     await this.assertProductRelations(tenantId, input);
     const structureProvided = [input.variants, input.locations, input.units].some((part) => part !== undefined);
+    let structureInput = input;
     if (structureProvided && (!input.variants || !input.locations || !input.units)) {
-      throw new Error('variants, locations and units must be sent together');
+      const current = await this.getEdit(id, tenantId);
+      const variantIndex = new Map(current.variants.map((variant, index) => [variant.id, index]));
+      const existingVariants = current.variants.map((variant) => ({
+        id: variant.id,
+        name: variant.name,
+        typeVariants: variant.typeVariants.map((option) => ({
+          id: option.id,
+          name: option.name,
+          code: option.code,
+          basePrice: Number(option.basePrice),
+          currentPrice: Number(option.currentPrice),
+          minPrice: option.minPrice === null ? null : Number(option.minPrice),
+          stock: option.stock,
+          isActive: option.isActive,
+        })),
+        attributes: current.attributes
+          .filter((attribute) => attribute.variantId === variant.id)
+          .map((attribute) => ({
+            name: attribute.attribute.name,
+            code: attribute.attribute.code,
+            dataType: attribute.attribute.dataType,
+            value: attribute.value,
+            unit: attribute.attribute.unit,
+          })),
+      }));
+      const typeVariantIndexes = new Map(current.variants.flatMap((variant, index) =>
+        variant.typeVariants.map((option, optionIndex) => [option.id, [index, optionIndex] as const])
+      ));
+      const existingLocations = current.locations.map((location) => ({
+        id: location.id,
+        key: location.id,
+        parentKey: location.parentId === current.category.id ? null : location.parentId,
+        name: location.name,
+        code: location.code,
+        type: location.type,
+      }));
+      const existingUnits = current.units.map((unit) => ({
+        id: unit.id,
+        code: unit.code,
+        variantIndex: variantIndex.get(unit.variantId) ?? -1,
+        typeVariantIndex: typeVariantIndexes.get(unit.typeVariantId)?.[1] ?? 0,
+        ...(unit.categoryId === current.category.id ? {} : { locationKey: unit.categoryId }),
+        status: unit.status,
+        isHook: unit.isHook,
+      }));
+      structureInput = {
+        ...input,
+        variants: input.variants ?? existingVariants,
+        locations: input.locations ?? existingLocations,
+        units: input.units ?? existingUnits,
+      };
     }
+    if (unitImages.some((image) => image.unitIndex < 0 || image.unitIndex >= (structureInput.units?.length ?? 0))) throw new Error('Invalid unit image indexes');
     if (structureProvided && (project.category.type !== 'PROJECT' || input.categoryId !== undefined)) {
       throw new Error('Invalid project category for wizard update');
     }
     if (typeImages.length && (!structureProvided ||
-      typeImages.some((image) => image.variantIndex < 0 || image.variantIndex >= (input.variants?.length ?? 0)) ||
+      typeImages.some((image) => image.variantIndex < 0 || image.variantIndex >= (structureInput.variants?.length ?? 0)) ||
       new Set(typeImages.map((image) => image.variantIndex)).size !== typeImages.length)) {
       throw new Error('Invalid type image indexes');
     }
@@ -508,10 +661,13 @@ export class ProductUseCase {
     if (covers.length > 10) throw new Error('Invalid cover count');
     const extensions = covers.map(validateProductImage);
     const typeExtensions = typeImages.map((image) => validateProductImage(image.file));
+    const siteplanExtension = siteplan ? validateProductImage(siteplan) : undefined;
     const storedCovers: { file: Express.Multer.File; path: string; url: string }[] = [];
     const storedTypeImages: { file: Express.Multer.File; variantIndex: number; path: string; url: string }[] = [];
+    let storedSiteplan: { file: Express.Multer.File; path: string; url: string } | undefined;
+    const storedUnitImages: { file: Express.Multer.File; unitIndex: number; path: string; url: string }[] = [];
     const replacedTypeMedia = typeImages.flatMap(({ variantIndex }) =>
-      project.media.filter((media) => media.variantId === input.variants?.[variantIndex]?.id && media.mediaType === 'IMAGE')
+      project.media.filter((media) => media.variantId === structureInput.variants?.[variantIndex]?.id && media.mediaType === 'IMAGE')
     );
     try {
       for (const [index, file] of covers.entries()) {
@@ -524,6 +680,17 @@ export class ProductUseCase {
         storedTypeImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, image.file.buffer);
       }
+      if (siteplan && siteplanExtension) {
+        const path = `${tenantId}/product/${id}/siteplan-${randomUUID()}.${siteplanExtension}`;
+        storedSiteplan = { file: siteplan, path, url: this.storage.getPublicUrl(path).publicUrl };
+        await this.storage.upload(path, siteplan.buffer);
+      }
+      for (const image of unitImages) {
+        const extension = validateProductImage(image.file);
+        const path = `${tenantId}/product/${id}/unit-${image.unitIndex}-${randomUUID()}.${extension}`;
+        storedUnitImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
+        await this.storage.upload(path, image.file.buffer);
+      }
       await retryUniqueCode(() => this.prisma.$transaction(async (tx) => {
       if (input.code !== undefined) {
         data.code = await uniqueCode(input.code, 100, async (candidate) =>
@@ -532,6 +699,9 @@ export class ProductUseCase {
         );
       }
       await tx.product.update({ where: { id }, data });
+      if (storedSiteplan) {
+        await tx.productCategory.update({ where: { id: project.categoryId }, data: { siteplanImg: storedSiteplan.url } });
+      }
       if (input.name !== undefined || input.code !== undefined || input.isActive !== undefined) {
         await tx.productCategory.update({
           where: { id: project.categoryId },
@@ -550,7 +720,21 @@ export class ProductUseCase {
           data: facilityIds.map((attributeId) => ({ tenantId, productId: id, variantId: null, attributeId, value: 1 })),
         });
       }
-      const variantIds = structureProvided ? await this.syncStructure(tx, id, tenantId, project.categoryId, input) : [];
+      const variantIds = structureProvided ? await this.syncStructure(tx, id, tenantId, project.categoryId, structureInput) : [];
+      if (storedUnitImages.length && structureInput.units) {
+        const unitRows = await tx.productUnit.findMany({
+          where: { tenantId, variant: { productId: id, tenantId }, code: { in: structureInput.units.map((unit) => unit.code) } },
+          select: { id: true, code: true },
+        });
+        const unitByCode = new Map(unitRows.map((unit) => [unit.code, unit.id]));
+        await tx.productMedia.createMany({
+          data: storedUnitImages.map((image) => ({
+            tenantId, productId: id, unitId: unitByCode.get(structureInput.units?.[image.unitIndex]?.code ?? "") ?? null,
+            mediaType: 'IMAGE' as const, fileName: image.file.originalname.slice(0, 255), fileUrl: image.url,
+            fileType: image.file.mimetype, fileSize: image.file.buffer.length, sortOrder: 0, isPrimary: false,
+          })).filter((media) => Boolean(media.unitId)),
+        });
+      }
       if (storedTypeImages.length) {
         const selectedIds = storedTypeImages.map((image) => variantIds[image.variantIndex] as string);
         await tx.productMedia.deleteMany({
@@ -595,7 +779,7 @@ export class ProductUseCase {
       }
       }, { timeout: 30000 }));
     } catch (error) {
-      await this.storage.remove([...storedCovers, ...storedTypeImages].map((image) => image.path));
+      await this.storage.remove([...storedCovers, ...storedTypeImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
       throw error;
     }
     const removedPaths = [...removedMedia, ...replacedTypeMedia].flatMap((media) => {
@@ -603,6 +787,13 @@ export class ProductUseCase {
       catch { return []; }
     });
     if (removedPaths.length) await this.storage.remove(removedPaths);
+    if (storedSiteplan && project.category.siteplanImg) {
+      try {
+        await this.storage.remove([this.storage.getFilePathFromPublicUrl(project.category.siteplanImg)]);
+      } catch {
+        // Existing siteplan may be managed by an external storage provider.
+      }
+    }
     return this.get(id, tenantId);
   }
 
@@ -618,10 +809,12 @@ export class ProductUseCase {
     const locations = orderLocations(input.locations as LocationInput[]);
     const units = input.units as UnitInput[];
     if (!variants.length) throw new Error('variants must contain at least one variant');
-    assertUnits(units, variants.length, new Set(locations.map((location) => location.key)));
+    const normalizedVariants = variants.map((variant) => this.typeVariantsOf(variant));
+    assertUnits(units, normalizedVariants.map((items) => items.length), new Set(locations.map((location) => location.key)));
 
     const oldVariants = await tx.productVariant.findMany({
-      where: { tenantId, productId }, select: { id: true, basePrice: true, currentPrice: true, stock: true },
+      where: { tenantId, productId },
+      select: { id: true, typeVariants: { select: { id: true, name: true, code: true, basePrice: true, currentPrice: true, minPrice: true, stock: true, isActive: true } } },
     });
     const oldVariantIds = new Set(oldVariants.map((row) => row.id));
     const allCategories = await tx.productCategory.findMany({
@@ -639,7 +832,7 @@ export class ProductUseCase {
     const oldLocationIds = new Set(oldLocations.map((row) => row.id));
     const oldUnits = await tx.productUnit.findMany({
       where: { tenantId, variant: { productId, tenantId } },
-      select: { id: true, variantId: true, categoryId: true, status: true, code: true, isHook: true },
+      select: { id: true, variantId: true, typeVariantId: true, categoryId: true, status: true, code: true, isHook: true },
     });
     const oldUnitIds = new Set(oldUnits.map((row) => row.id));
     const checkIds = (values: (string | undefined)[], known: Set<string>, label: string) => {
@@ -652,10 +845,9 @@ export class ProductUseCase {
     const keptVariantIds = checkIds(variants.map((row) => row.id), oldVariantIds, 'variant');
     const keptLocationIds = checkIds(locations.map((row) => row.id), oldLocationIds, 'location');
     const keptUnitIds = checkIds(units.map((row) => row.id), oldUnitIds, 'unit');
-    // Stock tidak dikirim = pertahankan total slot tersimpan varian itu.
-    assertUnitsWithinStock(units, variants.map((variant) => ({
+    assertUnitsWithinStock(units, variants.map((variant, index) => ({
       name: variant.name,
-      stock: variant.stock ?? oldVariants.find((row) => row.id === variant.id)?.stock ?? 0,
+      typeVariants: normalizedVariants[index]!.map((option) => ({ name: option.name, stock: option.stock ?? 0 })),
     })));
 
     const removedUnits = oldUnits.filter((row) => !keptUnitIds.has(row.id));
@@ -685,23 +877,67 @@ export class ProductUseCase {
       return id;
     };
     const variantIds: string[] = [];
-    for (const variant of variants) {
+    const typeVariantIds: string[][] = [];
+    for (const [variantIndex, variant] of variants.entries()) {
       const old = oldVariants.find((row) => row.id === variant.id);
       const row = old
         ? await tx.productVariant.update({
             where: { id: old.id },
-            data: {
-              name: variant.name as string,
-              basePrice: variant.basePrice as number,
-              currentPrice: old.currentPrice === old.basePrice ? variant.basePrice as number : old.currentPrice,
-              ...(variant.stock !== undefined ? { stock: variant.stock } : {}),
-            },
+            data: { name: variant.name as string },
           })
         : await tx.productVariant.create({
-            data: { tenantId, productId, name: variant.name as string,
-              basePrice: variant.basePrice as number, currentPrice: variant.basePrice as number, stock: variant.stock ?? 0 },
+            data: { tenantId, productId, name: variant.name as string },
           });
       variantIds.push(row.id);
+      const oldOptions = old?.typeVariants ?? [];
+      const incomingOptions = normalizedVariants[variantIndex]!;
+      const knownOptionIds = new Set(oldOptions.map((option) => option.id));
+      const incomingOptionIds = incomingOptions.flatMap((option) => option.id ? [option.id] : []);
+      if (new Set(incomingOptionIds).size !== incomingOptionIds.length || incomingOptionIds.some((optionId) => !knownOptionIds.has(optionId))) {
+        throw new Error('Invalid type variant IDs');
+      }
+      const optionIds: string[] = [];
+      for (const option of incomingOptions) {
+        const oldOption = oldOptions.find((item) => item.id === option.id);
+        const optionRow = oldOption
+          ? await tx.productTypeVariant.update({
+              where: { id: oldOption.id },
+              data: {
+                name: option.name as string,
+                code: option.code?.trim() || null,
+                basePrice: option.basePrice ?? Number(oldOption.basePrice),
+                currentPrice: oldOption.currentPrice === oldOption.basePrice
+                  ? option.basePrice ?? Number(oldOption.currentPrice)
+                  : option.currentPrice ?? Number(oldOption.currentPrice),
+                minPrice: option.minPrice === undefined ? oldOption.minPrice : option.minPrice,
+                stock: option.stock ?? oldOption.stock,
+                isActive: option.isActive ?? oldOption.isActive,
+              },
+            })
+          : await tx.productTypeVariant.create({
+              data: {
+                tenantId,
+                productVariantId: row.id,
+                name: option.name as string,
+                code: option.code?.trim() || null,
+                basePrice: option.basePrice ?? 0,
+                currentPrice: option.currentPrice ?? option.basePrice ?? 0,
+                minPrice: option.minPrice ?? null,
+                stock: option.stock ?? 0,
+                isActive: option.isActive ?? true,
+              },
+            });
+        optionIds.push(optionRow.id);
+      }
+      const removedOptions = oldOptions.filter((option) => !incomingOptionIds.includes(option.id));
+      for (const option of removedOptions) {
+        if (await tx.productUnit.count({ where: { tenantId, typeVariantId: option.id } }) ||
+          await tx.productVariantPriceLog.count({ where: { tenantId, typeVariantId: option.id } })) {
+          throw new Error('Conflict: a variant with units or pricing history must remain');
+        }
+        await tx.productTypeVariant.delete({ where: { id: option.id } });
+      }
+      typeVariantIds.push(optionIds);
       for (const attribute of variant.attributes ?? []) {
         const attributeId = await masterOf(attribute);
         const existing = await tx.productAttribute.findFirst({
@@ -739,22 +975,23 @@ export class ProductUseCase {
 
     for (const unit of units) {
       const variantId = variantIds[unit.variantIndex] as string;
+      const typeVariantId = typeVariantIds[unit.variantIndex]?.[unit.typeVariantIndex ?? 0] as string;
       const categoryId = unit.locationKey ? locationIds.get(unit.locationKey) : rootId;
       if (!categoryId) throw new Error('Invalid unit location');
       const old = oldUnits.find((row) => row.id === unit.id);
       if (old) {
-        if ((old.variantId !== variantId || old.categoryId !== categoryId) &&
+        if ((old.variantId !== variantId || old.typeVariantId !== typeVariantId || old.categoryId !== categoryId) &&
           await tx.reservation.count({ where: { tenantId, unitId: old.id } })) {
           throw new Error('Conflict: a unit with reservations must keep its type and location');
         }
-        if (old.code !== unit.code || old.variantId !== variantId || old.categoryId !== categoryId || old.isHook !== (unit.isHook ?? false)) {
+        if (old.code !== unit.code || old.variantId !== variantId || old.typeVariantId !== typeVariantId || old.categoryId !== categoryId || old.isHook !== (unit.isHook ?? false)) {
           await tx.productUnit.update({
-            where: { id: old.id }, data: { code: unit.code, variantId, categoryId, isHook: unit.isHook ?? false },
+            where: { id: old.id }, data: { code: unit.code, variantId, typeVariantId, categoryId, isHook: unit.isHook ?? false },
           });
         }
       } else {
         await tx.productUnit.create({
-          data: { tenantId, code: unit.code, variantId, categoryId,
+          data: { tenantId, code: unit.code, variantId, typeVariantId, categoryId,
             status: unit.status ?? 'AVAILABLE', isHook: unit.isHook ?? false },
         });
       }
@@ -762,7 +999,7 @@ export class ProductUseCase {
 
     const removedVariants = oldVariants.filter((row) => !keptVariantIds.has(row.id));
     for (const row of removedVariants) {
-      if (await tx.productVariantPriceLog.count({ where: { tenantId, variantId: row.id } }) ||
+      if (await tx.productVariantPriceLog.count({ where: { tenantId, typeVariant: { productVariantId: row.id } } }) ||
         await tx.productMedia.count({ where: { tenantId, variantId: row.id } })) {
         throw new Error('Conflict: a type with pricing history or media must remain');
       }
@@ -799,34 +1036,68 @@ export class ProductUseCase {
 
   async addVariant(productId: string, tenantId: string, input: VariantInput) {
     await this.get(productId, tenantId);
-    return this.prisma.productVariant.create({
-      data: {
-        tenantId,
-        productId,
-        name: input.name as string,
-        basePrice: input.basePrice as number,
-        currentPrice: input.currentPrice ?? (input.basePrice as number),
-        minPrice: input.minPrice ?? null,
-        stock: input.stock ?? 0,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const type = await tx.productVariant.create({ data: { tenantId, productId, name: input.name as string } });
+      const options = this.typeVariantsOf(input);
+      const typeVariants = [];
+      for (const option of options) {
+        typeVariants.push(await tx.productTypeVariant.create({ data: {
+          tenantId, productVariantId: type.id, name: option.name as string,
+          code: option.code?.trim() || null, basePrice: option.basePrice ?? 0,
+          currentPrice: option.currentPrice ?? option.basePrice ?? 0,
+          minPrice: option.minPrice ?? null, stock: option.stock ?? 0, isActive: option.isActive ?? true,
+        } }));
+      }
+      return { ...type, typeVariants };
     });
   }
 
   async updateVariant(productId: string, variantId: string, tenantId: string, input: VariantInput) {
     await this.assertVariant(productId, variantId, tenantId);
-    if (input.stock !== undefined) {
-      const unitCount = await this.prisma.productUnit.count({ where: { variantId, tenantId } });
-      if (input.stock < unitCount) {
-        throw new Error(`Invalid stock: total unit must be at least ${unitCount} for this type.`);
+    return this.prisma.$transaction(async (tx) => {
+      const type = await tx.productVariant.update({ where: { id: variantId }, data: input.name === undefined ? {} : { name: input.name } });
+      const current = await tx.productTypeVariant.findMany({ where: { tenantId, productVariantId: variantId }, orderBy: { createdAt: 'asc' } });
+      if (!current.length) throw new Error('Type variant not found');
+      const requested = input.typeVariants?.length ? input.typeVariants : [{
+        id: current[0]!.id, name: current[0]!.name, code: current[0]!.code,
+        basePrice: input.basePrice ?? Number(current[0]!.basePrice),
+        currentPrice: input.currentPrice ?? Number(current[0]!.currentPrice),
+        minPrice: input.minPrice === undefined ? current[0]!.minPrice === null ? null : Number(current[0]!.minPrice) : input.minPrice,
+        stock: input.stock ?? current[0]!.stock, isActive: current[0]!.isActive,
+      }];
+      const known = new Set(current.map((item) => item.id));
+      const requestedIds = requested.flatMap((item) => item.id ? [item.id] : []);
+      if (new Set(requestedIds).size !== requestedIds.length || requestedIds.some((id) => !known.has(id))) throw new Error('Invalid type variant IDs');
+      const typeVariants = [];
+      for (const option of requested) {
+        const existing = current.find((item) => item.id === option.id);
+        if (existing) {
+          const unitCount = await tx.productUnit.count({ where: { typeVariantId: existing.id, tenantId } });
+          if ((option.stock ?? existing.stock) < unitCount) throw new Error(`Invalid stock: ${option.name} must be at least ${unitCount}.`);
+          typeVariants.push(await tx.productTypeVariant.update({ where: { id: existing.id }, data: {
+            name: option.name as string, code: option.code?.trim() || null,
+            basePrice: option.basePrice ?? existing.basePrice,
+            currentPrice: option.currentPrice ?? option.basePrice ?? existing.currentPrice,
+            minPrice: option.minPrice === undefined ? existing.minPrice : option.minPrice,
+            stock: option.stock ?? existing.stock, isActive: option.isActive ?? existing.isActive,
+          } }));
+        } else {
+          typeVariants.push(await tx.productTypeVariant.create({ data: {
+            tenantId, productVariantId: variantId, name: option.name as string, code: option.code?.trim() || null,
+            basePrice: option.basePrice ?? 0, currentPrice: option.currentPrice ?? option.basePrice ?? 0,
+            minPrice: option.minPrice ?? null, stock: option.stock ?? 0, isActive: option.isActive ?? true,
+          } }));
+        }
       }
-    }
-    const data: Prisma.ProductVariantUpdateInput = {};
-    if (input.name !== undefined) data.name = input.name;
-    if (input.basePrice !== undefined) data.basePrice = input.basePrice;
-    if (input.currentPrice !== undefined) data.currentPrice = input.currentPrice;
-    if (input.minPrice !== undefined) data.minPrice = input.minPrice;
-    if (input.stock !== undefined) data.stock = input.stock;
-    return this.prisma.productVariant.update({ where: { id: variantId }, data });
+      for (const option of current.filter((item) => !requestedIds.includes(item.id))) {
+        if (await tx.productUnit.count({ where: { tenantId, typeVariantId: option.id } }) ||
+          await tx.productVariantPriceLog.count({ where: { tenantId, typeVariantId: option.id } })) {
+          throw new Error('Conflict: a variant with units or pricing history must remain');
+        }
+        await tx.productTypeVariant.delete({ where: { id: option.id } });
+      }
+      return { ...type, typeVariants };
+    });
   }
 
   async removeVariant(productId: string, variantId: string, tenantId: string) {

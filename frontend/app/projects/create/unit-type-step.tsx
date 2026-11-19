@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ImagePlus, MoreVertical, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, MoreVertical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -26,15 +26,26 @@ export type UnitType = {
   bedroom: string;
   bathroom: string;
   carport: string;
+  variants: UnitTypeVariant[];
+};
+
+export type UnitTypeVariant = {
+  id?: string;
+  key: string;
+  name: string;
+  code: string;
   stock: string;
   basePrice: string;
 };
 
-const PAGE_SIZE = 6;
-// Field INT default 0 (sama dengan default di backend).
-const EMPTY: UnitType = { name: "", buildingArea: "0", surfaceArea: "0", floors: "0", bedroom: "0", bathroom: "0", carport: "0", stock: "0", basePrice: "0" };
+ const PAGE_SIZE = 6;
+// Input numeric dibiarkan kosong saat form baru dibuka; nilai kosong dinormalisasi menjadi 0 saat payload dibuat.
+const emptyType = (): UnitType => ({
+  name: "", buildingArea: "", surfaceArea: "", floors: "", bedroom: "", bathroom: "", carport: "",
+  variants: [{ key: crypto.randomUUID(), name: "Default", code: "", stock: "", basePrice: "" }],
+});
 
-const FIELDS: { key: Exclude<keyof UnitType, "id" | "image" | "imageUrl" | "imagePreviewUrl">; label: string; placeholder: string; numeric?: boolean }[] = [
+const FIELDS: { key: Exclude<keyof UnitType, "id" | "image" | "imageUrl" | "imagePreviewUrl" | "variants">; label: string; placeholder: string; numeric?: boolean }[] = [
   { key: "name", label: "Type Name", placeholder: "Contoh: Type 36" },
   { key: "buildingArea", label: "Building Area (m²)", placeholder: "0", numeric: true },
   { key: "surfaceArea", label: "Surface Area (m²)", placeholder: "0", numeric: true },
@@ -42,16 +53,15 @@ const FIELDS: { key: Exclude<keyof UnitType, "id" | "image" | "imageUrl" | "imag
   { key: "bedroom", label: "Bedroom", placeholder: "0", numeric: true },
   { key: "bathroom", label: "Bathroom", placeholder: "0", numeric: true },
   { key: "carport", label: "Carport", placeholder: "0", numeric: true },
-  { key: "stock", label: "Stock (Unit)", placeholder: "0", numeric: true },
-  { key: "basePrice", label: "Base Price (Rp)", placeholder: "0", numeric: true },
 ];
 
 const idr = (v: string) => `Rp ${Number(v).toLocaleString("id-ID")}`;
 
-export function UnitTypeStep({ items, units, onChange, onRename }: { items: UnitType[]; units: UnitItem[]; onChange: (items: UnitType[]) => void; onRename?: (oldName: string, newName: string) => void }) {
+export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename }: { items: UnitType[]; units: UnitItem[]; onChange: (items: UnitType[]) => void; onRename?: (oldName: string, newName: string) => void; onVariantRename?: (key: string, name: string) => void }) {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<number | null>(null);
-  const [draft, setDraft] = useState<UnitType>(EMPTY);
+  const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
+  const [draft, setDraft] = useState<UnitType>(() => emptyType());
   const previewUrls = useRef<string[]>([]);
   useEffect(() => () => previewUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
@@ -61,20 +71,37 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
   const visible = items.slice(start, start + PAGE_SIZE);
 
   const open = (index: number) => {
-    setDraft(index >= 0 ? items[index] : EMPTY);
+    setDraft(index >= 0 ? items[index] : emptyType());
     setEditing(index);
+  };
+
+  const toggleExpanded = (index: number) => {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   };
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     if (editing === null) return;
-    // Total slot tidak boleh lebih kecil dari unit yang sudah dibuat untuk type ini.
-    const created = editing >= 0 ? units.filter((unit) => unit.type === items[editing]?.name).length : 0;
-    if ((Number(draft.stock) || 0) < created) {
-      toast.error(`Stock ${draft.name} tidak boleh kurang dari ${created} unit yang sudah dibuat.`);
-      return;
+    if (!draft.variants.length) return toast.error("Tambahkan minimal satu varian.");
+    const names = draft.variants.map((item) => item.name.trim().toLocaleLowerCase("id-ID"));
+    if (new Set(names).size !== names.length) return toast.error("Nama varian dalam satu tipe tidak boleh sama.");
+    for (const option of draft.variants) {
+      const created = units.filter((unit) => unit.typeVariantKey === option.key).length;
+      if ((Number(option.stock) || 0) < created) {
+        toast.error(`Stock ${draft.name} / ${option.name} tidak boleh kurang dari ${created} unit yang sudah dibuat.`);
+        return;
+      }
     }
     if (editing >= 0 && items[editing]?.name !== draft.name) onRename?.(items[editing].name, draft.name);
+    if (editing >= 0) draft.variants.forEach((option) => {
+      const old = items[editing]?.variants.find((item) => item.key === option.key);
+      if (old && old.name !== option.name) onVariantRename?.(option.key, option.name);
+    });
     onChange(editing >= 0 ? items.map((it, i) => (i === editing ? draft : it)) : [...items, draft]);
     setEditing(null);
   };
@@ -96,7 +123,7 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
         <Table className="text-xs">
           <TableHeader>
             <TableRow>
-              {["Type", "Gambar", "Building area", "Surface area", "Floors", "Bedroom", "Bathroom", "Carport", "Stock", "Base Price", "Action"].map((h) => (
+              {["Type", "Gambar", "Building area", "Surface area", "Floors", "Bedroom", "Bathroom", "Carport", "Varian", "Total Stock", "Mulai Harga", "Action"].map((h) => (
                 <TableHead key={h} className="h-10 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">
                   {h}
                 </TableHead>
@@ -106,14 +133,25 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="h-24 text-center text-[#9CA3AF]">
+                <TableCell colSpan={12} className="h-24 text-center text-[#9CA3AF]">
                   Belum ada unit type. Klik “Add Unit Type” untuk menambahkan.
                 </TableCell>
               </TableRow>
             ) : (
               visible.map((u, i) => (
-                <TableRow key={start + i}>
-                  <TableCell className="whitespace-nowrap">{u.name}</TableCell>
+                <Fragment key={start + i}>
+                <TableRow>
+                  <TableCell className="whitespace-nowrap">
+                    <button
+                      type="button"
+                      aria-expanded={expanded.has(start + i)}
+                      onClick={() => toggleExpanded(start + i)}
+                      className="inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-[#F4F4F5]"
+                    >
+                      {expanded.has(start + i) ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                      {u.name}
+                    </button>
+                  </TableCell>
                   <TableCell>
                     <div className="relative flex size-14 items-center justify-center overflow-hidden rounded-md border border-[#E4E4E7] bg-[#F6F7F9] text-[10px] text-[#9CA3AF]">
                       {u.imagePreviewUrl || u.imageUrl ? (
@@ -127,8 +165,9 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
                   <TableCell>{u.bedroom}</TableCell>
                   <TableCell>{u.bathroom}</TableCell>
                   <TableCell>{u.carport}</TableCell>
-                  <TableCell className="whitespace-nowrap">{u.stock} Unit</TableCell>
-                  <TableCell className="whitespace-nowrap">{idr(u.basePrice)}</TableCell>
+                  <TableCell>{u.variants.length}</TableCell>
+                  <TableCell className="whitespace-nowrap">{u.variants.reduce((sum, item) => sum + (Number(item.stock) || 0), 0)} Unit</TableCell>
+                  <TableCell className="whitespace-nowrap">{idr(String(Math.min(...u.variants.map((item) => Number(item.basePrice) || 0))))}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -151,6 +190,39 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
+                {expanded.has(start + i) && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={12} className="bg-[#F8FAFC] p-0">
+                      <div className="p-3">
+                        <Table className="text-xs">
+                          <TableHeader>
+                            <TableRow>
+                              {["Varian", "Stock (kuota)", "Harga dasar", "Unit dibuat", "Sisa slot"].map((h) => (
+                                <TableHead key={h} className="h-8 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">{h}</TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {u.variants.map((option) => {
+                              const quota = Number(option.stock) || 0;
+                              const created = units.filter((unit) => unit.typeVariantKey === option.key).length;
+                              return (
+                                <TableRow key={option.key}>
+                                  <TableCell className="whitespace-nowrap">{option.name}</TableCell>
+                                  <TableCell>{quota}</TableCell>
+                                  <TableCell className="whitespace-nowrap">{idr(option.basePrice)}</TableCell>
+                                  <TableCell>{created}</TableCell>
+                                  <TableCell>{quota - created}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                </Fragment>
               ))
             )}
           </TableBody>
@@ -191,25 +263,37 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
               {FIELDS.map((f) => (
                 <div key={f.key} className={f.key === "name" ? "col-span-2" : undefined}>
                   <label className="mb-1.5 block text-xs font-medium text-[#1f1f1f]">{f.label}</label>
-                  {f.key === "basePrice" ? (
-                    <RupiahInput
-                      required
-                      value={draft.basePrice}
-                      onValueChange={(value) => setDraft({ ...draft, basePrice: value })}
-                      placeholder={f.placeholder}
-                      className={INPUT}
-                    />
-                  ) : (
-                    <Input
+                  <Input
                       required
                       type={f.numeric ? "number" : "text"}
                       min={f.numeric ? 0 : undefined}
                       placeholder={f.placeholder}
                       value={draft[f.key]}
+                      onFocus={() => {
+                        if (draft[f.key] === "0") setDraft({ ...draft, [f.key]: "" });
+                      }}
                       onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}
                       className={INPUT}
-                    />
-                  )}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="space-y-3 rounded-lg border border-[#E4E4E7] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-[#1f1f1f]">Varian tipe</p>
+                  <p className="text-[10px] text-[#667085]">Harga dan stock diatur untuk setiap varian.</p>
+                </div>
+                <Button type="button" variant="outline" className="h-8 text-xs" onClick={() => setDraft((current) => ({ ...current, variants: [...current.variants, { key: crypto.randomUUID(), name: "", code: "", stock: "", basePrice: "" }] }))}>
+                  <Plus className="mr-1 size-3.5" />Tambah varian
+                </Button>
+              </div>
+              {draft.variants.map((option) => (
+                <div key={option.key} className="grid gap-2 rounded-md bg-[#F8FAFC] p-2 sm:grid-cols-[1fr_0.8fr_0.9fr_auto]">
+                  <Input required value={option.name} placeholder="Nama varian" className={INPUT} onChange={(event) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, name: event.target.value } : item) }))} />
+                  <Input type="number" required min={0} value={option.stock} placeholder="Stock" className={INPUT} onChange={(event) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, stock: event.target.value } : item) }))} />
+                  <RupiahInput required value={option.basePrice} placeholder="Harga dasar" className={INPUT} onValueChange={(value) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, basePrice: value } : item) }))} />
+                  <Button type="button" variant="ghost" disabled={draft.variants.length === 1 || units.some((unit) => unit.typeVariantKey === option.key)} className="h-9 px-2 text-[#D64545]" onClick={() => setDraft((current) => ({ ...current, variants: current.variants.filter((item) => item.key !== option.key) }))}>Hapus</Button>
                 </div>
               ))}
             </div>

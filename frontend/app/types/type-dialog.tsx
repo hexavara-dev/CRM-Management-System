@@ -25,7 +25,7 @@ import {
   useCreateProjectType,
   useUpdateProjectType,
 } from "@/hooks/use-project-types";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 type ProjectOption = { id: string; name: string };
@@ -52,8 +52,12 @@ function TypeForm({
   const updateType = useUpdateProjectType();
   const [projectId, setProjectId] = useState(initial?.projectId ?? "");
   const [name, setName] = useState(initial?.name ?? "");
-  const [basePrice, setBasePrice] = useState(String(initial?.basePrice ?? ""));
+  const [basePrice] = useState(String(initial?.basePrice ?? ""));
   const [stock, setStock] = useState(initial ? String(initial.stock) : "");
+  const [typeVariants, setTypeVariants] = useState(() =>
+    initial?.typeVariants?.map((option) => ({ ...option, key: option.id ?? crypto.randomUUID(), basePriceText: String(option.basePrice), stockText: String(option.stock) }))
+    ?? [{ key: crypto.randomUUID(), name: "Default", code: null, basePrice: 0, stock: 0, basePriceText: "", stockText: "", unitCount: 0 }],
+  );
   const [attributes, setAttributes] = useState<
     Record<TypeAttributeCode, number>
   >(initial?.attributes ?? EMPTY_ATTRIBUTES);
@@ -67,6 +71,11 @@ function TypeForm({
       name,
       basePrice: Number(basePrice),
       stock: Number(stock),
+      typeVariants: typeVariants.map((option) => ({
+        ...(option.id ? { id: option.id } : {}), name: option.name, code: option.code,
+        basePrice: Number(option.basePriceText), currentPrice: option.currentPrice ?? Number(option.basePriceText),
+        minPrice: option.minPrice ?? null, stock: Number(option.stockText), unitCount: option.unitCount,
+      })),
       attributes,
       image,
     };
@@ -118,17 +127,21 @@ function TypeForm({
             className="h-9"
           />
         </label>
-        <label className="space-y-1.5 text-xs font-medium text-[#344054]">
-          Harga dasar
-          <RupiahInput
-            required
-            value={basePrice}
-            onValueChange={setBasePrice}
-            placeholder="Masukkan nominal"
-            className="h-9"
-          />
-        </label>
-        <label className="space-y-1.5 text-xs font-medium text-[#344054]">
+        <div className="space-y-3 rounded-lg border border-[#E4E4E7] p-3 sm:col-span-2">
+          <div className="flex items-center justify-between gap-2">
+            <div><p className="text-xs font-semibold">Varian tipe</p><p className="text-[10px] font-normal text-[#667085]">Harga dan stock disimpan per varian.</p></div>
+            <Button type="button" variant="outline" className="h-8 text-xs" onClick={() => setTypeVariants((items) => [...items, { key: crypto.randomUUID(), name: "", code: null, basePrice: 0, stock: 0, basePriceText: "", stockText: "", unitCount: 0 }])}><Plus className="mr-1 size-3.5" />Tambah</Button>
+          </div>
+          {typeVariants.map((option) => (
+            <div key={option.key} className="grid gap-2 rounded-md bg-[#F8FAFC] p-2 sm:grid-cols-[1fr_0.75fr_1fr_auto]">
+              <Input required value={option.name} placeholder="Nama varian" className="h-9" onChange={(event) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, name: event.target.value } : item))} />
+              <Input type="number" required min={option.unitCount ?? 0} value={option.stockText} placeholder="Stock" className="h-9" onChange={(event) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, stockText: event.target.value } : item))} />
+              <RupiahInput required value={option.basePriceText} placeholder="Harga dasar" className="h-9" onValueChange={(value) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, basePriceText: value } : item))} />
+              <Button type="button" variant="ghost" disabled={typeVariants.length === 1 || (option.unitCount ?? 0) > 0} className="h-9 px-2 text-[#D64545]" onClick={() => setTypeVariants((items) => items.filter((item) => item.key !== option.key))}><Trash2 className="size-4" /></Button>
+            </div>
+          ))}
+        </div>
+        <label className="hidden">
           Total unit
           <Input
             type="number"

@@ -6,6 +6,25 @@ import { mapHttpError } from '../src/infrastructure/utils/HttpErrorMapper.js';
 const unit = (code: string, variantIndex: number) => ({ code, variantIndex, locationKey: 'b' });
 
 describe('assertUnitsWithinStock', () => {
+  it('keeps stock independent for every dynamic variant under the same type', () => {
+    const units = [
+      { ...unit('STD-01', 0), typeVariantIndex: 0 },
+      { ...unit('PRM-01', 0), typeVariantIndex: 1 },
+      { ...unit('PRM-02', 0), typeVariantIndex: 1 },
+    ];
+    expect(() => assertUnitsWithinStock(units, [{
+      name: 'Type 36',
+      typeVariants: [{ name: 'Standard', stock: 1 }, { name: 'Premium', stock: 2 }],
+    }])).not.toThrow();
+  });
+
+  it('allows saving before every stock slot has been generated or assigned', () => {
+    const units = [{ ...unit('A-01', 0), typeVariantIndex: 0 }];
+    expect(() => assertUnitsWithinStock(units, [{
+      name: 'Type 36', typeVariants: [{ name: 'Standard', stock: 10 }],
+    }])).not.toThrow();
+  });
+
   it('allows units up to the total slots (stock) of each type', () => {
     expect(() => assertUnitsWithinStock([unit('A-01', 0), unit('A-02', 0), unit('A-03', 0)], [{ name: 'Type 50', stock: 3 }])).not.toThrow();
   });

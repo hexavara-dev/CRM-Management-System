@@ -25,7 +25,7 @@ const big = (n: number) => BigInt(n);
 
 const log = (over: Partial<PriceLogRow>): PriceLogRow => ({
   id: 'l',
-  variantId: 'v-45',
+  typeVariantId: 'tv-45',
   categoryId: null,
   adjustmentPrice: big(20_000_000),
   effectiveStart: toDateValue('2026-11-01'),
@@ -52,9 +52,9 @@ describe('price rules', () => {
       log({ id: 'block', categoryId: 'block-b' }),
       log({ id: 'cluster', categoryId: 'cluster' }),
       log({ id: 'other-block', categoryId: 'block-a' }),
-      log({ id: 'other-variant', variantId: 'v-36' }),
+      log({ id: 'other-variant', typeVariantId: 'tv-36' }),
     ];
-    expect(activeLogsForUnit(logs, 'v-45', chain, '2026-11-13').map((l) => l.id)).toEqual([
+    expect(activeLogsForUnit(logs, 'tv-45', chain, '2026-11-13').map((l) => l.id)).toEqual([
       'all',
       'block',
       'cluster',
@@ -67,7 +67,7 @@ describe('price rules', () => {
       log({ id: 'expired', endDate: toDateValue('2026-11-12') }),
       log({ id: 'last-day', endDate: toDateValue('2026-11-13') }),
     ];
-    expect(activeLogsForUnit(logs, 'v-45', [], '2026-11-13').map((l) => l.id)).toEqual(['last-day']);
+    expect(activeLogsForUnit(logs, 'tv-45', [], '2026-11-13').map((l) => l.id)).toEqual(['last-day']);
   });
 
   it('uses the latest effective adjustment instead of adding them up', () => {
@@ -108,8 +108,10 @@ describe('UnitPriceUseCase.createAdjustment', () => {
     id: 'u-1',
     categoryId: 'block-b',
     variantId: 'v-45',
+    typeVariantId: 'tv-45',
     status: 'AVAILABLE',
     variant: { id: 'v-45', name: 'Type 45', basePrice: big(450_000_000), minPrice: big(440_000_000), product: {} },
+    typeVariant: { id: 'tv-45', name: 'Standard', basePrice: big(450_000_000), minPrice: big(440_000_000) },
     category: {},
   };
   const input = (price: number, effectiveDate = today) => ({ price, reason: 'Posisi hook', effectiveDate });
@@ -196,6 +198,7 @@ describe('UnitPriceUseCase.createBulkAdjustment', () => {
     code: id.toUpperCase(),
     categoryId: 'block-a',
     variantId: 'v-36',
+    typeVariantId: 'tv-36',
     status: over.status ?? 'AVAILABLE',
     variant: {
       id: 'v-36',
@@ -203,6 +206,9 @@ describe('UnitPriceUseCase.createBulkAdjustment', () => {
       basePrice: big(over.basePrice ?? 350_000_000),
       minPrice: big(340_000_000),
       product: { id: over.productId ?? 'p-1', name: 'Project' },
+    },
+    typeVariant: {
+      id: 'tv-36', name: 'Standard', basePrice: big(over.basePrice ?? 350_000_000), minPrice: big(340_000_000),
     },
     category: {},
   });
@@ -367,8 +373,10 @@ describe('UnitPriceUseCase.list summary', () => {
       name: null,
       status,
       variantId: `v-${productId}`,
+      typeVariantId: `tv-${productId}`,
       categoryId: 'block',
       variant: { id: `v-${productId}`, name: 'Type', basePrice: BigInt(basePrice), minPrice: null, product: { id: productId, name: productId } },
+      typeVariant: { id: `tv-${productId}`, name: 'Standard', basePrice: BigInt(basePrice), minPrice: null },
       category: { id: 'block', name: 'Block', type: 'BLOCK' },
     });
     const units = [

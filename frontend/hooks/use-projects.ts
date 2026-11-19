@@ -50,13 +50,24 @@ export interface ProjectDetail extends ProjectLocation {
   code: string;
   description: string | null;
   isActive: boolean;
-  category: { id: string; name: string; type: string };
+  category: { id: string; name: string; type: string; siteplanImg: string | null };
   variants: {
     id: string;
     name: string;
     basePrice: number;
     currentPrice: number;
     stock: number;
+    typeVariants: {
+      id: string;
+      name: string;
+      code: string | null;
+      basePrice: number;
+      currentPrice: number;
+      minPrice: number | null;
+      stock: number;
+      isActive: boolean;
+      unitCount: number;
+    }[];
   }[];
   totalSlots: number;
   media: {
@@ -88,9 +99,11 @@ export interface ProjectEditData extends ProjectDetail {
     id: string;
     categoryId: string;
     variantId: string;
+    typeVariantId: string;
     code: string;
     status: string;
     isHook: boolean;
+    media: { id: string; fileUrl: string; isPrimary: boolean; sortOrder: number }[];
   }[];
 }
 
@@ -132,8 +145,13 @@ export interface CreateProjectPayload {
   variants: {
     id?: string;
     name: string;
-    basePrice: number;
-    stock: number;
+    typeVariants: {
+      id?: string;
+      name: string;
+      code?: string;
+      basePrice: number;
+      stock: number;
+    }[];
     attributes: {
       name: string;
       code: string;
@@ -153,6 +171,7 @@ export interface CreateProjectPayload {
     id?: string;
     code: string;
     variantIndex: number;
+    typeVariantIndex: number;
     locationKey?: string;
     status?: "AVAILABLE" | "RESERVED" | "BOOKED" | "BLOCKED" | "SOLD";
     isHook?: boolean;
@@ -165,6 +184,7 @@ export type UpdateProjectPayload = Partial<CreateProjectPayload> & {
 };
 
 type TypeImageUpload = { variantIndex: number; file: File };
+type UnitImageUpload = { unitIndex: number; file: File };
 
 export interface ProjectFilters {
   page: number;
@@ -253,12 +273,16 @@ export function useCreateProject() {
       payload,
       covers,
       typeImages,
+      siteplan,
+      unitImages,
     }: {
       payload: CreateProjectPayload;
       covers: File[];
       typeImages: TypeImageUpload[];
+      siteplan?: File;
+      unitImages?: UnitImageUpload[];
     }) => {
-      if (covers.length === 0 && typeImages.length === 0)
+      if (covers.length === 0 && typeImages.length === 0 && !siteplan && !unitImages?.length)
         return (await api.post<ProjectDetail>("/api/products", payload)).data;
       const form = new FormData();
       form.append("payload", JSON.stringify(payload));
@@ -266,10 +290,14 @@ export function useCreateProject() {
         "typeImageIndexes",
         JSON.stringify(typeImages.map((image) => image.variantIndex)),
       );
+      form.append("unitImageIndexes", JSON.stringify((unitImages ?? []).map((image) => image.unitIndex)));
+      form.append("unitCount", String(payload.units.length));
       for (const file of covers) {
         form.append("covers", file);
       }
       for (const image of typeImages) form.append("typeImages", image.file);
+      if (siteplan) form.append("siteplan", siteplan);
+      for (const image of unitImages ?? []) form.append("unitImages", image.file);
       return (await api.post<ProjectDetail>("/api/products", form)).data;
     },
     onSuccess: () => {
@@ -290,13 +318,17 @@ export function useUpdateProject() {
       payload,
       covers,
       typeImages,
+      siteplan,
+      unitImages,
     }: {
       id: string;
       payload: UpdateProjectPayload;
       covers: File[];
       typeImages: TypeImageUpload[];
+      siteplan?: File;
+      unitImages?: UnitImageUpload[];
     }) => {
-      if (covers.length === 0 && typeImages.length === 0)
+      if (covers.length === 0 && typeImages.length === 0 && !siteplan && !unitImages?.length)
         return (await api.put<ProjectDetail>(`/api/products/${id}`, payload))
           .data;
       const form = new FormData();
@@ -305,8 +337,12 @@ export function useUpdateProject() {
         "typeImageIndexes",
         JSON.stringify(typeImages.map((image) => image.variantIndex)),
       );
+      form.append("unitImageIndexes", JSON.stringify((unitImages ?? []).map((image) => image.unitIndex)));
+      form.append("unitCount", String(payload.units?.length ?? 0));
       for (const file of covers) form.append("covers", file);
       for (const image of typeImages) form.append("typeImages", image.file);
+      if (siteplan) form.append("siteplan", siteplan);
+      for (const image of unitImages ?? []) form.append("unitImages", image.file);
       return (await api.put<ProjectDetail>(`/api/products/${id}`, form)).data;
     },
     onSuccess: () => {

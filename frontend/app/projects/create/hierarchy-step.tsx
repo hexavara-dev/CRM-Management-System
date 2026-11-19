@@ -15,12 +15,13 @@ import { FIELD_LABEL, INPUT } from "./form-styles";
 import { AddUnitDialog } from "./add-unit-dialog";
 import { DetailStat } from "./detail-stat";
 import { TreeRow } from "./tree-row";
+import { UnitImageThumbs } from "./unit-image-thumbs";
 import { toast } from "sonner";
 
 /** Flat list; parentId "root" = langsung di bawah proyek. */
 export type LocationNode = { id: string; persistedId?: string; parentId: string; name: string; level: string };
 /** Unit fisik; dimiliki oleh lokasi terbawah (block) melalui locationId. */
-export type UnitItem = { id: string; persistedId?: string; locationId: string; code: string; type: string; hook: string; status: string };
+export type UnitItem = { id: string; persistedId?: string; locationId: string; code: string; type: string; typeVariantKey: string; typeVariantName: string; hook: string; status: string; images?: File[]; imageUrls?: string[] };
 
 const ROOT = "root";
 const LEVEL_SUGGESTIONS = ["Cluster", "Zone", "Block", "Tower", "Floor"];
@@ -68,8 +69,9 @@ export function HierarchyStep({
 
   const selected = nodes.find((n) => n.id === selectedId) ?? { id: ROOT, parentId: "", name: rootName, level: "Project" };
   const children = kids(selected.id);
-  // Hanya lokasi level Block (tanpa child) yang menampung unit; Add Unit disembunyikan di level lain.
-  const isLeaf = selected.id !== ROOT && selected.level.trim().toLowerCase() === "block" && children.length === 0;
+  // Unit selalu dimiliki node terbawah aktual. Nama level bebas (Cluster, Zona,
+  // Blok, Tower, atau level lain) dan tidak menentukan apakah unit boleh dibuat.
+  const isLeaf = selected.id !== ROOT && children.length === 0;
   const selectedUnits = units.filter((u) => u.locationId === selected.id);
   const sortedSelectedUnits = [...selectedUnits].sort((a, b) => UNIT_CODE_SORTER.compare(a.code, b.code));
   const isUnitOrderSorted = selectedUnits.every((unit, index) => unit.id === sortedSelectedUnits[index]?.id);
@@ -231,7 +233,7 @@ export function HierarchyStep({
                 <Table className="text-xs">
                   <TableHeader className="sticky top-0 z-10 bg-white">
                     <TableRow>
-                      {["No Unit", "Type", "Status Unit", "Action"].map((h) => (
+                      {["No Unit", "Type", "Gambar", "Status Unit", "Action"].map((h) => (
                         <TableHead key={h} className="h-10 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -246,6 +248,9 @@ export function HierarchyStep({
                         <TableRow key={u.id}>
                           <TableCell className="whitespace-nowrap">{u.code}</TableCell>
                           <TableCell>{u.type}</TableCell>
+                          <TableCell>
+                            <UnitImageThumbs files={u.images} urls={u.imageUrls} label={u.code} placeholder />
+                          </TableCell>
                           <TableCell>{u.status}</TableCell>
                           <TableCell>
                             <button type="button" aria-label="Delete unit" onClick={() => onUnitsChange(units.filter((x) => x.id !== u.id))} className="cursor-pointer rounded p-1 text-[#D64545] hover:bg-[#FDECEC]">

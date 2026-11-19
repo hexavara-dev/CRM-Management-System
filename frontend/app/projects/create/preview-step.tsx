@@ -30,6 +30,7 @@ export type ProjectInfo = {
   address: string;
   postalCode: string;
   mapsUrl: string;
+  siteplanImg: string;
 };
 
 export const EMPTY_INFO: ProjectInfo = {
@@ -44,6 +45,7 @@ export const EMPTY_INFO: ProjectInfo = {
   address: "",
   postalCode: "",
   mapsUrl: "",
+  siteplanImg: "",
 };
 
 const COLORS = [
@@ -137,7 +139,7 @@ export function PreviewStep({
   const typeStats = unitTypes
     .map((t, i) => ({
       name: t.name,
-      count: Number(t.stock) || 0,
+      count: t.variants.reduce((sum, option) => sum + (Number(option.stock) || 0), 0),
       color: COLORS[i % COLORS.length],
     }))
     .filter((t) => t.count > 0);

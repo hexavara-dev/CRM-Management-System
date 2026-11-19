@@ -43,7 +43,7 @@ describe('ProductUseCase', () => {
   });
 
   it('creates the product and its variants in one transaction', async () => {
-    const tx = { product: { findFirst: fn(null), create: fn({ id: 'p-1' }) }, productCategory: { findFirst: fn(null) }, productVariant: { create: fn({ id: 'v-1' }) } };
+    const tx = { product: { findFirst: fn(null), create: fn({ id: 'p-1' }) }, productCategory: { findFirst: fn(null) }, productVariant: { create: fn({ id: 'v-1' }) }, productTypeVariant: { create: fn({ id: 'tv-1' }) } };
     const prisma = productPrisma({ tx, product: { findFirst: fn({ id: 'p-1', media: [] }) } });
     const useCase = new ProductUseCase(prisma as never);
     await useCase.create('t-1', baseProduct);
@@ -52,11 +52,9 @@ describe('ProductUseCase', () => {
       data: expect.objectContaining({
         tenantId: 't-1',
         productId: 'p-1',
-        basePrice: 350000000,
-        currentPrice: 350000000,
-        stock: 0,
       }),
     });
+    expect(tx.productTypeVariant.create).toHaveBeenCalledWith({ data: expect.objectContaining({ basePrice: 350000000, currentPrice: 350000000, stock: 0 }) });
   });
 
   it('adds a numeric suffix when the requested project code already exists', async () => {
@@ -68,6 +66,7 @@ describe('ProductUseCase', () => {
       },
       productCategory: { findFirst: fn(null) },
       productVariant: { create: fn({ id: 'v-1' }) },
+      productTypeVariant: { create: fn({ id: 'tv-1' }) },
     };
     const prisma = productPrisma({ tx, product: { findFirst: fn({ id: 'p-1', media: [] }) } });
     await new ProductUseCase(prisma as never).create('t-1', baseProduct);

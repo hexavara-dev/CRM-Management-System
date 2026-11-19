@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient, ProductUnitStatus } from '@prisma/client';
 import { categoryWithDescendants } from './catalogRules.js';
+import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 
 export type UnitListFilters = {
   page: number;
@@ -16,6 +17,7 @@ export class ProductUnitUseCase {
   constructor(private prisma: PrismaClient) {}
 
   async list(tenantId: string, filters: UnitListFilters) {
+    await expireOverdueReservations(this.prisma, tenantId);
     const where: Prisma.ProductUnitWhereInput = { tenantId };
     if (filters.search) {
       where.OR = [{ code: { contains: filters.search } }, { name: { contains: filters.search } }];
@@ -29,14 +31,15 @@ export class ProductUnitUseCase {
     }
     if (filters.status) where.status = filters.status;
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.productUnit.findMany({
         where,
         skip: (filters.page - 1) * filters.limit,
         take: filters.limit,
         orderBy: { code: 'asc' },
         include: {
-          variant: { select: { id: true, name: true, currentPrice: true } },
+          variant: { select: { id: true, name: true } },
+          typeVariant: { select: { id: true, name: true, basePrice: true, currentPrice: true } },
           category: { select: { id: true, name: true, type: true } },
         },
       }),
@@ -44,7 +47,11 @@ export class ProductUnitUseCase {
     ]);
 
     return {
-      data,
+      data: rows.map((row) => ({
+        ...row,
+        // Keep the existing reservation contract while exposing the dynamic child variant.
+        variant: { ...row.variant, currentPrice: row.typeVariant.currentPrice },
+      })),
       meta: {
         total,
         page: filters.page,

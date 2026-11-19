@@ -36,15 +36,18 @@ const unitInclude = {
     select: {
       id: true,
       name: true,
-      basePrice: true,
-      minPrice: true,
       product: { select: { id: true, name: true } },
     },
   },
+  typeVariant: { select: { id: true, name: true, basePrice: true, minPrice: true } },
   category: { select: { id: true, name: true, type: true } },
 } satisfies Prisma.ProductUnitInclude;
 
 type UnitWithVariant = Prisma.ProductUnitGetPayload<{ include: typeof unitInclude }>;
+
+function pricingVariant(unit: UnitWithVariant) {
+  return unit.typeVariant ?? (unit.variant as unknown as UnitWithVariant['typeVariant']);
+}
 
 export class UnitPriceUseCase {
   constructor(private prisma: PrismaClient) {}
@@ -57,13 +60,13 @@ export class UnitPriceUseCase {
     return new Map(rows.map((row) => [row.id, row.parentId]));
   }
 
-  private async logsFor(tenantId: string, variantIds: string[]): Promise<PriceLogRow[]> {
-    if (variantIds.length === 0) return [];
+  private async logsFor(tenantId: string, typeVariantIds: string[]): Promise<PriceLogRow[]> {
+    if (typeVariantIds.length === 0) return [];
     return this.prisma.productVariantPriceLog.findMany({
-      where: { tenantId, variantId: { in: variantIds } },
+      where: { tenantId, typeVariantId: { in: typeVariantIds } },
       select: {
         id: true,
-        variantId: true,
+        typeVariantId: true,
         categoryId: true,
         adjustmentPrice: true,
         effectiveStart: true,
@@ -90,12 +93,13 @@ export class UnitPriceUseCase {
   private async price(tenantId: string, units: UnitWithVariant[], day: string) {
     const [parents, logs, adjustments] = await Promise.all([
       this.parentMap(tenantId),
-      this.logsFor(tenantId, [...new Set(units.map((u) => u.variantId))]),
+      this.logsFor(tenantId, [...new Set(units.map((u) => u.typeVariantId ?? u.variantId))]),
       this.approvedAdjustments(tenantId, units.map((u) => u.id), day),
     ]);
     return units.map((unit) => {
       const chain = ancestorChain(unit.categoryId, parents);
-      const activeLogs = activeLogsForUnit(logs, unit.variantId, chain, day);
+      const source = pricingVariant(unit);
+      const activeLogs = activeLogsForUnit(logs, unit.typeVariantId ?? unit.variantId, chain, day);
       const adjustment = activeAdjustment(
         adjustments.filter((a) => a.unitId === unit.id),
         day
@@ -106,10 +110,10 @@ export class UnitPriceUseCase {
         unit,
         activeLogs,
         adjustment,
-        basePrice: unit.variant.basePrice,
+        basePrice: source.basePrice,
         logTotal,
         amount,
-        price: sellingPrice(unit.variant.basePrice, logTotal, amount),
+        price: sellingPrice(source.basePrice, logTotal, amount),
       };
     });
   }
@@ -178,7 +182,8 @@ export class UnitPriceUseCase {
       name: unit.name,
       status: unit.status,
       product: unit.variant.product,
-      variant: { id: unit.variant.id, name: unit.variant.name, minPrice: unit.variant.minPrice },
+      variant: { id: unit.variant.id, name: unit.variant.name, minPrice: pricingVariant(unit).minPrice },
+      typeVariant: { id: pricingVariant(unit).id, name: pricingVariant(unit).name },
       location: unit.category,
       basePrice,
       priceLogTotal: logTotal,
@@ -221,7 +226,8 @@ export class UnitPriceUseCase {
       code: unit.code,
       status: unit.status,
       product: unit.variant.product,
-      variant: { id: unit.variant.id, name: unit.variant.name, minPrice: unit.variant.minPrice },
+      variant: { id: unit.variant.id, name: unit.variant.name, minPrice: pricingVariant(unit).minPrice },
+      typeVariant: { id: pricingVariant(unit).id, name: pricingVariant(unit).name },
       location: unit.category,
       date: day,
       basePrice,
@@ -289,7 +295,7 @@ export class UnitPriceUseCase {
     const { unit, basePrice, logTotal, price } = priced;
     const priceAfter = BigInt(input.price);
     const amount = priceAfter - basePrice - logTotal;
-    const minPrice = unit.variant.minPrice;
+    const minPrice = pricingVariant(unit).minPrice;
     const status: PriceAdjustmentStatus = needsApproval(priceAfter, minPrice) ? 'PENDING' : 'APPROVED';
     return {
       tenantId: actor.tenantId,

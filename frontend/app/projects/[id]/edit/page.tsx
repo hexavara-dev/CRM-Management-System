@@ -9,6 +9,7 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
   const attributeValue = (variantId: string, code: string) =>
     String(project.attributes.find((item) => item.variantId === variantId && item.attribute.code === code)?.value ?? 0);
   const variantName = new Map(project.variants.map((variant) => [variant.id, variant.name]));
+  const typeVariantById = new Map(project.variants.flatMap((variant) => variant.typeVariants.map((option) => [option.id, option])));
   const unitTypes = project.variants.map((variant) => ({
     id: variant.id,
     name: variant.name,
@@ -19,8 +20,14 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
     bedroom: attributeValue(variant.id, "bedroom"),
     bathroom: attributeValue(variant.id, "bathroom"),
     carport: attributeValue(variant.id, "carport"),
-    stock: String(variant.stock),
-    basePrice: String(variant.basePrice),
+    variants: variant.typeVariants.map((option) => ({
+      id: option.id,
+      key: option.id,
+      name: option.name,
+      code: option.code ?? "",
+      stock: String(option.stock),
+      basePrice: String(option.basePrice),
+    })),
   }));
   return {
     info: {
@@ -35,6 +42,7 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
       address: project.address ?? "",
       postalCode: project.postalCode ?? "",
       mapsUrl: project.mapsUrl ?? "",
+      siteplanImg: project.category.siteplanImg ?? "",
     },
     unitTypes,
     locations: project.locations.map((location) => ({
@@ -50,8 +58,11 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
       locationId: unit.categoryId === project.category.id ? "root" : unit.categoryId,
       code: unit.code,
       type: variantName.get(unit.variantId) ?? "",
+      typeVariantKey: unit.typeVariantId,
+      typeVariantName: typeVariantById.get(unit.typeVariantId)?.name ?? "",
       hook: unit.isHook ? "Ya" : "Tidak",
       status: unit.status.charAt(0) + unit.status.slice(1).toLowerCase(),
+      imageUrls: unit.media.map((media) => media.fileUrl),
     })),
     facilityAttributeIds: project.attributes
       .filter((item) => item.variantId === null && item.attribute.source === "PROJECT" && item.value > 0)

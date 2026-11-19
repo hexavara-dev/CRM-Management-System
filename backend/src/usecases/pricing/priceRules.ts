@@ -4,7 +4,8 @@ export const PRICE_TIME_ZONE = 'Asia/Jakarta';
 
 export type PriceLogRow = {
   id: string;
-  variantId: string;
+  typeVariantId?: string;
+  variantId?: string;
   categoryId: string | null;
   adjustmentPrice: bigint;
   effectiveStart: Date;
@@ -60,13 +61,13 @@ export function isLogActive(log: Pick<PriceLogRow, 'effectiveStart' | 'endDate'>
 /** Price logs of the variant that apply to a unit located in the given chain. */
 export function activeLogsForUnit(
   logs: PriceLogRow[],
-  variantId: string,
+  typeVariantId: string,
   locationChain: string[],
   day: string
 ) {
   return logs.filter(
     (log) =>
-      log.variantId === variantId &&
+      (log.typeVariantId ?? log.variantId) === typeVariantId &&
       (log.categoryId === null || locationChain.includes(log.categoryId)) &&
       isLogActive(log, day)
   );

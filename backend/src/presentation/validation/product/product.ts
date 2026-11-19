@@ -10,10 +10,22 @@ import { unitRules } from './unit.js';
 const variantRules: Record<string, FieldRule> = {
   id: { type: 'string', max: 36 },
   name: { type: 'string', required: true, max: 150 },
-  basePrice: { type: 'number', required: true, integer: true, min: 0, max: PRICE_MAX },
+  basePrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
   currentPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
   minPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX, nullable: true },
   stock: { type: 'number', integer: true, min: 0, max: INT_MAX },
+  typeVariants: { type: 'array' },
+};
+
+const typeVariantRules: Record<string, FieldRule> = {
+  id: { type: 'string', max: 36 },
+  name: { type: 'string', required: true, max: 150 },
+  code: { type: 'string', nullable: true, allowEmpty: true, max: 100 },
+  basePrice: { type: 'number', required: true, integer: true, min: 0, max: PRICE_MAX },
+  currentPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
+  minPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX, nullable: true },
+  stock: { type: 'number', required: true, integer: true, min: 0, max: INT_MAX },
+  isActive: { type: 'boolean' },
 };
 
 /** Variant sent together with a new product; may carry its attributes. */
@@ -101,6 +113,14 @@ export function validateProduct(body: unknown, partial = false) {
         variant.attributes = arrayOf(variant.attributes, 50, 'attributes', (a) =>
           validateBody(a, newAttributeRules)
         ) as NonNullable<VariantInput['attributes']>;
+      }
+      if (variant.typeVariants !== undefined) {
+        variant.typeVariants = arrayOf(variant.typeVariants, 100, 'typeVariants', (item) =>
+          validateBody(item, typeVariantRules)
+        );
+        if (variant.typeVariants.length === 0) throw new Error('typeVariants must contain at least one item');
+      } else if (variant.basePrice === undefined) {
+        throw new Error('typeVariants must contain at least one item');
       }
       return variant;
     });
