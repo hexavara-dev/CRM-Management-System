@@ -39,6 +39,7 @@ import { CoverGallery } from "./cover-gallery";
 import { FacilityIcon } from "@/components/projects/facility-icon";
 import { SoldSummary } from "./sold-summary";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { RichTextContent } from "../create/rich-text";
 
 const TABS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "overview", label: "Overview", icon: Video },
@@ -243,14 +244,17 @@ export default function ProjectDetailPage() {
                   <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(240px,28%)]">
                     <div className="space-y-4">
                       <div>
-                        <p
-                          className={cn(
-                            "whitespace-pre-line text-xs leading-5 text-[#3f3f46]",
-                            !expanded && "line-clamp-4",
-                          )}
-                        >
-                          {project.description || "Belum ada deskripsi."}
-                        </p>
+                        {project.description ? (
+                          <RichTextContent
+                            value={project.description}
+                            className={cn(
+                              "text-xs leading-5 text-[#3f3f46]",
+                              !expanded && "line-clamp-4",
+                            )}
+                          />
+                        ) : (
+                          <p className="text-xs leading-5 text-[#3f3f46]">Belum ada deskripsi.</p>
+                        )}
                         {project.description &&
                           project.description.length > 240 && (
                             <button

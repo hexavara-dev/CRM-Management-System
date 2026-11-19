@@ -19,6 +19,8 @@ type DeleteTarget =
   | { kind: "existing"; id: string }
   | { kind: "new"; id: string; name: string };
 
+const MAX_PROJECT_COVERS = 5;
+
 export function CoverGuide() {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -95,6 +97,7 @@ export function CoverUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const itemsRef = useRef<Picked[]>([]);
   const pendingRef = useRef<Pending[]>([]);
+  const remainingSlots = Math.max(0, MAX_PROJECT_COVERS - existing.length - items.length);
 
   // Simpan daftar terbaru untuk cleanup, lalu lepas object URL saat unmount agar tidak bocor memori.
   useEffect(() => {
@@ -118,12 +121,15 @@ export function CoverUpload({
     const valid = Array.from(list).filter(
       (file) => allowed.includes(file.type) && file.size <= 30 * 1024 * 1024,
     );
+    const accepted = valid.slice(0, remainingSlots);
     setError(
-      valid.length === list.length
-        ? null
-        : "Gunakan JPEG, PNG, atau WebP dengan ukuran sumber maksimal 30 MB.",
+      valid.length !== list.length
+        ? "Gunakan JPEG, PNG, atau WebP dengan ukuran sumber maksimal 30 MB."
+        : valid.length > remainingSlots
+          ? `Maksimal ${MAX_PROJECT_COVERS} gambar sampul. Hanya ${remainingSlots} gambar tambahan yang dapat dipilih.`
+          : null,
     );
-    const next = valid.map((file) => ({
+    const next = accepted.map((file) => ({
       id: crypto.randomUUID(),
       file,
       url: URL.createObjectURL(file),
@@ -181,7 +187,7 @@ export function CoverUpload({
         />
       )}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        {existing.map((item) => (
+        {existing.slice(0, MAX_PROJECT_COVERS).map((item) => (
           <div
             key={item.id}
             className="relative h-40 overflow-hidden rounded-lg border border-[#E4E4E7] bg-[#F6F7F9]"
@@ -222,7 +228,7 @@ export function CoverUpload({
             )}
           </div>
         ))}
-        {items.map((item, idx) => (
+        {items.slice(0, remainingSlots + items.length).map((item, idx) => (
           <div
             key={item.id}
             className="relative h-40 overflow-hidden rounded-lg border border-[#E4E4E7] bg-[#F6F7F9]"
@@ -277,7 +283,7 @@ export function CoverUpload({
           </div>
         ))}
 
-        <button
+        {remainingSlots > 0 && <button
           type="button"
           onClick={() => inputRef.current?.click()}
           className={cn(
@@ -288,7 +294,7 @@ export function CoverUpload({
           {items.length === 0 && existing.length === 0
             ? "Pilih gambar"
             : "Tambah"}
-        </button>
+        </button>}
       </div>
 
       <input
