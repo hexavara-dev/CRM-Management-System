@@ -51,6 +51,7 @@ model Company {
   unitPriceAdjustments    UnitPriceAdjustment[]
   reservations            Reservation[]
   leadLabels              LeadLabel[]
+  stageEvidences          StageEvidenceRequirement[]
 
   @@map("company")
 }
@@ -108,8 +109,13 @@ model Stage {
   isDefaultStage  Boolean @default(false) @map("is_default")
   terminalGuard   String? @map("terminal_guard") @db.VarChar(10)
   defaultGuard    String? @map("default_guard") @db.VarChar(10)
+  description     String? @db.VarChar(500)
+  /// Probabilitas closing (0-100) untuk tahapan ini.
+  probability     Int     @default(0)
+  isActive        Boolean @default(true) @map("is_active")
   deals           Deal[]
   leads           Lead[]
+  evidences       StageEvidenceRequirement[]
   tenant          Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, terminalGuard])
@@ -921,5 +927,23 @@ model LeadLabel {
   @@unique([tenantId, type, name])
   @@index([tenantId, type, sortOrder])
   @@map("lead_labels")
+}
+
+/// Dokumen/bukti yang wajib diunggah saat Lead/Deal dipindahkan ke sebuah tahapan pipeline.
+model StageEvidenceRequirement {
+  id         String  @id @default(uuid()) @db.VarChar(36)
+  tenantId   String  @map("company_id") @db.VarChar(36)
+  stageId    String  @map("stage_id") @db.VarChar(36)
+  name       String  @db.VarChar(150)
+  /// Daftar tipe file yang diizinkan, mis. ["PDF","DOC"].
+  fileTypes  Json    @map("file_types")
+  isRequired Boolean @default(true) @map("is_required")
+  sortOrder  Int     @default(0) @map("sort_order")
+  stage      Stage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  tenant     Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([stageId, sortOrder])
+  @@index([tenantId])
+  @@map("stage_evidence_requirements")
 }
 
