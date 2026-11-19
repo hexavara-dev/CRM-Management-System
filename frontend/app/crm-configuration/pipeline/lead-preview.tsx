@@ -50,7 +50,7 @@ function SampleCard({ sample, final }: { sample: (typeof SAMPLES)[number]; final
 }
 
 /** Pratinjau kanban Leads: kolom tahapan aktif seperti yang dilihat sales. */
-export function PreviewDialog({
+export function LeadPreviewDialog({
   open,
   stages,
   onOpenChange,
