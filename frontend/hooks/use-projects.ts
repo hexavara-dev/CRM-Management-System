@@ -51,16 +51,47 @@ export interface ProjectDetail extends ProjectLocation {
   description: string | null;
   isActive: boolean;
   category: { id: string; name: string; type: string };
-  variants: { id: string; name: string; basePrice: number; currentPrice: number; stock: number }[];
+  variants: {
+    id: string;
+    name: string;
+    basePrice: number;
+    currentPrice: number;
+    stock: number;
+  }[];
   totalSlots: number;
-  media: { id: string; fileUrl: string; mediaType: string; isPrimary: boolean; variantId: string | null; unitId: string | null }[];
+  media: {
+    id: string;
+    fileUrl: string;
+    mediaType: string;
+    isPrimary: boolean;
+    variantId: string | null;
+    unitId: string | null;
+  }[];
   unitSummary?: UnitSummary;
-  attributes: { id: string; variantId: string | null; value: number; attribute: ProjectAttribute }[];
+  attributes: {
+    id: string;
+    variantId: string | null;
+    value: number;
+    attribute: ProjectAttribute;
+  }[];
 }
 
 export interface ProjectEditData extends ProjectDetail {
-  locations: { id: string; parentId: string | null; name: string; code: string; type: string }[];
-  units: { id: string; categoryId: string; variantId: string; code: string; status: string; isHook: boolean }[];
+  locations: {
+    id: string;
+    parentId: string | null;
+    name: string;
+    code: string;
+    type: string;
+  }[];
+  units: {
+    id: string;
+    categoryId: string;
+    variantId: string;
+    code: string;
+    status: string;
+    isHook: boolean;
+  }[];
 }
 
 export interface ProjectAttribute {
@@ -76,7 +107,9 @@ export function useProjectFacilities() {
   return useQuery({
     queryKey: ["project-facilities", user?.tenantId],
     queryFn: async () => {
-      const response = await api.get<{ data: ProjectAttribute[] }>("/api/attributes");
+      const response = await api.get<{ data: ProjectAttribute[] }>(
+        "/api/attributes",
+      );
       return response.data.data.filter((item) => item.source === "PROJECT");
     },
     enabled: !!user,
@@ -101,7 +134,13 @@ export interface CreateProjectPayload {
     name: string;
     basePrice: number;
     stock: number;
-    attributes: { name: string; code: string; dataType: "NUMBER" | "STRING"; value: number; unit?: string }[];
+    attributes: {
+      name: string;
+      code: string;
+      dataType: "NUMBER" | "STRING";
+      value: number;
+      unit?: string;
+    }[];
   }[];
   locations: {
     id?: string;
@@ -134,8 +173,34 @@ export interface ProjectFilters {
   isActive?: boolean;
 }
 
-export const errorMessage = (error: unknown, fallback: string) =>
-  (error as AxiosError<{ error?: string }>)?.response?.data?.error || (error instanceof Error ? error.message : fallback);
+export const errorMessage = (error: unknown, fallback: string) => {
+  const rawMessage =
+    (error as AxiosError<{ error?: string }>)?.response?.data?.error ||
+    (error instanceof Error ? error.message : fallback);
+  const normalized = rawMessage.toLocaleLowerCase("id-ID");
+
+  if (
+    normalized.includes("database") ||
+    normalized.includes("mysql") ||
+    normalized.includes("prisma") ||
+    normalized.includes("p1001") ||
+    normalized.includes("econnrefused")
+  ) {
+    return "Layanan data sedang tidak tersedia. Silakan coba lagi beberapa saat.";
+  }
+
+  if (
+    normalized.includes("network error") ||
+    normalized.includes("failed to fetch") ||
+    normalized.includes("timeout")
+  ) {
+    return "Koneksi ke layanan sedang bermasalah. Periksa koneksi Anda lalu coba lagi.";
+  }
+
+  return (
+    rawMessage.replace(/\s*kode laporan:\s*[^.]+\.?/gi, "").trim() || fallback
+  );
+};
 
 export function useProjects(filters: ProjectFilters) {
   const { user } = useAuth();
@@ -144,7 +209,11 @@ export function useProjects(filters: ProjectFilters) {
     queryFn: async () => {
       const { search, isActive, ...rest } = filters;
       const response = await api.get<ProjectList>("/api/products", {
-        params: { ...rest, ...(search ? { search } : {}), ...(isActive === undefined ? {} : { isActive }) },
+        params: {
+          ...rest,
+          ...(search ? { search } : {}),
+          ...(isActive === undefined ? {} : { isActive }),
+        },
       });
       return response.data;
     },
@@ -158,7 +227,8 @@ export function useProject(id: string | undefined) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["project", user?.tenantId, id],
-    queryFn: async () => (await api.get<ProjectDetail>(`/api/products/${id}`)).data,
+    queryFn: async () =>
+      (await api.get<ProjectDetail>(`/api/products/${id}`)).data,
     enabled: !!user && !!id,
   });
 }
@@ -167,7 +237,8 @@ export function useProjectEditData(id: string | undefined) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["project-edit", user?.tenantId, id],
-    queryFn: async () => (await api.get<ProjectEditData>(`/api/products/${id}/edit-data`)).data,
+    queryFn: async () =>
+      (await api.get<ProjectEditData>(`/api/products/${id}/edit-data`)).data,
     enabled: !!user && !!id,
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
@@ -178,11 +249,23 @@ export function useProjectEditData(id: string | undefined) {
 export function useCreateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ payload, covers, typeImages }: { payload: CreateProjectPayload; covers: File[]; typeImages: TypeImageUpload[] }) => {
-      if (covers.length === 0 && typeImages.length === 0) return (await api.post<ProjectDetail>("/api/products", payload)).data;
+    mutationFn: async ({
+      payload,
+      covers,
+      typeImages,
+    }: {
+      payload: CreateProjectPayload;
+      covers: File[];
+      typeImages: TypeImageUpload[];
+    }) => {
+      if (covers.length === 0 && typeImages.length === 0)
+        return (await api.post<ProjectDetail>("/api/products", payload)).data;
       const form = new FormData();
       form.append("payload", JSON.stringify(payload));
-      form.append("typeImageIndexes", JSON.stringify(typeImages.map((image) => image.variantIndex)));
+      form.append(
+        "typeImageIndexes",
+        JSON.stringify(typeImages.map((image) => image.variantIndex)),
+      );
       for (const file of covers) {
         form.append("covers", file);
       }
@@ -194,18 +277,34 @@ export function useCreateProject() {
       queryClient.invalidateQueries({ queryKey: ["project-types"] });
       toast.success("Proyek berhasil disimpan.");
     },
-    onError: (error) => toast.error(errorMessage(error, "Gagal menyimpan proyek.")),
+    onError: (error) =>
+      toast.error(errorMessage(error, "Gagal menyimpan proyek.")),
   });
 }
 
 export function useUpdateProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, payload, covers, typeImages }: { id: string; payload: UpdateProjectPayload; covers: File[]; typeImages: TypeImageUpload[] }) => {
-      if (covers.length === 0 && typeImages.length === 0) return (await api.put<ProjectDetail>(`/api/products/${id}`, payload)).data;
+    mutationFn: async ({
+      id,
+      payload,
+      covers,
+      typeImages,
+    }: {
+      id: string;
+      payload: UpdateProjectPayload;
+      covers: File[];
+      typeImages: TypeImageUpload[];
+    }) => {
+      if (covers.length === 0 && typeImages.length === 0)
+        return (await api.put<ProjectDetail>(`/api/products/${id}`, payload))
+          .data;
       const form = new FormData();
       form.append("payload", JSON.stringify(payload));
-      form.append("typeImageIndexes", JSON.stringify(typeImages.map((image) => image.variantIndex)));
+      form.append(
+        "typeImageIndexes",
+        JSON.stringify(typeImages.map((image) => image.variantIndex)),
+      );
       for (const file of covers) form.append("covers", file);
       for (const image of typeImages) form.append("typeImages", image.file);
       return (await api.put<ProjectDetail>(`/api/products/${id}`, form)).data;
@@ -218,30 +317,39 @@ export function useUpdateProject() {
       queryClient.invalidateQueries({ queryKey: ["availability-project"] });
       toast.success("Proyek diperbarui.");
     },
-    onError: (error) => toast.error(errorMessage(error, "Gagal memperbarui proyek.")),
+    onError: (error) =>
+      toast.error(errorMessage(error, "Gagal memperbarui proyek.")),
   });
 }
 
 export function useDeleteProject() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => { await api.delete(`/api/products/${id}`); },
+    mutationFn: async (id: string) => {
+      await api.delete(`/api/products/${id}`);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("Proyek dihapus.");
     },
-    onError: (error) => toast.error(errorMessage(error, "Gagal menghapus proyek.")),
+    onError: (error) =>
+      toast.error(errorMessage(error, "Gagal menghapus proyek.")),
   });
 }
 
 export function useProjectMediaAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ mediaId, action }: { mediaId: string; action: "primary" | "delete" }) => {
-      if (action === "primary") await api.patch(`/api/media/${mediaId}`, { isPrimary: true });
+    mutationFn: async ({
+      mediaId,
+      action,
+    }: { mediaId: string; action: "primary" | "delete" }) => {
+      if (action === "primary")
+        await api.patch(`/api/media/${mediaId}`, { isPrimary: true });
       else await api.delete(`/api/media/${mediaId}`);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project"] }),
-    onError: (error) => toast.error(errorMessage(error, "Gagal memperbarui gambar.")),
+    onError: (error) =>
+      toast.error(errorMessage(error, "Gagal memperbarui gambar.")),
   });
 }

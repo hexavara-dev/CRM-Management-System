@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,8 +17,10 @@ interface ConfirmModalProps {
   onClose: () => void;
   onConfirm: () => void;
   title: string;
-  description: string;
+  description: ReactNode;
   loading?: boolean;
+  cancelLabel?: string;
+  confirmLabel?: string;
 }
 
 export function ConfirmModal({
@@ -27,6 +30,8 @@ export function ConfirmModal({
   title,
   description,
   loading,
+  cancelLabel = "Cancel",
+  confirmLabel = "Confirm",
 }: ConfirmModalProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
@@ -36,7 +41,7 @@ export function ConfirmModal({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             disabled={loading}
             onClick={(e) => {
@@ -45,7 +50,7 @@ export function ConfirmModal({
             }}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {loading ? "Deleting..." : "Confirm"}
+            {loading ? "Deleting..." : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
