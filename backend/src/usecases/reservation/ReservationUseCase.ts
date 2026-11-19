@@ -5,6 +5,7 @@ import type {
   ReservationListFilters,
   UpdateReservationDTO,
 } from '../../presentation/dtos/ReservationDTO.js';
+import { expireOverdueReservations, unitStatusForReservation } from './reservationStatus.js';
 
 const reservationInclude = {
   unit: {
@@ -24,7 +25,28 @@ const reservationInclude = {
               id: true,
               name: true,
               type: true,
-              parent: { select: { id: true, name: true, type: true } },
+              parent: {
+                select: {
+                  id: true,
+                  name: true,
+                  type: true,
+                  parent: {
+                    select: {
+                      id: true,
+                      name: true,
+                      type: true,
+                      parent: {
+                        select: {
+                          id: true,
+                          name: true,
+                          type: true,
+                          parent: { select: { id: true, name: true, type: true } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -78,9 +100,38 @@ function periodOf(value: Date) {
   return 'Bulan ini' as const;
 }
 
+function rupiah(value: bigint) {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function assertPriceAtLeastBase(price: number, basePrice: bigint, unitCode: string) {
+  if (BigInt(price) < basePrice) {
+    throw new Error(
+      `Harga jual unit ${unitCode} tidak boleh lebih rendah dari harga dasar ${rupiah(basePrice)}.`
+    );
+  }
+}
+
 function responseOf(row: ReservationWithRelations) {
-  const block = row.unit.category;
-  const cluster = block.parent;
+  const leaf = row.unit.category;
+  type CategoryNode = {
+    id: string;
+    name: string;
+    type: string;
+    parent?: CategoryNode | null;
+  };
+  const hierarchy: CategoryNode[] = [];
+  let current: CategoryNode | null | undefined = leaf as unknown as CategoryNode;
+  while (current) {
+    if (current.type !== 'PROJECT') hierarchy.unshift(current);
+    current = current.parent;
+  }
+  const block = hierarchy.find((item) => item.type === 'BLOCK') ?? leaf;
+  const cluster = hierarchy.find((item) => item.type === 'CLUSTER');
   const project = row.unit.variant.product;
   const colorIndex = row.sales.id.charCodeAt(0) % avatarColors.length;
 
@@ -91,10 +142,11 @@ function responseOf(row: ReservationWithRelations) {
     unitId: row.unit.id,
     project: project.name,
     projectId: project.id,
-    cluster: cluster?.name ?? 'Tanpa Cluster',
+    cluster: cluster?.name ?? '',
     clusterId: cluster?.id ?? null,
     block: block.name,
     blockId: block.id,
+    hierarchy: hierarchy.map((item) => ({ id: item.id, name: item.name, type: item.type })),
     customer: row.customerName,
     customerEmail: row.customerEmail,
     customerPhone: row.customerPhone,
@@ -186,6 +238,7 @@ export class ReservationUseCase {
   }
 
   async list(tenantId: string, filters: ReservationListFilters) {
+    await expireOverdueReservations(this.prisma, tenantId);
     const where = this.buildWhere(tenantId, filters);
     const [rows, total, summaryRows, filterOptions] = await Promise.all([
       this.prisma.reservation.findMany({
@@ -245,15 +298,19 @@ export class ReservationUseCase {
 
     const id = await this.prisma.$transaction(async (tx) => {
       const [unit, sales] = await Promise.all([
-        tx.productUnit.findFirst({ where: { id: dto.unitId, tenantId }, select: { id: true } }),
+        tx.productUnit.findFirst({
+          where: { id: dto.unitId, tenantId },
+          select: { id: true, code: true, typeVariant: { select: { basePrice: true } } },
+        }),
         tx.user.findFirst({ where: { id: salesId, tenantId }, select: { id: true } }),
       ]);
       if (!unit) throw new Error('Unit not found');
       if (!sales) throw new Error('Sales user not found');
+      assertPriceAtLeastBase(dto.price, unit.typeVariant.basePrice, unit.code);
 
       const claimed = await tx.productUnit.updateMany({
         where: { id: dto.unitId, tenantId, status: 'AVAILABLE' },
-        data: { status: 'RESERVED' },
+        data: { status: unitStatusForReservation(status) },
       });
       if (claimed.count !== 1) throw new Error('Unit is not available');
 
@@ -291,6 +348,8 @@ export class ReservationUseCase {
       const wasActive = current.status === 'ACTIVE' || current.status === 'PAYMENT_PENDING';
       const nextStatus = dto.status ?? current.status;
       const becomesActive = nextStatus === 'ACTIVE' || nextStatus === 'PAYMENT_PENDING';
+      const currentUnitStatus = unitStatusForReservation(current.status);
+      const nextUnitStatus = unitStatusForReservation(nextStatus);
 
       if (current.status === 'COMPLETED' || (!wasActive && nextStatus === 'COMPLETED')) {
         throw new Error('Reservation status conflict');
@@ -303,12 +362,12 @@ export class ReservationUseCase {
 
         const claimed = await tx.productUnit.updateMany({
           where: { id: dto.unitId, tenantId, status: 'AVAILABLE' },
-          data: { status: 'RESERVED' },
+          data: { status: nextUnitStatus },
         });
         if (claimed.count !== 1) throw new Error('Unit is not available');
 
         const released = await tx.productUnit.updateMany({
-          where: { id: current.unitId, tenantId, status: 'RESERVED' },
+          where: { id: current.unitId, tenantId, status: currentUnitStatus },
           data: { status: 'AVAILABLE' },
         });
         if (released.count !== 1) throw new Error('Unit reservation conflict');
@@ -320,6 +379,16 @@ export class ReservationUseCase {
           select: { id: true },
         });
         if (!sales) throw new Error('Sales user not found');
+      }
+
+      if (dto.price !== undefined) {
+        const priceUnitId = dto.unitId ?? current.unitId;
+        const priceUnit = await tx.productUnit.findFirst({
+          where: { id: priceUnitId, tenantId },
+          select: { code: true, typeVariant: { select: { basePrice: true } } },
+        });
+        if (!priceUnit) throw new Error('Unit not found');
+        assertPriceAtLeastBase(dto.price, priceUnit.typeVariant.basePrice, priceUnit.code);
       }
 
       const saved = await tx.reservation.updateMany({
@@ -338,10 +407,11 @@ export class ReservationUseCase {
       if (saved.count !== 1) throw new Error('Reservation status conflict');
 
       if (dto.status && dto.status !== current.status) {
-        if (wasActive !== becomesActive || dto.status === 'COMPLETED') {
+        const unitChanged = dto.unitId !== undefined && dto.unitId !== current.unitId;
+        if (!unitChanged && currentUnitStatus !== nextUnitStatus) {
           const changed = await tx.productUnit.updateMany({
-            where: { id: current.unitId, tenantId, status: wasActive ? 'RESERVED' : 'AVAILABLE' },
-            data: { status: becomesActive ? 'RESERVED' : dto.status === 'COMPLETED' ? 'SOLD' : 'AVAILABLE' },
+            where: { id: current.unitId, tenantId, status: currentUnitStatus },
+            data: { status: nextUnitStatus },
           });
           if (changed.count !== 1) throw new Error('Unit reservation conflict');
         }

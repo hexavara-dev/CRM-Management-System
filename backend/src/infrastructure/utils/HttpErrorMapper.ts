@@ -16,6 +16,7 @@ const validationPatterns = [
   /missing/i,
   /at least one supported field/i,
   /no supported fields/i,
+  /tidak boleh lebih rendah/i,
 ];
 
 const SCHEMA_MISMATCH = 'Struktur database belum sesuai dengan aplikasi. Jalankan migrasi (prisma migrate deploy) lalu restart server.';
@@ -128,7 +129,7 @@ export function mapHttpError(error: unknown): MappedHttpError {
   if (/not found|could not be found/i.test(message)) {
     return { status: 404, message };
   }
-  if (/already (exists|registered|converted)|conflict/i.test(message)) {
+  if (/already (exists|registered|converted)|conflict|unit is not available/i.test(message)) {
     return { status: 409, message };
   }
   if (/^no .+ (defined|configured)/i.test(message)) {

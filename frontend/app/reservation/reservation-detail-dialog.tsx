@@ -212,6 +212,12 @@ export function ReservationDetailDialog({
       code: reservation.unit,
       status: "RESERVED",
       variant: { id: "", name: "", currentPrice: reservation.price },
+      typeVariant: {
+        id: "",
+        name: "",
+        basePrice: reservation.price,
+        currentPrice: reservation.price,
+      },
       category: {
         id: reservation.blockId,
         name: reservation.block,
