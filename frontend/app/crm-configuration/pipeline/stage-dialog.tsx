@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Switch } from "../leads-label/toggle";
 import { StageChevron } from "./stage-chevron";
+import { PIPELINE_COPY } from "./copy";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const DEFAULT_COLOR = "#3B82F6";
@@ -117,6 +118,7 @@ export function StageDialog({
   stages: PipelineStage[];
   onOpenChange: (open: boolean) => void;
 }) {
+  const copy = PIPELINE_COPY[entity];
   const currentDefault = stages.find((s) => s.isDefaultStage && s.id !== stage?.id);
   const currentTerminal = stages.find((s) => s.isTerminalStage && s.id !== stage?.id);
   const save = useSavePipelineStage(entity);
@@ -150,7 +152,7 @@ export function StageDialog({
           <div>
             <DialogTitle>{stage ? "Edit Tahapan Pipeline" : "Tambah Tahapan Pipeline"}</DialogTitle>
             <DialogDescription>
-              {stage ? "Ubah pengaturan tahapan dalam alur proses Leads." : "Tambah tahapan baru dalam alur proses Leads."}
+              {stage ? `Ubah pengaturan tahapan dalam alur proses ${copy.items}.` : `Tambah tahapan baru dalam alur proses ${copy.items}.`}
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -250,7 +252,7 @@ export function StageDialog({
                           {fieldState.error ? (
                             <ErrorText className="mt-2">{fieldState.error.message}</ErrorText>
                           ) : (
-                            <p className="mt-2 text-xs text-[#6b6b6b]">Peluang Lead di tahapan ini menjadi Deal.</p>
+                            <p className="mt-2 text-xs text-[#6b6b6b]">{copy.probabilityHint}</p>
                           )}
                         </>
                       )}
@@ -265,7 +267,7 @@ export function StageDialog({
                     render={({ field }) => (
                       <FlagToggle
                         label="Jadikan tahapan default"
-                        description="Lead baru otomatis masuk ke tahapan ini."
+                        description={copy.defaultHint}
                         checked={field.value}
                         locked={!!stage?.isDefaultStage}
                         lockedNote="Untuk memindahkan, jadikan tahapan lain sebagai default."
@@ -283,7 +285,7 @@ export function StageDialog({
                     render={({ field }) => (
                       <FlagToggle
                         label="Jadikan tahapan akhir"
-                        description="Tahapan terakhir proses Lead, mis. Converted to Deal."
+                        description={copy.terminalHint}
                         checked={field.value}
                         locked={!!stage?.isTerminalStage}
                         lockedNote="Untuk memindahkan, jadikan tahapan lain sebagai tahapan akhir."
@@ -309,7 +311,7 @@ export function StageDialog({
                         Evidence & Persyaratan
                       </h3>
                       <p className="text-sm text-[#475467]">
-                        Dokumen, file, atau bukti yang wajib diunggah ketika Lead dipindahkan ke tahapan ini.
+                        Dokumen, file, atau bukti yang wajib diunggah ketika {copy.item} dipindahkan ke tahapan ini.
                       </p>
                     </div>
                     <Button
