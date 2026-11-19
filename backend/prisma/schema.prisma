@@ -50,6 +50,7 @@ model Company {
   productVariantPriceLogs ProductVariantPriceLog[]
   unitPriceAdjustments    UnitPriceAdjustment[]
   reservations            Reservation[]
+  leadLabels              LeadLabel[]
 
   @@map("company")
 }
@@ -891,5 +892,32 @@ model Reservation {
   @@index([unitId, status])
   @@index([salesId])
   @@map("reservations")
+}
+
+/// Label lead per company: TEMPERATURE (satu per lead) atau TAG (bisa lebih dari satu).
+enum LeadLabelType {
+  TEMPERATURE
+  TAG
+}
+
+model LeadLabel {
+  id          String        @id @default(uuid()) @db.VarChar(36)
+  tenantId    String        @map("company_id") @db.VarChar(36)
+  type        LeadLabelType
+  name        String        @db.VarChar(100)
+  color       String        @db.VarChar(7)
+  icon        String        @db.VarChar(50)
+  description String?       @db.VarChar(500)
+  /// Khusus TEMPERATURE: wajib mengisi alasan saat label dipilih pada lead.
+  isRequired  Boolean       @default(false) @map("is_required")
+  isActive    Boolean       @default(true) @map("is_active")
+  sortOrder   Int           @default(0) @map("sort_order")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant      Company       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type, name])
+  @@index([tenantId, type, sortOrder])
+  @@map("lead_labels")
 }
 

@@ -43,6 +43,8 @@ import { ReservationController } from './presentation/controllers/ReservationCon
 import { ReservationUseCase } from './usecases/reservation/ReservationUseCase.js';
 import { UnitPriceUseCase } from './usecases/pricing/UnitPriceUseCase.js';
 import { UnitPriceController } from './presentation/controllers/UnitPriceController.js';
+import { LeadLabelUseCase } from './usecases/crm/LeadLabelUseCase.js';
+import { LeadLabelController } from './presentation/controllers/LeadLabelController.js';
 import { AvailabilityUseCase } from './usecases/availability/AvailabilityUseCase.js';
 import { AvailabilityController } from './presentation/controllers/AvailabilityController.js';
 
@@ -374,6 +376,13 @@ app.get(
   authMiddleware,
   availabilityController.unit
 );
+
+// Konfigurasi Leads Label (Temperature dan Tags) per company. Semua user membaca, owner mengubah.
+const leadLabels = new LeadLabelController(new LeadLabelUseCase(prisma));
+app.get('/api/lead-labels', authMiddleware, leadLabels.list);
+app.post('/api/lead-labels', authMiddleware, ownerOnly, leadLabels.create);
+app.put('/api/lead-labels/:id', authMiddleware, ownerOnly, leadLabels.update);
+app.delete('/api/lead-labels/:id', authMiddleware, ownerOnly, leadLabels.remove);
 
 // Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
 const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));
