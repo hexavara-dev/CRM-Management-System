@@ -84,20 +84,36 @@ describe('field keys', () => {
     expect(fieldKeyOf('Rencana Pembayaran')).toBe('rencana_pembayaran');
     expect(fieldKeyOf('  Budget (Rp)  ')).toBe('budget_rp');
     expect(fieldKeyOf('!!!')).toBe('field');
-    expect(assignFieldKeys([field('Budget'), field('budget'), field('Email')]).map((f) => f.key)).toEqual([
+    const custom = (fields: ReturnType<typeof assignFieldKeys>) => fields.filter((f) => !f.standard).map((f) => f.key);
+    expect(custom(assignFieldKeys([field('Budget'), field('budget'), field('Email')]))).toEqual(['budget', 'budget_2', 'email_2']);
+  });
+
+  it('keeps client keys and rejects duplicated keys', () => {
+    const custom = assignFieldKeys([{ ...field('Anggaran'), key: 'budget' }, field('Budget')]).filter((f) => !f.standard);
+    expect(custom.map((f) => f.key)).toEqual(['budget', 'budget_2']);
+    expect(() => assignFieldKeys([{ ...field('A'), key: 'a' }, { ...field('B'), key: 'a' }])).toThrow(/duplicated/);
+    expect(() => assignFieldKeys([{ ...field('Nama'), key: 'name' }, { ...field('Nama 2'), key: 'name' }])).toThrow(/duplicated/);
+  });
+
+  it('puts missing standard fields first and keeps the position of sent ones', () => {
+    expect(assignFieldKeys([field('Budget')]).map((f) => f.key)).toEqual(['name', 'phone', 'email', 'budget']);
+    expect(assignFieldKeys([field('Budget'), { ...field('Email'), key: 'email' }]).map((f) => f.key)).toEqual([
+      'name',
+      'phone',
       'budget',
-      'budget_2',
-      'email_2',
+      'email',
     ]);
   });
 
-  it('keeps client keys and rejects reserved or duplicated keys', () => {
-    expect(assignFieldKeys([{ ...field('Anggaran'), key: 'budget' }, field('Budget')]).map((f) => f.key)).toEqual([
-      'budget',
-      'budget_2',
+  it('lets standard fields change label and settings but not their type, and keeps the name required', () => {
+    const result = assignFieldKeys([
+      { ...field('Nama Customer', { type: 'SELECT', required: false, placeholder: 'Nama sesuai KTP' }), key: 'name' },
+      { ...field('No. WhatsApp', { required: false }), key: 'phone' },
     ]);
-    expect(() => assignFieldKeys([{ ...field('Nama'), key: 'name' }])).toThrow(/reserved or duplicated/);
-    expect(() => assignFieldKeys([{ ...field('A'), key: 'a' }, { ...field('B'), key: 'a' }])).toThrow(/duplicated/);
+    const name = result.find((f) => f.key === 'name');
+    const phone = result.find((f) => f.key === 'phone');
+    expect(name).toMatchObject({ key: 'name', label: 'Nama Customer', type: 'TEXT', required: true, placeholder: 'Nama sesuai KTP', standard: true });
+    expect(phone).toMatchObject({ key: 'phone', label: 'No. WhatsApp', type: 'PHONE', required: false, standard: true });
   });
 });
 
@@ -108,7 +124,7 @@ describe('LeadFormTemplateUseCase', () => {
     expect(db.leadFormTemplate.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tenantId: 't-1', name: { contains: 'lead' }, isActive: true } })
     );
-    expect(result.data[0]).toMatchObject({ fieldCount: 1, version: 1, updatedBy: { name: 'Demo Owner' } });
+    expect(result.data[0]).toMatchObject({ fieldCount: 4, version: 1, updatedBy: { name: 'Demo Owner' } });
   });
 
   it('creates a template with version 1', async () => {
@@ -126,7 +142,7 @@ describe('LeadFormTemplateUseCase', () => {
       data: expect.objectContaining({
         templateId: 'f-new',
         version: 1,
-        fields: [expect.objectContaining({ key: 'rencana_pembayaran', options: ['Tunai', 'KPR'] })],
+        fields: expect.arrayContaining([expect.objectContaining({ key: 'rencana_pembayaran', options: ['Tunai', 'KPR'] })]),
       }),
     });
     expect(db.tx.leadFormTemplate.update).toHaveBeenCalledWith({ where: { id: 'f-new' }, data: { currentVersionId: 'v-new' } });
@@ -137,7 +153,7 @@ describe('LeadFormTemplateUseCase', () => {
     await new LeadFormTemplateUseCase(db as never).update('f-1', actor, { fields: [{ ...field('Budget'), key: 'budget' }] });
     expect(db.tx.leadFormTemplateVersion.update).toHaveBeenCalledWith({
       where: { id: 'v-1' },
-      data: { fields: [expect.objectContaining({ key: 'budget' })] },
+      data: { fields: expect.arrayContaining([expect.objectContaining({ key: 'budget' })]) },
     });
     expect(db.tx.leadFormTemplateVersion.create).not.toHaveBeenCalled();
   });
@@ -200,7 +216,7 @@ describe('LeadFormTemplateUseCase', () => {
       data: expect.objectContaining({ name: 'Form Lead Properti (Salinan 2)', isDefault: false }),
     });
     expect(db.tx.leadFormTemplateVersion.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ version: 1, fields: [expect.objectContaining({ key: 'budget' })] }),
+      data: expect.objectContaining({ version: 1, fields: expect.arrayContaining([expect.objectContaining({ key: 'budget' })]) }),
     });
   });
 });
@@ -227,6 +243,8 @@ describe('form template validation', () => {
     const create = (fields: unknown[]) => () => validateFormTemplateCreate({ ...base, fields });
     expect(create([{ label: 'A', type: 'FILE' }])).toThrow(/type must be one of/);
     expect(create([{ label: 'A', type: 'SELECT' }])).toThrow(/options must contain/);
+    expect(create([{ label: 'A', type: 'RADIO' }])).toThrow(/options must contain/);
+    expect(validateFormTemplateCreate({ ...base, fields: [{ label: 'Tipe', type: 'RADIO', options: ['Rumah', 'Ruko'] }] }).fields?.[0]?.options).toEqual(['Rumah', 'Ruko']);
     expect(create([{ label: 'A', type: 'SELECT', options: ['x', 'X'] }])).toThrow(/options must be unique/);
     expect(create([{ label: 'A', type: 'TEXT', key: 'Bad Key' }])).toThrow(/lowercase letters/);
     expect(create([{ label: 'A', type: 'TEXT' }, { label: 'a', type: 'TEXT' }])).toThrow(/labels must be unique/);

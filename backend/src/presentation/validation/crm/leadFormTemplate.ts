@@ -10,7 +10,7 @@ const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 const KEY = /^[a-z0-9_]{1,50}$/;
 const MAX_FIELDS = 50;
 const MAX_OPTIONS = 50;
-const CHOICE_TYPES = new Set(['SELECT', 'MULTISELECT']);
+const CHOICE_TYPES = new Set(['SELECT', 'MULTISELECT', 'RADIO']);
 
 const templateRules: Record<string, FieldRule> = {
   name: { type: 'string', required: true, max: 150 },

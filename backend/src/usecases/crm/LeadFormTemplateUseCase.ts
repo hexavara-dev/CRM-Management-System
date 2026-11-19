@@ -8,6 +8,7 @@ export const FORM_FIELD_TYPES = [
   'DATE',
   'SELECT',
   'MULTISELECT',
+  'RADIO',
   'BOOLEAN',
   'PHONE',
   'EMAIL',
@@ -25,7 +26,21 @@ export type FormField = {
   placeholder: string | null;
   helpText: string | null;
   options: string[] | null;
+  /** Field standar (Nama, Nomor HP, Email): tipe tetap; posisi, label, dan pengaturan lain dapat diatur. */
+  standard?: boolean;
 };
+
+/** Definisi tetap field standar; disimpan di daftar field hanya untuk menandai posisinya. */
+export const STANDARD_FIELDS: Record<(typeof RESERVED_FIELD_KEYS)[number], FormField> = {
+  name: { key: 'name', label: 'Nama Lengkap', type: 'TEXT', required: true, placeholder: null, helpText: null, options: null, standard: true },
+  phone: { key: 'phone', label: 'Nomor HP', type: 'PHONE', required: true, placeholder: null, helpText: null, options: null, standard: true },
+  email: { key: 'email', label: 'Email', type: 'EMAIL', required: false, placeholder: null, helpText: null, options: null, standard: true },
+};
+
+const isStandardKey = (key: string | null | undefined): key is keyof typeof STANDARD_FIELDS =>
+  !!key && (RESERVED_FIELD_KEYS as readonly string[]).includes(key);
+
+
 
 /** Field dari klien; `key` boleh kosong untuk field baru. */
 export type FormFieldInput = Omit<FormField, 'key'> & { key?: string };
@@ -60,19 +75,40 @@ export function fieldKeyOf(label: string) {
 }
 
 /**
- * Melengkapi `key` setiap field: kunci dari klien dipertahankan (agar field yang
- * sama tetap terhubung antar-versi), kunci baru dibuat dari label dan dibuat unik.
+ * Menyusun daftar field yang disimpan:
+ * - Field berkunci `name`/`phone`/`email` adalah field standar: posisi, label, placeholder,
+ *   teks bantuan, dan wajib mengikuti klien; tipe tetap dari server. Field standar yang
+ *   tidak dikirim ditaruh di awal dengan pengaturan bawaan.
+ * - Kunci custom field dari klien dipertahankan (agar field yang sama tetap terhubung
+ *   antar-versi); kunci baru dibuat dari label dan dibuat unik.
  */
 export function assignFieldKeys(fields: FormFieldInput[]): FormField[] {
   const used = new Set<string>(RESERVED_FIELD_KEYS);
   const kept = fields.map((field) => field.key?.trim() || null);
+  const standardSeen = new Set<string>();
   for (const key of kept) {
     if (!key) continue;
+    if (isStandardKey(key)) {
+      if (standardSeen.has(key)) throw new Error(`Invalid field key "${key}": it is duplicated`);
+      standardSeen.add(key);
+      continue;
+    }
     if (used.has(key)) throw new Error(`Invalid field key "${key}": it is reserved or duplicated`);
     used.add(key);
   }
-  return fields.map((field, index) => {
+  const result = fields.map((field, index) => {
     let key = kept[index];
+    if (isStandardKey(key)) {
+      // Label, placeholder, teks bantuan, dan wajib dapat diatur; tipe tetap. Nama selalu wajib.
+      const base = STANDARD_FIELDS[key];
+      return {
+        ...base,
+        label: field.label || base.label,
+        placeholder: field.placeholder,
+        helpText: field.helpText,
+        required: key === 'name' ? true : field.required,
+      };
+    }
     if (!key) {
       const base = fieldKeyOf(field.label);
       key = base;
@@ -81,10 +117,18 @@ export function assignFieldKeys(fields: FormFieldInput[]): FormField[] {
     }
     return { ...field, key };
   });
+  const missing = RESERVED_FIELD_KEYS.filter((key) => !standardSeen.has(key)).map((key) => STANDARD_FIELDS[key]);
+  return [...missing, ...result];
 }
 
 const fieldsOf = (value: Prisma.JsonValue | undefined): FormField[] =>
   Array.isArray(value) ? (value as unknown as FormField[]) : [];
+
+/** Versi lama tanpa penanda field standar: field standar ditaruh di awal. */
+const withStandardFields = (fields: FormField[]): FormField[] => [
+  ...RESERVED_FIELD_KEYS.filter((key) => !fields.some((f) => f.key === key)).map((key) => STANDARD_FIELDS[key]),
+  ...fields,
+];
 
 const isUniqueViolation = (error: unknown) =>
   typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002';
@@ -100,7 +144,7 @@ export class LeadFormTemplateUseCase {
       where: { id: { in: versionIds } },
       select: { id: true, version: true, isLocked: true, fields: true },
     });
-    return new Map(versions.map((v) => [v.id, { version: v.version, isLocked: v.isLocked, fields: fieldsOf(v.fields) }]));
+    return new Map(versions.map((v) => [v.id, { version: v.version, isLocked: v.isLocked, fields: withStandardFields(fieldsOf(v.fields)) }]));
   }
 
   async list(tenantId: string, filters: FormTemplateFilters) {
@@ -129,7 +173,8 @@ export class LeadFormTemplateUseCase {
         isDefault: row.isDefault,
         isActive: row.isActive,
         version: current?.version ?? 1,
-        fieldCount: current?.fields.length ?? 0,
+        // Termasuk field standar (Nama Lengkap, Nomor HP, Email).
+        fieldCount: current?.fields.length ?? RESERVED_FIELD_KEYS.length,
         updatedAt: row.updatedAt,
         updatedBy: row.updatedBy,
       };
