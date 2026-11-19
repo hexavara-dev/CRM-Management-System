@@ -32,7 +32,12 @@ export default function RootLayout({
             <TooltipProvider>
               <CRMProvider>{children}</CRMProvider>
             </TooltipProvider>
-            <Toaster position="top-right" richColors />
+            <Toaster
+              position="top-right"
+              richColors
+              closeButton
+              duration={4000}
+            />
           </AuthProvider>
         </QueryProvider>
       </body>

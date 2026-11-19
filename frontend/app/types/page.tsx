@@ -4,8 +4,13 @@ import { PageHeading } from "@/components/PageHeading";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { NoImagePlaceholder } from "@/components/projects/no-image-placeholder";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -32,23 +37,25 @@ import { errorMessage } from "@/hooks/use-projects";
 import {
   Barcode,
   Building2,
-  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Download,
+  FileDown,
+  FileSpreadsheet,
+  FileText,
   House,
   Layers3,
   MoreVertical,
   Pencil,
-  Plus,
   Search,
   Shapes,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { TypeDialog } from "./type-dialog";
+import type { CellInput } from "jspdf-autotable";
 
 const PAGE_SIZE = 5;
-type StatusFilter = "all" | "active" | "inactive";
 const numberFormat = new Intl.NumberFormat("id-ID");
 
 function Metric({
@@ -91,99 +98,242 @@ function specifications(row: ProjectTypeRow) {
   ];
 }
 
-function escapeCsv(value: string | number) {
-  return `"${String(value).replaceAll('"', '""')}"`;
-}
-
 export default function TypesPage() {
   const { user } = useAuth();
   const canWrite = user?.role === "owner";
   const { data, isLoading, isError, error } = useProjectTypes();
   const [projectFilter, setProjectFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ProjectTypeRow | null>(null);
+  const typeOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          (data?.rows ?? [])
+            .filter(
+              (row) =>
+                projectFilter === "all" || row.projectId === projectFilter,
+            )
+            .map((row) => row.name),
+        ),
+      ].sort((a, b) => a.localeCompare(b, "id-ID", { numeric: true })),
+    [data?.rows, projectFilter],
+  );
 
   const filteredRows = useMemo(() => {
     const search = query.trim().toLocaleLowerCase("id-ID");
     return (data?.rows ?? []).filter((row) => {
       const matchesProject =
         projectFilter === "all" || row.projectId === projectFilter;
-      const matchesStatus =
-        statusFilter === "all" || row.isActive === (statusFilter === "active");
+      const matchesType = typeFilter === "all" || row.name === typeFilter;
       const matchesSearch =
-        !search ||
-        `${row.name} ${row.projectName} ${row.projectCode} ${row.id}`
-          .toLocaleLowerCase("id-ID")
-          .includes(search);
-      return matchesProject && matchesStatus && matchesSearch;
+        !search || row.name.toLocaleLowerCase("id-ID").includes(search);
+      return matchesProject && matchesType && matchesSearch;
     });
-  }, [data?.rows, projectFilter, query, statusFilter]);
+  }, [data?.rows, projectFilter, query, typeFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * PAGE_SIZE;
   const visibleRows = filteredRows.slice(start, start + PAGE_SIZE);
 
-  const openCreate = () => {
-    setEditing(null);
-    setDialogOpen(true);
-  };
-
   const openEdit = (row: ProjectTypeRow) => {
     setEditing(row);
     setDialogOpen(true);
   };
 
-  const exportCsv = () => {
-    const columns = [
-      "Project",
-      "Project Code",
-      "Location",
-      "Type",
-      "Type ID",
-      "Building Area",
-      "Surface Area",
-      "Floors",
-      "Bedrooms",
-      "Bathrooms",
-      "Carport",
-      "Total Unit",
-      "Status",
-    ];
-    const lines = filteredRows.map((row) =>
-      [
-        row.projectName,
-        row.projectCode,
-        row.location,
-        row.name,
-        row.id,
-        row.attributes.building_area,
-        row.attributes.surface_area,
-        row.attributes.floors,
-        row.attributes.bedroom,
-        row.attributes.bathroom,
-        row.attributes.carport,
-        row.stock,
-        row.isActive ? "Aktif" : "Nonaktif",
-      ]
-        .map(escapeCsv)
-        .join(","),
-    );
-    const blob = new Blob(
-      [[columns.map(escapeCsv).join(","), ...lines].join("\r\n")],
-      {
-        type: "text/csv;charset=utf-8",
-      },
-    );
+  const downloadBlob = (blob: Blob, name: string) => {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "project-types.csv";
+    anchor.download = name;
     anchor.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportColumns = [
+    "Project",
+    "Kode Project",
+    "Lokasi",
+    "Tipe",
+    "Luas Bangunan",
+    "Luas Tanah",
+    "Lantai",
+    "Kamar Tidur",
+    "Kamar Mandi",
+    "Carport",
+    "Unit Dibuat",
+  ];
+  const exportRows = [...filteredRows].sort((a, b) => {
+    const projectOrder = a.projectName.localeCompare(b.projectName, "id-ID", {
+      numeric: true,
+    });
+    if (projectOrder !== 0) return projectOrder;
+    return a.name.localeCompare(b.name, "id-ID", { numeric: true });
+  });
+  const exportGroups = exportRows.reduce(
+    (groups, row, index) => {
+      const previous = groups[groups.length - 1];
+      if (previous && previous.key === row.projectId) {
+        previous.end = index;
+      } else {
+        groups.push({ key: row.projectId, start: index, end: index });
+      }
+      return groups;
+    },
+    [] as { key: string; start: number; end: number }[],
+  );
+  const groupForRow = (index: number) =>
+    exportGroups.find((group) => group.start === index);
+  const exportBody = exportRows.map((row, index) => {
+    const group = groupForRow(index);
+    const identity = group
+      ? [row.projectName, row.projectCode, row.location]
+      : ["", "", ""];
+    return [
+      ...identity,
+      row.name,
+      row.attributes.building_area,
+      row.attributes.surface_area,
+      row.attributes.floors,
+      row.attributes.bedroom,
+      row.attributes.bathroom,
+      row.attributes.carport,
+      row.unitCount,
+    ];
+  });
+
+  const exportExcel = async () => {
+    try {
+      const ExcelJS = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Tipe Unit");
+      sheet.views = [{ showGridLines: false }];
+      sheet.addRow(exportColumns);
+      exportBody.forEach((row) => sheet.addRow(row));
+      const cellBorder = {
+        top: { style: "thin" as const, color: { argb: "FF000000" } },
+        left: { style: "thin" as const, color: { argb: "FF000000" } },
+        bottom: { style: "thin" as const, color: { argb: "FF000000" } },
+        right: { style: "thin" as const, color: { argb: "FF000000" } },
+      };
+      for (const group of exportGroups) {
+        if (group.end === group.start) continue;
+        for (const column of ["A", "B", "C"]) {
+          sheet.mergeCells(
+            `${column}${group.start + 2}:${column}${group.end + 2}`,
+          );
+          const cell = sheet.getCell(`${column}${group.start + 2}`);
+          cell.alignment = { vertical: "middle", wrapText: true };
+        }
+      }
+      // ExcelJS dapat mengubah style cell saat merge. Terapkan ulang ke seluruh
+      // grid setelah merge agar border terlihat pada cell biasa maupun merged cell.
+      for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+        for (
+          let columnNumber = 1;
+          columnNumber <= exportColumns.length;
+          columnNumber += 1
+        ) {
+          const cell = sheet.getCell(rowNumber, columnNumber);
+          cell.border = cellBorder;
+          cell.alignment = { vertical: "middle", wrapText: true };
+        }
+      }
+      sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+      sheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF2D86B9" },
+      };
+      sheet.columns.forEach((column) => {
+        column.width = 18;
+      });
+      const buffer = await workbook.xlsx.writeBuffer();
+      downloadBlob(
+        new Blob([new Uint8Array(buffer as ArrayBuffer)], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        "tipe-unit.xlsx",
+      );
+      toast.success("Data tipe berhasil diekspor ke Excel.", {
+        duration: 1000,
+      });
+    } catch {
+      toast.error("Gagal mengekspor data tipe ke Excel.");
+    }
+  };
+
+  const exportPdf = async () => {
+    try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+      const document = new jsPDF({ orientation: "landscape" });
+      document.setFontSize(14);
+      document.text("Daftar Tipe Unit", 14, 14);
+      const pdfBody: CellInput[][] = exportRows.map((row, index) => {
+        const group = groupForRow(index);
+        const identity = group
+          ? [
+              {
+                content: row.projectName,
+                rowSpan: group.end - group.start + 1,
+                styles: { valign: "middle" as const },
+              },
+              {
+                content: row.projectCode,
+                rowSpan: group.end - group.start + 1,
+                styles: { valign: "middle" as const },
+              },
+              {
+                content: row.location,
+                rowSpan: group.end - group.start + 1,
+                styles: { valign: "middle" as const },
+              },
+            ]
+          : [];
+        return [
+          ...identity,
+          row.name,
+          row.attributes.building_area,
+          row.attributes.surface_area,
+          row.attributes.floors,
+          row.attributes.bedroom,
+          row.attributes.bathroom,
+          row.attributes.carport,
+          row.unitCount,
+        ];
+      });
+      autoTable(document, {
+        head: [exportColumns],
+        body: pdfBody,
+        startY: 20,
+        theme: "grid",
+        styles: {
+          fontSize: 7,
+          valign: "middle",
+          lineColor: [0, 0, 0],
+          lineWidth: 0.15,
+        },
+        headStyles: {
+          fillColor: [45, 134, 185],
+          textColor: 255,
+          lineColor: [0, 0, 0],
+          lineWidth: 0.15,
+        },
+      });
+      document.save("tipe-unit.pdf");
+      toast.success("Data tipe berhasil diekspor ke PDF.", {
+        duration: 1000,
+      });
+    } catch {
+      toast.error("Gagal mengekspor data tipe ke PDF.");
+    }
   };
 
   const updateFilters = (callback: () => void) => {
@@ -202,28 +352,30 @@ export default function TypesPage() {
           <PageHeading
             title="Types"
             actions={
-              <div className="flex shrink-0 items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={exportCsv}
-                  disabled={!filteredRows.length}
-                  className="h-9 border-[#D0D5DD] px-3 text-xs"
-                >
-                  <Download className="size-4" />
-                  Ekspor
-                </Button>
-                {canWrite && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
                     type="button"
-                    onClick={openCreate}
-                    className="h-9 bg-[#0866FF] px-3 text-xs text-white hover:bg-[#0757D5]"
+                    variant="outline"
+                    disabled={!filteredRows.length}
+                    className="h-9 border-[#D0D5DD] px-3 text-xs"
                   >
-                    <Plus className="size-4" />
-                    Tambah Tipe
+                    <FileDown className="size-4" />
+                    Export
+                    <ChevronDown className="size-3.5" />
                   </Button>
-                )}
-              </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={exportPdf}>
+                    <FileText className="size-4" />
+                    Export PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={exportExcel}>
+                    <FileSpreadsheet className="size-4" />
+                    Export Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             }
           />
           <p className="-mt-3 text-xs text-[#667085]">
@@ -253,7 +405,7 @@ export default function TypesPage() {
                 valueClassName="text-[#101828]"
               />
               <Metric
-                label="Total Unit"
+                label="Total Unit Dibuat"
                 value={numberFormat.format(data?.summary.totalUnits ?? 0)}
                 icon={House}
                 className="bg-[#FFF5E5] text-[#E56B00]"
@@ -273,13 +425,16 @@ export default function TypesPage() {
           )}
 
           <section className="overflow-hidden rounded-xl border border-[#E4EAF2] bg-white">
-            <div className="grid gap-2 border-b border-[#E4EAF2] bg-[#FCFDFF] p-3 md:grid-cols-[minmax(170px,0.75fr)_minmax(220px,1.5fr)_minmax(155px,0.7fr)]">
+            <div className="grid gap-2 border-b border-[#E4EAF2] bg-[#FCFDFF] p-3 md:grid-cols-[minmax(170px,0.75fr)_minmax(170px,0.75fr)_minmax(220px,1.5fr)]">
               <label className="space-y-1 text-[10px] font-semibold text-[#344054]">
                 Project
                 <Select
                   value={projectFilter}
                   onValueChange={(value) =>
-                    updateFilters(() => setProjectFilter(value))
+                    updateFilters(() => {
+                      setProjectFilter(value);
+                      setTypeFilter("all");
+                    })
                   }
                 >
                   <SelectTrigger className="h-8 bg-white text-xs">
@@ -296,6 +451,27 @@ export default function TypesPage() {
                 </Select>
               </label>
               <label className="space-y-1 text-[10px] font-semibold text-[#344054]">
+                Type
+                <Select
+                  value={typeFilter}
+                  onValueChange={(value) =>
+                    updateFilters(() => setTypeFilter(value))
+                  }
+                >
+                  <SelectTrigger className="h-8 bg-white text-xs">
+                    <SelectValue placeholder="Semua Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Type</SelectItem>
+                    {typeOptions.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="space-y-1 text-[10px] font-semibold text-[#344054]">
                 Pencarian
                 <span className="relative block">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#667085]" />
@@ -304,28 +480,10 @@ export default function TypesPage() {
                     onChange={(event) =>
                       updateFilters(() => setQuery(event.target.value))
                     }
-                    placeholder="Cari nama tipe atau kode..."
+                    placeholder="Cari nama tipe..."
                     className="h-8 bg-white pl-8 text-xs"
                   />
                 </span>
-              </label>
-              <label className="space-y-1 text-[10px] font-semibold text-[#344054]">
-                Status
-                <Select
-                  value={statusFilter}
-                  onValueChange={(value) =>
-                    updateFilters(() => setStatusFilter(value as StatusFilter))
-                  }
-                >
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="active">Aktif</SelectItem>
-                    <SelectItem value="inactive">Nonaktif</SelectItem>
-                  </SelectContent>
-                </Select>
               </label>
             </div>
 
@@ -350,8 +508,7 @@ export default function TypesPage() {
                         "Type",
                         "Gambar",
                         "Spesifikasi Utama",
-                        "Total Unit",
-                        "Status",
+                        "Unit Dibuat",
                         "Aksi",
                       ].map((heading) => (
                         <TableHead
@@ -367,7 +524,7 @@ export default function TypesPage() {
                     {visibleRows.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={8}
+                          colSpan={7}
                           className="h-36 text-center text-sm text-[#667085]"
                         >
                           {filteredRows.length
@@ -400,9 +557,6 @@ export default function TypesPage() {
                           <TableCell className="px-3 py-2.5">
                             <p className="whitespace-nowrap font-semibold text-[#101828]">
                               {row.name}
-                            </p>
-                            <p className="whitespace-nowrap text-[10px] text-[#667085]">
-                              ID: {row.id.slice(0, 8).toUpperCase()}
                             </p>
                           </TableCell>
                           <TableCell className="px-3 py-2.5">
@@ -439,19 +593,7 @@ export default function TypesPage() {
                             </div>
                           </TableCell>
                           <TableCell className="px-3 py-2.5 text-center font-semibold text-[#344054]">
-                            {numberFormat.format(row.stock)}
-                          </TableCell>
-                          <TableCell className="px-3 py-2.5">
-                            <Badge
-                              className={
-                                row.isActive
-                                  ? "bg-[#DCFCE7] text-[#15803D]"
-                                  : "bg-[#F2F4F7] text-[#667085]"
-                              }
-                            >
-                              <Check />
-                              {row.isActive ? "Aktif" : "Nonaktif"}
-                            </Badge>
+                            {numberFormat.format(row.unitCount)}
                           </TableCell>
                           <TableCell className="px-3 py-2.5">
                             {canWrite && (
