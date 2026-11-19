@@ -27,7 +27,6 @@ export default function SettingsPage() {
           <Tabs defaultValue="lead-statuses" className="space-y-4">
             <TabsList>
               <TabsTrigger value="lead-statuses">Lead Statuses</TabsTrigger>
-              <TabsTrigger value="lead-sources">Lead Sources</TabsTrigger>
               <TabsTrigger value="viewing-statuses">Visit Statuses</TabsTrigger>
               <TabsTrigger value="viewing-sources">Visit Sources</TabsTrigger>
               <TabsTrigger value="locations">Units</TabsTrigger>
@@ -40,17 +39,6 @@ export default function SettingsPage() {
                 addButtonLabel="Add Lead Status"
                 dialogTitle="Add Lead Status"
                 dialogDescription="Create a status used by leads."
-              />
-            </TabsContent>
-
-            <TabsContent value="lead-sources">
-              <SourceManagementTab
-                type="lead"
-                title="Lead Sources"
-                addButtonLabel="Add Lead Source"
-                dialogTitle="Add Lead Source"
-                dialogDescription="Create source options for lead data."
-                placeholder="e.g. Data Base Kantor"
               />
             </TabsContent>
 
