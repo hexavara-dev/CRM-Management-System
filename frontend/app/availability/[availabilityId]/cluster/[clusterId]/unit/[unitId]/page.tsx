@@ -2,7 +2,7 @@
 
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { CreateReservationDialog } from "@/app/reservation/create-reservation-dialog";
@@ -21,6 +21,7 @@ import { useAvailabilityUnit } from "@/hooks/use-availability";
 import { errorMessage } from "@/hooks/use-projects";
 
 export default function UnitDetailPage() {
+  const router = useRouter();
   const [reservationOpen, setReservationOpen] = useState(false);
   const [kprOpen, setKprOpen] = useState(false);
   const params = useParams<{
@@ -99,13 +100,19 @@ export default function UnitDetailPage() {
                 <CreateReservationDialog
                   open={reservationOpen}
                   onOpenChange={setReservationOpen}
-                  onCreated={() => void unit.refetch()}
+                  onCreated={(reservation) => {
+                    void unit.refetch();
+                    router.push(
+                      `/reservation/${encodeURIComponent(reservation.id)}/summary`,
+                    );
+                  }}
                   initialSelection={{
                     projectId: unit.data.projectId,
                     projectName: unit.data.project,
                     unitId: unit.data.id,
                     unitLabel: unit.data.number,
                     price: unit.data.finalPrice,
+                    basePrice: unit.data.basePrice,
                   }}
                 />
               )}

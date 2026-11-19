@@ -41,6 +41,7 @@ export type Reservation = {
   projectId: string;
   clusterId: string | null;
   blockId: string;
+  hierarchy: { id: string; name: string; type: string }[];
   customerEmail: string | null;
   customerPhone: string | null;
   expiresAt: string | null;
@@ -103,5 +104,6 @@ export type AvailableReservationUnit = {
   code: string;
   status: string;
   variant: { id: string; name: string; currentPrice: number };
+  typeVariant: { id: string; name: string; basePrice: number; currentPrice: number };
   category: { id: string; name: string; type: string };
 };
