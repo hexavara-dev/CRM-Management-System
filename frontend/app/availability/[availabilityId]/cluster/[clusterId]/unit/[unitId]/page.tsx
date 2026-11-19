@@ -102,7 +102,9 @@ export default function UnitDetailPage() {
                   onOpenChange={setReservationOpen}
                   onCreated={(reservation) => {
                     void unit.refetch();
-                    router.push(`/reservation/${encodeURIComponent(reservation.id)}/summary`);
+                    router.push(
+                      `/reservation/${encodeURIComponent(reservation.id)}/summary`,
+                    );
                   }}
                   initialSelection={{
                     projectId: unit.data.projectId,
