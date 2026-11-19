@@ -49,6 +49,8 @@ import { LeadSourceUseCase } from './usecases/crm/LeadSourceUseCase.js';
 import { LeadSourceController } from './presentation/controllers/LeadSourceController.js';
 import { PipelineStageUseCase } from './usecases/crm/PipelineStageUseCase.js';
 import { PipelineStageController } from './presentation/controllers/PipelineStageController.js';
+import { LeadFormTemplateUseCase } from './usecases/crm/LeadFormTemplateUseCase.js';
+import { LeadFormTemplateController } from './presentation/controllers/LeadFormTemplateController.js';
 import { AvailabilityUseCase } from './usecases/availability/AvailabilityUseCase.js';
 import { AvailabilityController } from './presentation/controllers/AvailabilityController.js';
 
@@ -402,6 +404,15 @@ app.post('/api/pipeline-stages', authMiddleware, ownerOnly, pipelineStages.creat
 app.put('/api/pipeline-stages/reorder', authMiddleware, ownerOnly, pipelineStages.reorder);
 app.put('/api/pipeline-stages/:id', authMiddleware, ownerOnly, pipelineStages.update);
 app.delete('/api/pipeline-stages/:id', authMiddleware, ownerOnly, pipelineStages.remove);
+
+// Konfigurasi Form Template (custom field Lead, berversi) per company. Semua user membaca, owner mengubah.
+const formTemplates = new LeadFormTemplateController(new LeadFormTemplateUseCase(prisma));
+app.get('/api/lead-form-templates', authMiddleware, formTemplates.list);
+app.get('/api/lead-form-templates/:id', authMiddleware, formTemplates.get);
+app.post('/api/lead-form-templates', authMiddleware, ownerOnly, formTemplates.create);
+app.post('/api/lead-form-templates/:id/duplicate', authMiddleware, ownerOnly, formTemplates.duplicate);
+app.put('/api/lead-form-templates/:id', authMiddleware, ownerOnly, formTemplates.update);
+app.delete('/api/lead-form-templates/:id', authMiddleware, ownerOnly, formTemplates.remove);
 
 // Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
 const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));

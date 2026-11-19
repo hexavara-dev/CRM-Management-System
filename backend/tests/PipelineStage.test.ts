@@ -169,6 +169,64 @@ describe('PipelineStageUseCase', () => {
   });
 });
 
+describe('PipelineStageUseCase for deals', () => {
+  const deal = (over: Record<string, unknown> = {}) => row({ entityType: 'deal', ...over });
+
+  it('lists deal stages with the number of deals', async () => {
+    const db = prisma({ all: [deal({ _count: { leads: 7, deals: 2 } })] });
+    const [stage] = await new PipelineStageUseCase(db as never).list('t-1', 'deal');
+    expect(db.stage.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: 't-1', entityType: 'deal' } })
+    );
+    expect(stage).toMatchObject({ entityType: 'deal', itemCount: 2 });
+  });
+
+  it('creates a deal stage and checks duplicate names within deal stages', async () => {
+    const db = prisma();
+    await new PipelineStageUseCase(db as never).create('t-1', 'deal', { name: 'ITJ', probability: 25, color: '#3b82f6' });
+    expect(db.stage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: 't-1', entityType: 'deal', name: 'ITJ' } })
+    );
+    expect(db.tx.stage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ tenantId: 't-1', entityType: 'deal', name: 'ITJ', probability: 25 }),
+    });
+  });
+
+  it('rejects deleting a deal stage that still has deals, regardless of leads', async () => {
+    const db = prisma({ stage: deal({ _count: { leads: 0, deals: 3 } }) });
+    await expect(new PipelineStageUseCase(db as never).remove('s-1', 't-1')).rejects.toThrow(/still has 3 items/);
+    expect(db.stage.delete).not.toHaveBeenCalled();
+  });
+
+  it('deletes an empty deal stage even if the lead count is not zero', async () => {
+    const db = prisma({ stage: deal({ _count: { leads: 5, deals: 0 } }) });
+    await new PipelineStageUseCase(db as never).remove('s-1', 't-1');
+    expect(db.stage.delete).toHaveBeenCalledWith({ where: { id: 's-1' } });
+  });
+
+  it('moves the final flag only among deal stages', async () => {
+    const db = prisma({ stage: deal() });
+    await new PipelineStageUseCase(db as never).update('s-1', 't-1', { isTerminalStage: true });
+    expect(db.tx.stage.updateMany).toHaveBeenCalledWith({
+      where: { tenantId: 't-1', entityType: 'deal', id: { not: 's-1' }, isTerminalStage: true },
+      data: { isTerminalStage: false, terminalGuard: null },
+    });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({
+      where: { id: 's-1' },
+      data: expect.objectContaining({ isTerminalStage: true, terminalGuard: 'deal' }),
+    });
+  });
+
+  it('reorders deal stages only', async () => {
+    const db = prisma({ all: [deal({ id: 'itj' }), deal({ id: 'dp' })] });
+    await new PipelineStageUseCase(db as never).reorder('t-1', 'deal', ['dp', 'itj']);
+    expect(db.stage.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: 't-1', entityType: 'deal' } })
+    );
+    expect(db.stage.update).toHaveBeenCalledWith({ where: { id: 'dp' }, data: { position: 0 } });
+  });
+});
+
 describe('pipeline stage validation', () => {
   const base = { entity: 'lead', name: ' Follow Up ', probability: 60, color: '#F59E0B' };
 

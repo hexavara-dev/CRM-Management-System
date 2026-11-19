@@ -52,6 +52,8 @@ import {
   Trees,
   TriangleAlert,
   UserCheck,
+  UserPlus,
+  Megaphone,
   UserRound,
   UserX,
   Users,
@@ -127,6 +129,8 @@ export const LEAD_LABEL_ICON_GROUPS: { title: string; icons: Record<string, Luci
       mail: Mail,
       briefcase: BriefcaseBusiness,
       gift: Gift,
+      "user-plus": UserPlus,
+      megaphone: Megaphone,
     },
   },
   {

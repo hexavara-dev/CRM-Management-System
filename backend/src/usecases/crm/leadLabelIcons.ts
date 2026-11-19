@@ -48,6 +48,8 @@ export const LEAD_LABEL_ICONS = [
   'mail',
   'briefcase',
   'gift',
+  'user-plus',
+  'megaphone',
   // Status & waktu
   'clock',
   'hourglass',
