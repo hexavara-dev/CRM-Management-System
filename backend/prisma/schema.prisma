@@ -42,6 +42,7 @@ model Company {
   productCategories       ProductCategory[]
   products                Product[]
   productVariants         ProductVariant[]
+  productTypeVariants     ProductTypeVariant[]
   productAttributes       ProductAttribute[]
   attributes              Attribute[]
   characteristics         Characteristic[]
@@ -683,26 +684,47 @@ model Product {
 }
 
 model ProductVariant {
-  id         String                   @id @default(uuid()) @db.VarChar(36)
-  tenantId   String                   @map("company_id") @db.VarChar(36)
-  productId  String                   @map("product_id") @db.VarChar(36)
-  name       String                   @db.VarChar(150)
-  basePrice    BigInt                 @map("base_price")
-  currentPrice BigInt                 @map("current_price")
-  /// Batas minimum harga jual unit. Null berarti tanpa batas.
-  minPrice     BigInt?                @map("min_price")
-  stock        Int                    @default(0)
-  createdAt  DateTime                 @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt  DateTime                 @updatedAt @map("updated_at") @db.DateTime(6)
-  tenant     Company                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  product    Product                  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  attributes ProductAttribute[]
-  media      ProductMedia[]
-  units      ProductUnit[]
-  priceLogs  ProductVariantPriceLog[]
+  id           String               @id @default(uuid()) @db.VarChar(36)
+  tenantId     String               @map("company_id") @db.VarChar(36)
+  productId    String               @map("product_id") @db.VarChar(36)
+  name         String               @db.VarChar(150)
+  createdAt    DateTime             @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt    DateTime             @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant       Company              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributes   ProductAttribute[]
+  media        ProductMedia[]
+  units        ProductUnit[]
+  typeVariants ProductTypeVariant[]
 
   @@index([productId])
   @@map("product_variants")
+}
+
+/// Varian dinamis di bawah satu tipe produk. Harga dan kapasitas stok dimiliki
+/// varian ini agar satu tipe (mis. Type 36) dapat mempunyai Standard/Premium/dll.
+model ProductTypeVariant {
+  id               String                   @id @default(uuid()) @db.VarChar(36)
+  tenantId         String                   @map("company_id") @db.VarChar(36)
+  productVariantId String                   @map("product_variant_id") @db.VarChar(36)
+  name             String                   @db.VarChar(150)
+  code             String?                  @db.VarChar(100)
+  basePrice        BigInt                   @map("base_price")
+  currentPrice     BigInt                   @map("current_price")
+  minPrice         BigInt?                  @map("min_price")
+  stock            Int                      @default(0)
+  isActive         Boolean                  @default(true) @map("is_active")
+  createdAt        DateTime                 @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt        DateTime                 @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant           Company                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productVariant   ProductVariant           @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  units            ProductUnit[]
+  priceLogs        ProductVariantPriceLog[]
+
+  @@unique([productVariantId, name])
+  @@unique([tenantId, code])
+  @@index([productVariantId])
+  @@map("product_type_variants")
 }
 
 model ProductAttribute {
@@ -790,6 +812,7 @@ model ProductUnit {
   id               String            @id @default(uuid()) @db.VarChar(36)
   tenantId         String            @map("company_id") @db.VarChar(36)
   variantId        String            @map("variant_id") @db.VarChar(36)
+  typeVariantId    String            @map("type_variant_id") @db.VarChar(36)
   categoryId       String            @map("category_id") @db.VarChar(36)
   characteristicId String?           @map("characteristic_id") @db.VarChar(36)
   code             String            @db.VarChar(100)
@@ -802,6 +825,7 @@ model ProductUnit {
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.DateTime(6)
   tenant           Company           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   variant          ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  typeVariant      ProductTypeVariant @relation(fields: [typeVariantId], references: [id], onDelete: Restrict)
   category         ProductCategory   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   characteristic   Characteristic?   @relation(fields: [characteristicId], references: [id], onDelete: SetNull)
   media            ProductMedia[]
@@ -810,6 +834,7 @@ model ProductUnit {
 
   @@unique([tenantId, code])
   @@index([variantId])
+  @@index([typeVariantId])
   @@index([categoryId])
   @@index([characteristicId])
   @@map("product_units")
@@ -818,7 +843,7 @@ model ProductUnit {
 model ProductVariantPriceLog {
   id              String           @id @default(uuid()) @db.VarChar(36)
   tenantId        String           @map("company_id") @db.VarChar(36)
-  variantId       String           @map("variant_id") @db.VarChar(36)
+  typeVariantId   String           @map("type_variant_id") @db.VarChar(36)
   categoryId      String?          @map("category_id") @db.VarChar(36)
   adjustmentPrice BigInt           @map("adjustment_price")
   effectiveStart  DateTime         @map("effective_start") @db.Date
@@ -828,10 +853,10 @@ model ProductVariantPriceLog {
   createdAt       DateTime         @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt       DateTime         @updatedAt @map("updated_at") @db.DateTime(6)
   tenant          Company          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  variant         ProductVariant   @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  typeVariant     ProductTypeVariant @relation(fields: [typeVariantId], references: [id], onDelete: Cascade)
   category        ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
-  @@index([variantId])
+  @@index([typeVariantId])
   @@index([categoryId])
   @@map("product_variant_price_logs")
 }

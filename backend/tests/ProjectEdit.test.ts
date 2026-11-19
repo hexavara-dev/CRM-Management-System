@@ -8,9 +8,9 @@ const project = { id: 'p-1', categoryId: 'root', variants: [], media: [], catego
 const baseInput = {
   name: 'Project Updated',
   code: 'PRJ',
-  variants: [{ id: 'v-1', name: 'Type 36', basePrice: 500, stock: 1, attributes: [] }],
+  variants: [{ id: 'v-1', name: 'Type 36', typeVariants: [{ id: 'tv-1', name: 'Standard', basePrice: 500, stock: 1 }], attributes: [] }],
   locations: [{ id: 'c-1', key: 'c-1', parentKey: null, name: 'Cluster A', type: 'CLUSTER' as const }],
-  units: [{ id: 'u-1', code: 'A-01', variantIndex: 0, locationKey: 'c-1', status: 'AVAILABLE' as const }],
+  units: [{ id: 'u-1', code: 'A-01', variantIndex: 0, typeVariantIndex: 0, locationKey: 'c-1', status: 'AVAILABLE' as const }],
 };
 
 function fixture(unitStatus = 'AVAILABLE') {
@@ -25,11 +25,12 @@ function fixture(unitStatus = 'AVAILABLE') {
       ]),
     },
     productVariant: {
-      findMany: fn([{ id: 'v-1', basePrice: BigInt(500), currentPrice: BigInt(500) }]),
+      findMany: fn([{ id: 'v-1', typeVariants: [{ id: 'tv-1', name: 'Standard', code: null, basePrice: BigInt(500), currentPrice: BigInt(500), minPrice: null, stock: 1, isActive: true }] }]),
       update: fn({ id: 'v-1' }),
     },
+    productTypeVariant: { update: fn({ id: 'tv-1' }), create: fn({ id: 'tv-new' }), delete: fn() },
     productUnit: {
-      findMany: fn([{ id: 'u-1', variantId: 'v-1', categoryId: 'c-1', status: unitStatus }]),
+      findMany: fn([{ id: 'u-1', variantId: 'v-1', typeVariantId: 'tv-1', categoryId: 'c-1', status: unitStatus }]),
       update: fn({ id: 'u-1' }),
       deleteMany: fn(),
     },

@@ -223,8 +223,7 @@ export function CoverCropDialog({ file, url, onSave, onCancel }: Props) {
           <DialogTitle>Atur crop cover</DialogTitle>
           <DialogDescription>
             Geser kotak putih atau tarik langsung pada gambar untuk memilih
-            area. Hasil cover {PROJECT_COVER_WIDTH} × {PROJECT_COVER_HEIGHT} px
-            (10:3). Tarik sudutnya atau ubah ukuran di bawah.
+            area.
           </DialogDescription>
         </DialogHeader>
         <div

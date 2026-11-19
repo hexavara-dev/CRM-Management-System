@@ -11,6 +11,7 @@ export const characteristicRules: Record<string, FieldRule> = {
 const mediaMetaRules: Record<string, FieldRule> = {
   title: { type: 'string', nullable: true, allowEmpty: true, max: 150 },
   variantId: { type: 'string', nullable: true, max: 36 },
+  unitId: { type: 'string', nullable: true, max: 36 },
   sortOrder: { type: 'number', integer: true, min: 0 },
   isPrimary: { type: 'boolean' },
 };
@@ -34,6 +35,9 @@ export function validateUploadFields(body: Record<string, unknown> | undefined) 
   if (typeof source.title === 'string' && source.title !== '') converted.title = source.title;
   if (typeof source.variantId === 'string' && source.variantId !== '') {
     converted.variantId = source.variantId;
+  }
+  if (typeof source.unitId === 'string' && source.unitId !== '') {
+    converted.unitId = source.unitId;
   }
   if (source.isPrimary !== undefined) converted.isPrimary = source.isPrimary === 'true';
   if (source.sortOrder !== undefined && source.sortOrder !== '') {

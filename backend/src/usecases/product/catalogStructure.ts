@@ -16,6 +16,8 @@ export type UnitInput = {
   code: string;
   name?: string | null;
   variantIndex: number;
+  /** Index of the dynamic child variant within the selected unit type. */
+  typeVariantIndex?: number;
   locationKey?: string;
   status?: ProductUnitStatus;
   isHook?: boolean;
@@ -49,11 +51,16 @@ export function orderLocations(locations: LocationInput[]): LocationInput[] {
 }
 
 /** Checks that every unit points to an existing variant and location, with unique codes. */
-export function assertUnits(units: UnitInput[], variantCount: number, locationKeys: Set<string>) {
+export function assertUnits(units: UnitInput[], variantCounts: number[] | number, locationKeys: Set<string>) {
+  const counts = Array.isArray(variantCounts) ? variantCounts : Array.from({ length: variantCounts }, () => 1);
   const codes = new Set<string>();
   for (const unit of units) {
-    if (unit.variantIndex >= variantCount) {
+    if (unit.variantIndex < 0 || unit.variantIndex >= counts.length) {
       throw new Error(`Unit ${unit.code} refers to a variant that does not exist`);
+    }
+    const typeVariantIndex = unit.typeVariantIndex ?? 0;
+    if (typeVariantIndex < 0 || typeVariantIndex >= (counts[unit.variantIndex] ?? 0)) {
+      throw new Error(`Unit ${unit.code} refers to a type variant that does not exist`);
     }
     if (unit.locationKey && !locationKeys.has(unit.locationKey)) {
       throw new Error(`Unit ${unit.code} refers to an unknown location`);
@@ -64,11 +71,20 @@ export function assertUnits(units: UnitInput[], variantCount: number, locationKe
 }
 
 /** Jumlah unit fisik per tipe tidak boleh melebihi total slot (stock) tipe tersebut. */
-export function assertUnitsWithinStock(units: UnitInput[], variants: { name?: string | undefined; stock: number }[]) {
-  variants.forEach((variant, index) => {
-    const count = units.filter((unit) => unit.variantIndex === index).length;
-    if (count > variant.stock) {
-      throw new Error(`Invalid unit count: ${variant.name ?? `Type ${index + 1}`} has ${count} units, exceeding its total of ${variant.stock} slots`);
-    }
+export function assertUnitsWithinStock(
+  units: UnitInput[],
+  variants: { name?: string | undefined; stock?: number; typeVariants?: { name?: string | undefined; stock: number }[] }[],
+) {
+  variants.forEach((variant, variantIndex) => {
+    const options = variant.typeVariants ?? [{ name: 'Default', stock: variant.stock ?? 0 }];
+    options.forEach((typeVariant, typeVariantIndex) => {
+      const count = units.filter((unit) =>
+        unit.variantIndex === variantIndex && (unit.typeVariantIndex ?? 0) === typeVariantIndex
+      ).length;
+      if (count > typeVariant.stock) {
+        const label = `${variant.name ?? `Type ${variantIndex + 1}`} / ${typeVariant.name ?? `Variant ${typeVariantIndex + 1}`}`;
+        throw new Error(`Invalid unit count: ${label} has ${count} units, exceeding its total of ${typeVariant.stock} slots`);
+      }
+    });
   });
 }

@@ -7,12 +7,14 @@ const unitInclude = (tenantId: string) =>
     select: {
       id: true,
       name: true,
-      currentPrice: true,
       attributes: {
         where: { tenantId, attribute: { tenantId } },
         include: { attribute: { select: { code: true, name: true, unit: true } } },
       },
     },
+  },
+  typeVariant: {
+    select: { id: true, name: true, basePrice: true, currentPrice: true },
   },
   media: {
     where: { tenantId, mediaType: 'IMAGE' as const },
@@ -112,7 +114,15 @@ function locationOf(product: {
 }
 
 function priceOf(unit: AvailabilityUnit) {
-  return Number(unit.variant.currentPrice);
+  const legacyVariant = unit.variant as typeof unit.variant & { currentPrice?: bigint };
+  return Number(unit.typeVariant?.currentPrice ?? legacyVariant.currentPrice ?? 0);
+}
+
+function stockOfVariant(variant: {
+  typeVariants?: { stock: number }[];
+  stock?: number;
+}) {
+  return variant.typeVariants?.reduce((total, item) => total + item.stock, 0) ?? variant.stock ?? 0;
 }
 
 function ancestorsOf(categoryId: string, categories: Map<string, AvailabilityCategory>) {
@@ -156,7 +166,12 @@ export class AvailabilityUseCase {
         subdistrict: true,
         city: true,
         province: true,
-        variants: { select: { id: true, stock: true } },
+        variants: {
+          select: {
+            id: true,
+            typeVariants: { select: { stock: true } },
+          },
+        },
         media: {
           where: { tenantId, mediaType: 'IMAGE', variantId: null, unitId: null },
           orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
@@ -207,7 +222,10 @@ export class AvailabilityUseCase {
     const summary = emptySummary();
     const projectRows = products.map((product) => {
       const projectSummary = counts.get(product.id) ?? emptySummary();
-      const totalSlots = product.variants.reduce((total, variant) => total + variant.stock, 0);
+      const totalSlots = product.variants.reduce(
+        (total, variant) => total + stockOfVariant(variant),
+        0
+      );
       for (const key of Object.keys(summary) as (keyof Summary)[]) {
         summary[key] += key === 'total' ? totalSlots : projectSummary[key];
       }
@@ -236,7 +254,9 @@ export class AvailabilityUseCase {
       subdistrict: true,
       city: true,
       province: true,
-      variants: { select: { stock: true } },
+      variants: {
+        select: { typeVariants: { select: { stock: true } } },
+      },
       media: {
         where: { tenantId, mediaType: 'IMAGE' as const, variantId: null, unitId: null },
         orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
@@ -338,7 +358,10 @@ export class AvailabilityUseCase {
         name: data.product.name,
         location,
         image: data.product.media[0]?.fileUrl ?? null,
-        totalUnits: data.product.variants.reduce((total, variant) => total + variant.stock, 0),
+        totalUnits: data.product.variants.reduce(
+          (total, variant) => total + stockOfVariant(variant),
+          0
+        ),
         available: summary.available,
         processing: summary.processing,
         reserved: summary.reserved,

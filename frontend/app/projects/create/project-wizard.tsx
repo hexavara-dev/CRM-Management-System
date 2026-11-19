@@ -53,6 +53,8 @@ export function ProjectWizard({
   const [removedMediaIds, setRemovedMediaIds] = useState<string[]>([]);
   const [newCoverUrls, setNewCoverUrls] = useState<string[]>([]);
   const [coverFiles, setCoverFiles] = useState<File[]>([]);
+  const [siteplanFile, setSiteplanFile] = useState<File>();
+  const [siteplanPreviewUrl, setSiteplanPreviewUrl] = useState(initial?.info.siteplanImg ?? "");
   const [units, setUnits] = useState<UnitItem[]>(initial?.units ?? []);
   const [facilityAttributeIds, setFacilityAttributeIds] = useState<string[]>(
     initial?.facilityAttributeIds ?? [],
@@ -83,11 +85,29 @@ export function ProjectWizard({
     });
   };
 
-  const save = () => {
+  const readInfo = (): ProjectInfo | null => {
+    if (!formRef.current) return null;
+    if (!formRef.current.reportValidity()) return null;
+    const fd = new FormData(formRef.current);
+    const get = (k: keyof ProjectInfo) => String(fd.get(k) ?? "");
+    if ((["province", "city", "subdistrict", "village"] as const).some((k) => !get(k).trim())) {
+      toast.error("Lengkapi Provinsi, Kota/Kabupaten, Kecamatan, dan Kelurahan/Desa.");
+      return null;
+    }
+    const nextInfo = {
+      code: get("code"), name: get("name"), status: get("status"), description: get("description"),
+      province: get("province"), city: get("city"), subdistrict: get("subdistrict"), village: get("village"),
+      address: get("address"), postalCode: get("postalCode"), mapsUrl: get("mapsUrl"), siteplanImg: siteplanPreviewUrl,
+    } satisfies ProjectInfo;
+    setInfo(nextInfo);
+    return nextInfo;
+  };
+
+  const buildPayload = (infoOverride: ProjectInfo = info) => {
     let payload;
     try {
       payload = buildProjectPayload({
-        info,
+        info: infoOverride,
         unitTypes,
         nodes: locations,
         units,
@@ -98,10 +118,19 @@ export function ProjectWizard({
       toast.error(
         error instanceof Error ? error.message : "Data proyek belum valid.",
       );
-      return;
+      return null;
     }
+    return payload;
+  };
+
+  const save = () => {
+    const payload = buildPayload();
+    if (!payload) return;
     const typeImages = unitTypes.flatMap((type, variantIndex) =>
       type.image ? [{ variantIndex, file: type.image }] : [],
+    );
+    const unitImages = units.flatMap((unit, unitIndex) =>
+      (unit.images ?? []).map((file) => ({ unitIndex, file })),
     );
     if (projectId) {
       updateProject.mutate(
@@ -119,49 +148,47 @@ export function ProjectWizard({
           },
           covers: coverFiles,
           typeImages,
+          siteplan: siteplanFile,
+          unitImages,
         },
         { onSuccess: () => router.push(`/projects/${projectId}`) },
       );
     } else {
       createProject.mutate(
-        { payload, covers: coverFiles, typeImages },
+        { payload, covers: coverFiles, typeImages, siteplan: siteplanFile, unitImages },
         { onSuccess: (project) => router.push(`/projects/${project.id}`) },
       );
     }
   };
 
+  const saveStep = (stepToSave: number) => {
+    if (!projectId) return true;
+    const currentInfo = stepToSave === 0 ? readInfo() : info;
+    if (!currentInfo) return false;
+    const payload = buildPayload(currentInfo);
+    if (!payload) return false;
+    const stepPayload = stepToSave === 0
+      ? { name: payload.name, code: payload.code, description: payload.description, province: payload.province, city: payload.city, subdistrict: payload.subdistrict, village: payload.village, address: payload.address, postalCode: payload.postalCode, mapsUrl: payload.mapsUrl, isActive: payload.isActive, facilityAttributeIds: payload.facilityAttributeIds, removeMediaIds: removedMediaIds, ...(existingMedia.find((media) => media.isPrimary) ? { primaryMediaId: existingMedia.find((media) => media.isPrimary)?.id } : {}) }
+      : stepToSave === 1 ? { variants: payload.variants } : { locations: payload.locations, units: payload.units };
+    updateProject.mutate({
+      id: projectId,
+      payload: stepPayload,
+      covers: stepToSave === 0 ? coverFiles : [],
+      typeImages: stepToSave === 1 ? unitTypes.flatMap((type, variantIndex) => type.image ? [{ variantIndex, file: type.image }] : []) : [],
+      siteplan: stepToSave === 0 ? siteplanFile : undefined,
+      unitImages: stepToSave === 2 ? units.flatMap((unit, unitIndex) => (unit.images ?? []).map((file) => ({ unitIndex, file }))) : [],
+    });
+    return true;
+  };
+
   const next = () => {
-    if (step === 0) {
-      if (!formRef.current?.reportValidity()) return;
-      const fd = new FormData(formRef.current);
-      const get = (k: keyof ProjectInfo) => String(fd.get(k) ?? "");
-      // `required` di <select> native Radix tidak bisa diandalkan (browser auto-memilih opsi pertama),
-      // jadi wilayah dicek dari hidden input agar proyek tidak tersimpan tanpa wilayah.
-      if (
-        (["province", "city", "subdistrict", "village"] as const).some(
-          (k) => !get(k).trim(),
-        )
-      ) {
-        toast.error(
-          "Lengkapi Provinsi, Kota/Kabupaten, Kecamatan, dan Kelurahan/Desa.",
-        );
-        return;
-      }
-      setInfo({
-        code: get("code"),
-        name: get("name"),
-        status: get("status"),
-        description: get("description"),
-        province: get("province"),
-        city: get("city"),
-        subdistrict: get("subdistrict"),
-        village: get("village"),
-        address: get("address"),
-        postalCode: get("postalCode"),
-        mapsUrl: get("mapsUrl"),
-      });
-    }
+    if (step === 0 && !readInfo()) return;
     setStep(step + 1);
+  };
+
+  const goToStep = (target: number) => {
+    if (step === 0 && target !== 0 && !readInfo()) return;
+    setStep(target);
   };
 
   return (
@@ -176,7 +203,7 @@ export function ProjectWizard({
             <PageHeading
               title={projectId ? "Edit Project" : "Create Project"}
             />
-            <Stepper current={step} />
+            <Stepper current={step} clickable={!!projectId} onStepChange={goToStep} />
           </div>
           <hr className="border-[#EDEDED]" />
 
@@ -196,6 +223,11 @@ export function ProjectWizard({
                     unit.type === oldName ? { ...unit, type: newName } : unit,
                   ),
                 )
+              }
+              onVariantRename={(key, name) =>
+                setUnits((current) => current.map((unit) =>
+                  unit.typeVariantKey === key ? { ...unit, typeVariantName: name } : unit,
+                ))
               }
             />
           </div>
@@ -295,6 +327,35 @@ export function ProjectWizard({
                     onFilesChange={setCoverFiles}
                   />
                 </Field>
+                <Field label="Siteplan (Opsional)">
+                  <div className="space-y-2">
+                    <div className="relative flex h-28 w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#1980C0] bg-[#F6FAFD]">
+                      {siteplanPreviewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- object URL lokal atau URL storage.
+                        <img src={siteplanPreviewUrl} alt="Preview siteplan" className="size-full object-contain" />
+                      ) : (
+                        <span className="text-xs text-[#667085]">Belum ada siteplan</span>
+                      )}
+                    </div>
+                    <Input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[#E8F3FA] file:px-2 file:py-1.5 file:text-[#1980C0]"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
+                          toast.error("Gunakan JPEG, PNG, atau WebP maksimal 10 MB.");
+                          event.target.value = "";
+                          return;
+                        }
+                        setSiteplanFile(file);
+                        setSiteplanPreviewUrl(URL.createObjectURL(file));
+                      }}
+                    />
+                    <p className="text-[10px] text-[#6b6b6b]">JPEG, PNG, atau WebP; maksimal 10 MB.</p>
+                  </div>
+                </Field>
               </div>
             </section>
 
@@ -369,7 +430,14 @@ export function ProjectWizard({
                 Back
               </Button>
             )}
-            {step === 3 ? (
+            {projectId && step < 3 ? (
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" onClick={() => saveStep(step)} disabled={updateProject.isPending} className="h-9 rounded-lg px-5 text-xs">
+                  {updateProject.isPending ? "Menyimpan..." : "Simpan"}
+                </Button>
+                <Button type="button" onClick={next} disabled={step === 1 && unitTypes.length === 0} className="h-9 rounded-lg bg-[#1980C0] px-12 text-xs text-white hover:bg-[#166ea6]">Next</Button>
+              </div>
+            ) : step === 3 ? (
               <Button
                 type="button"
                 onClick={save}

@@ -161,6 +161,8 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
   const [page, setPage] = useState(1);
 
   const projectQuery = useProjectAvailability(projectId);
+  const hasCluster = projectQuery.data?.hasCluster ?? true;
+  const effectiveMode: GroupMode = !hasCluster && mode === "cluster" ? "block" : mode;
   const clusters = projectQuery.data?.clusters ?? [];
   const activeCluster =
     clusters.find((cluster) => cluster.id === clusterId) ?? clusters[0];
@@ -187,9 +189,9 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
     ),
   ];
   const detailOptions =
-    mode === "cluster"
+    effectiveMode === "cluster"
       ? blockNames
-      : mode === "block"
+      : effectiveMode === "block"
         ? typesForActiveBlock
         : [];
   const selectedDetailFilter =
@@ -198,18 +200,18 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
       : "all";
 
   let filteredUnits = units;
-  if (mode === "cluster" && selectedDetailFilter !== "all") {
+  if (effectiveMode === "cluster" && selectedDetailFilter !== "all") {
     filteredUnits = filteredUnits.filter(
       (unit) => unit.block === selectedDetailFilter,
     );
-  } else if (mode === "block" && activeBlock) {
+  } else if (effectiveMode === "block" && activeBlock) {
     filteredUnits = filteredUnits.filter((unit) => unit.block === activeBlock);
     if (selectedDetailFilter !== "all") {
       filteredUnits = filteredUnits.filter(
         (unit) => unit.type === selectedDetailFilter,
       );
     }
-  } else if (mode === "type" && activeType) {
+  } else if (effectiveMode === "type" && activeType) {
     filteredUnits = filteredUnits.filter((unit) => unit.type === activeType);
   }
 
@@ -221,9 +223,9 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
   );
 
   const selectedName =
-    mode === "cluster"
+    effectiveMode === "cluster"
       ? activeCluster?.name
-      : mode === "block"
+      : effectiveMode === "block"
         ? activeBlock
         : activeType;
   const selectedCounts = countUnits(filteredUnits);
@@ -259,14 +261,10 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
       />
     );
   }
-  if (!activeCluster) {
-    return (
-      <AvailabilityState message="Belum ada cluster dan unit availability untuk proyek ini." />
-    );
-  }
+  if (!activeCluster) return <AvailabilityState message="Belum ada hierarchy dan unit availability untuk proyek ini." />;
 
   const groupCards =
-    mode === "cluster"
+    effectiveMode === "cluster"
       ? clusters.map((cluster) => ({
           id: cluster.id,
           name: cluster.name,
@@ -275,7 +273,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
           selected: cluster.id === activeCluster.id,
           onClick: () => chooseCluster(cluster.id),
         }))
-      : mode === "block"
+      : effectiveMode === "block"
         ? blockNames.map((name) => {
             const blockUnits = units.filter((unit) => unit.block === name);
             return {
@@ -311,15 +309,15 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
       <section className="rounded-xl border border-[#E4E4E7] bg-[#F6F7F9] p-3">
         <div className="mb-3 flex gap-1 rounded-lg bg-white p-1">
-          {GROUP_MODES.map(({ value, label, icon: ModeIcon }) => (
+          {GROUP_MODES.filter(({ value }) => hasCluster || value !== "cluster").map(({ value, label, icon: ModeIcon }) => (
             <button
               key={value}
               type="button"
               onClick={() => selectMode(value)}
-              aria-pressed={mode === value}
+              aria-pressed={effectiveMode === value}
               className={cn(
                 "h-7 flex-1 cursor-pointer rounded-md text-xs font-medium text-[#6b6b6b]",
-                mode === value && "bg-[#E5F1FA] text-[#1980C0]",
+                effectiveMode === value && "bg-[#E5F1FA] text-[#1980C0]",
               )}
             >
               <ModeIcon className="mr-1 inline size-3.5" />
@@ -328,10 +326,10 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
           ))}
         </div>
 
-        {mode !== "cluster" && clusterQuery.isLoading ? (
+        {effectiveMode !== "cluster" && clusterQuery.isLoading ? (
           <div className="flex min-h-44 flex-col items-center justify-center gap-2 text-xs text-[#667085]">
             <LoaderCircle className="size-5 animate-spin" />
-            Memuat data {mode === "block" ? "blok" : "tipe"}...
+            Memuat data {effectiveMode === "block" ? "blok" : "tipe"}...
           </div>
         ) : clusterQuery.isError ? (
           <p className="px-3 py-12 text-center text-xs text-[#D64545]">
@@ -339,9 +337,9 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
           </p>
         ) : groupCards.length === 0 ? (
           <p className="px-3 py-12 text-center text-xs text-[#667085]">
-            {mode === "cluster"
+            {effectiveMode === "cluster"
               ? "Belum ada cluster pada proyek ini."
-              : mode === "block"
+              : effectiveMode === "block"
                 ? "Belum ada data blok pada cluster ini."
                 : "Belum ada tipe unit pada cluster ini."}
           </p>
@@ -369,7 +367,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
           </p>
         </div>
 
-        {mode !== "type" && detailOptions.length > 0 && (
+        {effectiveMode !== "type" && detailOptions.length > 1 && (
           <Tabs
             value={selectedDetailFilter}
             onValueChange={(value) => {
@@ -383,7 +381,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                 value="all"
                 className="h-7 flex-none rounded-md border border-transparent bg-[#F3F4F6] px-2.5 text-[11px] font-medium text-[#6b6b6b] shadow-none data-[state=active]:border-[#1980C0] data-[state=active]:bg-[#E5F1FA] data-[state=active]:text-[#1980C0] data-[state=active]:shadow-none"
               >
-                {mode === "cluster" ? "Semua Blok" : "Semua Tipe"}
+                {effectiveMode === "cluster" ? "Semua Blok" : "Semua Tipe"}
               </TabsTrigger>
               {detailOptions.map((name) => (
                 <TabsTrigger
@@ -391,7 +389,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                   value={name}
                   className="h-7 flex-none rounded-md border border-transparent bg-[#F3F4F6] px-2.5 text-[11px] font-medium text-[#6b6b6b] shadow-none data-[state=active]:border-[#1980C0] data-[state=active]:bg-[#E5F1FA] data-[state=active]:text-[#1980C0] data-[state=active]:shadow-none"
                 >
-                  {mode === "cluster" && name === "—" ? "Tanpa blok" : name}
+                  {effectiveMode === "cluster" && name === "—" ? "Tanpa blok" : name}
                 </TabsTrigger>
               ))}
             </TabsList>

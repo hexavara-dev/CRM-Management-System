@@ -46,6 +46,7 @@ describe('ProductUseCase.create (whole project)', () => {
       productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
+      productTypeVariant: { create: fn({ id: 'tv-1' }) },
       productMedia: { createMany: fn({ count: 1 }) },
     };
     const prisma = {
@@ -79,6 +80,7 @@ describe('ProductUseCase.create (whole project)', () => {
       productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
+      productTypeVariant: { create: fn({ id: 'tv-1' }) },
       productMedia: { createMany: fn({ count: 1 }) },
     };
     const prisma = {
@@ -106,6 +108,7 @@ describe('ProductUseCase.create (whole project)', () => {
       productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
+      productTypeVariant: { create: fn({ id: 'tv-1' }) },
       productMedia: { createMany: jest.fn<(...args: any[]) => any>().mockRejectedValue(new Error('write failed')) },
     };
     const prisma = { $transaction: jest.fn(async (cb: (t: unknown) => unknown) => cb(tx)) };
@@ -159,6 +162,7 @@ describe('ProductUseCase.create (whole project)', () => {
       },
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
+      productTypeVariant: { create: fn({ id: 'tv-1' }) },
       attribute: { findFirst: fn(null), create: fn({ id: 'attr-1' }) },
       productAttribute: { createMany: fn({ count: 1 }) },
       productUnit: { createMany: fn({ count: 1 }) },
@@ -213,6 +217,7 @@ describe('ProductUseCase.create (whole project)', () => {
       productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: jest.fn<(...args: any[]) => any>().mockResolvedValueOnce({ id: 'v-1' }).mockResolvedValueOnce({ id: 'v-2' }) },
+      productTypeVariant: { create: jest.fn<(...args: any[]) => any>().mockResolvedValueOnce({ id: 'tv-1' }).mockResolvedValueOnce({ id: 'tv-2' }) },
       attribute: { findFirst: fn({ id: 'attr-9' }), create: fn() },
       productAttribute: { createMany: fn({ count: 1 }) },
     };
@@ -239,6 +244,7 @@ describe('ProductUseCase.create (whole project)', () => {
       productCategory: { findFirst: fn(null), create: fn({ id: 'root' }) },
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
+      productTypeVariant: { create: fn({ id: 'tv-1' }) },
       attribute: { findFirst: fn({ id: 'attr-1' }), create: fn() },
       productAttribute: { createMany: fn({ count: 1 }) },
     };

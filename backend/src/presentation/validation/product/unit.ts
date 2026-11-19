@@ -7,6 +7,7 @@ export const unitRules: Record<string, FieldRule> = {
   code: { type: 'string', required: true, max: 100 },
   name: { type: 'string', nullable: true, allowEmpty: true, max: 150 },
   variantIndex: { type: 'number', required: true, integer: true, min: 0 },
+  typeVariantIndex: { type: 'number', integer: true, min: 0 },
   locationKey: { type: 'string', max: 64 },
   status: { type: 'string', values: UNIT_STATUSES },
   isHook: { type: 'boolean' },

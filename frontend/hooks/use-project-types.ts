@@ -45,6 +45,18 @@ type ProductVariant = {
   minPrice: number | null;
   stock: number;
   unitCount: number;
+  typeVariants: ProductTypeVariant[];
+};
+
+export type ProductTypeVariant = {
+  id?: string;
+  name: string;
+  code: string | null;
+  basePrice: number;
+  currentPrice?: number;
+  minPrice?: number | null;
+  stock: number;
+  unitCount?: number;
 };
 
 type ProductDetail = {
@@ -97,6 +109,7 @@ export type ProjectTypeRow = {
   image: string | null;
   attributes: Record<TypeAttributeCode, number>;
   attributeRows: ProductAttribute[];
+  typeVariants: ProductTypeVariant[];
 };
 
 export type ProjectTypeForm = {
@@ -105,6 +118,7 @@ export type ProjectTypeForm = {
   name: string;
   basePrice: number;
   stock: number;
+  typeVariants?: ProductTypeVariant[];
   attributes: Record<TypeAttributeCode, number>;
   image?: File;
 };
@@ -203,6 +217,7 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
         image: media?.fileUrl ?? null,
         attributes,
         attributeRows,
+        typeVariants: variant.typeVariants,
       } satisfies ProjectTypeRow;
     }),
   );
@@ -282,9 +297,7 @@ export function useCreateProjectType() {
           `/api/products/${form.projectId}/variants`,
           {
             name: form.name.trim(),
-            basePrice: form.basePrice,
-            currentPrice: form.basePrice,
-            stock: form.stock,
+            typeVariants: form.typeVariants?.map((option) => ({ ...option, currentPrice: option.currentPrice ?? option.basePrice })) ?? [{ name: "Default", code: null, basePrice: form.basePrice, currentPrice: form.basePrice, stock: form.stock }],
           },
         )
       ).data;
@@ -343,8 +356,9 @@ export function useUpdateProjectType() {
         `/api/products/${form.projectId}/variants/${form.variantId}`,
         {
           name: form.name.trim(),
-          basePrice: form.basePrice,
-          stock: form.stock,
+          ...(form.typeVariants?.length
+            ? { typeVariants: form.typeVariants.map((option) => ({ ...option, currentPrice: option.currentPrice ?? option.basePrice })) }
+            : { basePrice: form.basePrice, stock: form.stock }),
         },
       );
 

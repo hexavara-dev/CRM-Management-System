@@ -341,7 +341,7 @@ app.delete('/api/categories/:id', authMiddleware, ownerOnly, pc.deleteCategory);
 app.get('/api/products', authMiddleware, pc.listProducts);
 app.get('/api/products/:id', authMiddleware, pc.getProduct);
 app.get('/api/products/:id/edit-data', authMiddleware, pc.getProductEdit);
-const projectUploads = upload.fields([{ name: 'covers', maxCount: 10 }, { name: 'typeImages', maxCount: 100 }]);
+const projectUploads = upload.fields([{ name: 'covers', maxCount: 10 }, { name: 'typeImages', maxCount: 100 }, { name: 'unitImages', maxCount: 500 }, { name: 'siteplan', maxCount: 1 }]);
 app.post('/api/products', authMiddleware, ownerOnly, projectUploads, pc.createProduct);
 app.put('/api/products/:id', authMiddleware, ownerOnly, projectUploads, pc.updateProduct);
 app.delete('/api/products/:id', authMiddleware, ownerOnly, pc.deleteProduct);

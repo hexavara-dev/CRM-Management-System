@@ -49,7 +49,7 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
 
   return (
     <>
-      <div className="grid h-44 grid-cols-[1fr_28%] gap-1.5 sm:h-64 sm:grid-cols-[1fr_21%]">
+      <div className="grid aspect-[10/3] w-full grid-cols-[1fr_28%] gap-1.5 sm:grid-cols-[1fr_21%]">
         <button
           type="button"
           disabled={!main}
@@ -109,17 +109,17 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex h-[min(92vh,820px)] max-w-[calc(100%-1rem)] flex-col gap-3 overflow-hidden bg-[#111827] p-4 text-white sm:max-w-5xl">
-          <div className="pr-10">
+        <DialogContent className="flex h-[min(92vh,820px)] max-w-[calc(100%-1rem)] flex-col gap-3 overflow-hidden bg-white p-4 text-[#1f1f1f] sm:max-w-5xl">
+          <div className="flex items-baseline gap-2 pr-10">
             <DialogTitle>Semua Foto</DialogTitle>
-            <DialogDescription className="text-xs text-white/65">
+            <DialogDescription className="text-xs text-[#6b6b6b]">
               {images.length > 0
-                ? `${activeIndex + 1} / ${images.length}`
-                : "Belum ada foto"}
+                ? `(${activeIndex + 1}/${images.length})`
+                : "(Belum ada foto)"}
             </DialogDescription>
           </div>
 
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg bg-black/35">
+          <div className="relative isolate min-h-0 flex-1 overflow-hidden rounded-lg bg-[#F4F4F5]">
             {images[activeIndex] && (
               <Image
                 src={images[activeIndex].fileUrl}
@@ -133,20 +133,20 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
               <>
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   size="icon"
                   onClick={() => move(-1)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90"
+                  className="absolute inset-y-0 left-3 z-10 my-auto rounded-full border-[#E4E4E7] bg-white text-[#1f1f1f] shadow-md hover:bg-[#F4F4F5]"
                   aria-label="Foto sebelumnya"
                 >
                   <ChevronLeft />
                 </Button>
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   size="icon"
                   onClick={() => move(1)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-white/90"
+                  className="absolute inset-y-0 right-3 z-10 my-auto rounded-full border-[#E4E4E7] bg-white text-[#1f1f1f] shadow-md hover:bg-[#F4F4F5]"
                   aria-label="Foto berikutnya"
                 >
                   <ChevronRight />
@@ -162,9 +162,9 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
                 key={image.id}
                 onClick={() => setActiveIndex(index)}
                 className={cn(
-                  "relative h-16 w-24 shrink-0 cursor-pointer overflow-hidden rounded-md border-2 bg-black/30",
+                  "relative h-16 w-24 shrink-0 cursor-pointer overflow-hidden rounded-md border-2 bg-[#F4F4F5]",
                   index === activeIndex
-                    ? "border-[#38A8EE]"
+                    ? "border-[#1980C0]"
                     : "border-transparent opacity-65 hover:opacity-100",
                 )}
                 aria-label={`Tampilkan foto ${index + 1}`}

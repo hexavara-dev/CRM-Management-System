@@ -52,8 +52,13 @@ export function buildProjectPayload(input: {
   const variants = unitTypes.map((t) => ({
     ...(t.id ? { id: t.id } : {}),
     name: t.name.trim(),
-    basePrice: Math.round(Number(t.basePrice) || 0),
-    stock: Math.round(Number(t.stock) || 0),
+    typeVariants: t.variants.map((option) => ({
+      ...(option.id ? { id: option.id } : {}),
+      name: option.name.trim(),
+      ...(option.code.trim() ? { code: option.code.trim() } : {}),
+      basePrice: Math.round(Number(option.basePrice) || 0),
+      stock: Math.round(Number(option.stock) || 0),
+    })),
     attributes: ATTRIBUTES.map((a) => ({
       name: a.name,
       code: a.code,
@@ -72,10 +77,13 @@ export function buildProjectPayload(input: {
   const payloadUnits = units.map((u) => {
     const variantIndex = names.indexOf(u.type.trim());
     if (variantIndex < 0) throw new Error(`Unit ${u.code}: tipe "${u.type}" tidak ada di Unit Type.`);
+    const typeVariantIndex = unitTypes[variantIndex]?.variants.findIndex((option) => option.key === u.typeVariantKey) ?? -1;
+    if (typeVariantIndex < 0) throw new Error(`Unit ${u.code}: varian "${u.typeVariantName}" tidak ada pada ${u.type}.`);
     return {
       ...(u.persistedId ? { id: u.persistedId } : {}),
       code: u.code,
       variantIndex,
+      typeVariantIndex,
       // Unit yang menempel di akar (tanpa node) memakai akar proyek di backend.
       ...(nodes.some((n) => n.id === u.locationId) ? { locationKey: u.locationId } : {}),
       status: UNIT_STATUS[u.status.trim().toLowerCase()] ?? "AVAILABLE",

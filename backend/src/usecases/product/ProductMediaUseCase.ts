@@ -42,6 +42,7 @@ export function validateProductImage(file: Express.Multer.File): string {
 export type MediaMetaInput = {
   title?: string | null;
   variantId?: string | null;
+  unitId?: string | null;
   sortOrder?: number;
   isPrimary?: boolean;
 };
@@ -70,16 +71,25 @@ export class ProductMediaUseCase {
     if (!variant) throw new Error('Variant not found');
   }
 
+  private async assertUnit(productId: string, unitId: string, tenantId: string) {
+    const unit = await this.prisma.productUnit.findFirst({
+      where: { id: unitId, tenantId, variant: { productId, tenantId } },
+      select: { id: true },
+    });
+    if (!unit) throw new Error('Unit not found');
+  }
+
   /** Clears the primary flag of the other media of the same product/variant. */
   private async clearPrimary(
     tx: Prisma.TransactionClient,
     tenantId: string,
     productId: string,
     variantId: string | null,
+    unitId: string | null,
     exceptId?: string
   ) {
     await tx.productMedia.updateMany({
-      where: { tenantId, productId, variantId, isPrimary: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+      where: { tenantId, productId, variantId, unitId, isPrimary: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
       data: { isPrimary: false },
     });
   }
@@ -101,7 +111,10 @@ export class ProductMediaUseCase {
   ) {
     await this.assertProduct(productId, tenantId);
     const variantId = meta.variantId ?? null;
+    const unitId = meta.unitId ?? null;
+    if (variantId && unitId) throw new Error('Media cannot target both a variant and a unit');
     if (variantId) await this.assertVariant(productId, variantId, tenantId);
+    if (unitId) await this.assertUnit(productId, unitId, tenantId);
 
     let mediaType: 'IMAGE' | 'DOCUMENT';
     if (IMAGE_TYPES.includes(file.mimetype)) mediaType = 'IMAGE';
@@ -117,12 +130,13 @@ export class ProductMediaUseCase {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        if (meta.isPrimary) await this.clearPrimary(tx, tenantId, productId, variantId);
+        if (meta.isPrimary) await this.clearPrimary(tx, tenantId, productId, variantId, unitId);
         return tx.productMedia.create({
           data: {
             tenantId,
             productId,
             variantId,
+            unitId,
             title: meta.title ?? null,
             mediaType,
             fileName: file.originalname.slice(0, 255),
@@ -143,7 +157,10 @@ export class ProductMediaUseCase {
   async addLink(productId: string, tenantId: string, input: MediaLinkInput) {
     await this.assertProduct(productId, tenantId);
     const variantId = input.variantId ?? null;
+    const unitId = input.unitId ?? null;
+    if (variantId && unitId) throw new Error('Media cannot target both a variant and a unit');
     if (variantId) await this.assertVariant(productId, variantId, tenantId);
+    if (unitId) await this.assertUnit(productId, unitId, tenantId);
     let url: URL;
     try {
       url = new URL(input.fileUrl ?? '');
@@ -153,12 +170,13 @@ export class ProductMediaUseCase {
     if (url.protocol !== 'https:') throw new Error('fileUrl must be a valid https URL');
 
     return this.prisma.$transaction(async (tx) => {
-      if (input.isPrimary) await this.clearPrimary(tx, tenantId, productId, variantId);
+      if (input.isPrimary) await this.clearPrimary(tx, tenantId, productId, variantId, unitId);
       return tx.productMedia.create({
         data: {
           tenantId,
           productId,
           variantId,
+          unitId,
           title: input.title ?? null,
           mediaType: 'VIDEO_LINK',
           fileUrl: url.toString(),
@@ -178,11 +196,14 @@ export class ProductMediaUseCase {
   async update(id: string, tenantId: string, input: MediaMetaInput) {
     const media = await this.find(id, tenantId);
     const variantId = input.variantId !== undefined ? input.variantId : media.variantId;
+    const unitId = input.unitId !== undefined ? input.unitId : media.unitId;
+    if (variantId && unitId) throw new Error('Media cannot target both a variant and a unit');
     if (variantId) await this.assertVariant(media.productId, variantId, tenantId);
+    if (unitId) await this.assertUnit(media.productId, unitId, tenantId);
 
     return this.prisma.$transaction(async (tx) => {
-      if (input.isPrimary) await this.clearPrimary(tx, tenantId, media.productId, variantId, id);
-      const data: Prisma.ProductMediaUncheckedUpdateInput = { variantId };
+      if (input.isPrimary) await this.clearPrimary(tx, tenantId, media.productId, variantId, unitId, id);
+      const data: Prisma.ProductMediaUncheckedUpdateInput = { variantId, unitId };
       if (input.title !== undefined) data.title = input.title;
       if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
       if (input.isPrimary !== undefined) data.isPrimary = input.isPrimary;

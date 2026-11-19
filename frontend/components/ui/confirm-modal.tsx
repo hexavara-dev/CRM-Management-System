@@ -21,6 +21,8 @@ interface ConfirmModalProps {
   loading?: boolean;
   cancelLabel?: string;
   confirmLabel?: string;
+  confirmDisabled?: boolean;
+  children?: ReactNode;
 }
 
 export function ConfirmModal({
@@ -32,6 +34,8 @@ export function ConfirmModal({
   loading,
   cancelLabel = "Cancel",
   confirmLabel = "Confirm",
+  confirmDisabled = false,
+  children,
 }: ConfirmModalProps) {
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
@@ -39,11 +43,12 @@ export function ConfirmModal({
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
+          {children}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
-            disabled={loading}
+            disabled={loading || confirmDisabled}
             onClick={(e) => {
               e.preventDefault();
               onConfirm();
