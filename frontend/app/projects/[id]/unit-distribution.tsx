@@ -131,7 +131,7 @@ function GroupCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3 rounded-xl border bg-white p-2 text-left transition-colors",
+        "flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-white p-2 text-left transition-colors",
         selected
           ? "border-[#1980C0]"
           : "border-[#E4E4E7] hover:border-[#1980C0]/50",
@@ -157,7 +157,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
   const [clusterId, setClusterId] = useState<string>();
   const [blockName, setBlockName] = useState<string>();
   const [typeName, setTypeName] = useState<string>();
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [detailFilter, setDetailFilter] = useState("all");
   const [page, setPage] = useState(1);
 
   const projectQuery = useProjectAvailability(projectId);
@@ -179,19 +179,38 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
     blockNames.find((name) => name === blockName) ?? blockNames[0];
   const activeType =
     typeNames.find((name) => name === typeName) ?? typeNames[0];
-  const selectedTypeFilter =
-    typeFilter === "all" || typeNames.includes(typeFilter) ? typeFilter : "all";
+  const typesForActiveBlock = [
+    ...new Set(
+      units
+        .filter((unit) => unit.block === activeBlock)
+        .map((unit) => unit.type),
+    ),
+  ];
+  const detailOptions =
+    mode === "cluster"
+      ? blockNames
+      : mode === "block"
+        ? typesForActiveBlock
+        : [];
+  const selectedDetailFilter =
+    detailFilter === "all" || detailOptions.includes(detailFilter)
+      ? detailFilter
+      : "all";
 
   let filteredUnits = units;
-  if (mode === "block" && activeBlock) {
-    filteredUnits = filteredUnits.filter((unit) => unit.block === activeBlock);
-  }
-  if (mode === "type" && activeType) {
-    filteredUnits = filteredUnits.filter((unit) => unit.type === activeType);
-  } else if (selectedTypeFilter !== "all") {
+  if (mode === "cluster" && selectedDetailFilter !== "all") {
     filteredUnits = filteredUnits.filter(
-      (unit) => unit.type === selectedTypeFilter,
+      (unit) => unit.block === selectedDetailFilter,
     );
+  } else if (mode === "block" && activeBlock) {
+    filteredUnits = filteredUnits.filter((unit) => unit.block === activeBlock);
+    if (selectedDetailFilter !== "all") {
+      filteredUnits = filteredUnits.filter(
+        (unit) => unit.type === selectedDetailFilter,
+      );
+    }
+  } else if (mode === "type" && activeType) {
+    filteredUnits = filteredUnits.filter((unit) => unit.type === activeType);
   }
 
   const totalPages = Math.max(1, Math.ceil(filteredUnits.length / PAGE_SIZE));
@@ -207,16 +226,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
       : mode === "block"
         ? activeBlock
         : activeType;
-  const selectedUnits =
-    mode === "cluster"
-      ? units
-      : mode === "block"
-        ? units.filter((unit) => unit.block === activeBlock)
-        : units.filter((unit) => unit.type === activeType);
-  const selectedCounts =
-    mode === "cluster" && activeCluster
-      ? countsForCluster(activeCluster)
-      : countUnits(selectedUnits);
+  const selectedCounts = countUnits(filteredUnits);
   const selectedTotal = Object.values(selectedCounts).reduce(
     (sum, count) => sum + count,
     0,
@@ -226,12 +236,13 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
     setClusterId(nextClusterId);
     setBlockName(undefined);
     setTypeName(undefined);
-    setTypeFilter("all");
+    setDetailFilter("all");
     setPage(1);
   };
 
   const selectMode = (nextMode: GroupMode) => {
     setMode(nextMode);
+    setDetailFilter("all");
     setPage(1);
   };
 
@@ -275,6 +286,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
               selected: name === activeBlock,
               onClick: () => {
                 setBlockName(name);
+                setDetailFilter("all");
                 setPage(1);
               },
             };
@@ -289,6 +301,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
               selected: name === activeType,
               onClick: () => {
                 setTypeName(name);
+                setDetailFilter("all");
                 setPage(1);
               },
             };
@@ -305,7 +318,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
               onClick={() => selectMode(value)}
               aria-pressed={mode === value}
               className={cn(
-                "h-7 flex-1 rounded-md text-xs font-medium text-[#6b6b6b]",
+                "h-7 flex-1 cursor-pointer rounded-md text-xs font-medium text-[#6b6b6b]",
                 mode === value && "bg-[#E5F1FA] text-[#1980C0]",
               )}
             >
@@ -356,11 +369,11 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
           </p>
         </div>
 
-        {mode !== "type" && typeNames.length > 0 && (
+        {mode !== "type" && detailOptions.length > 0 && (
           <Tabs
-            value={selectedTypeFilter}
+            value={selectedDetailFilter}
             onValueChange={(value) => {
-              setTypeFilter(value);
+              setDetailFilter(value);
               setPage(1);
             }}
             className="mb-3 gap-3"
@@ -370,15 +383,15 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                 value="all"
                 className="h-7 flex-none rounded-md border border-transparent bg-[#F3F4F6] px-2.5 text-[11px] font-medium text-[#6b6b6b] shadow-none data-[state=active]:border-[#1980C0] data-[state=active]:bg-[#E5F1FA] data-[state=active]:text-[#1980C0] data-[state=active]:shadow-none"
               >
-                Semua Tipe
+                {mode === "cluster" ? "Semua Blok" : "Semua Tipe"}
               </TabsTrigger>
-              {typeNames.map((name) => (
+              {detailOptions.map((name) => (
                 <TabsTrigger
                   key={name}
                   value={name}
                   className="h-7 flex-none rounded-md border border-transparent bg-[#F3F4F6] px-2.5 text-[11px] font-medium text-[#6b6b6b] shadow-none data-[state=active]:border-[#1980C0] data-[state=active]:bg-[#E5F1FA] data-[state=active]:text-[#1980C0] data-[state=active]:shadow-none"
                 >
-                  {name}
+                  {mode === "cluster" && name === "—" ? "Tanpa blok" : name}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -420,7 +433,9 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                       <td className="px-3 py-2">{unit.block}</td>
                       <td className="px-3 py-2 font-medium">{unit.code}</td>
                       <td className="px-3 py-2">{unit.type}</td>
-                      <td className="px-3 py-2">{unit.isHook ? "Ya" : "Tidak"}</td>
+                      <td className="px-3 py-2">
+                        {unit.isHook ? "Ya" : "Tidak"}
+                      </td>
                       <td className="px-3 py-2">
                         <span
                           className={cn(
@@ -465,7 +480,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                   aria-label="Halaman sebelumnya"
                   disabled={currentPage === 1}
                   onClick={() => setPage(currentPage - 1)}
-                  className="grid size-7 place-items-center rounded-md border border-[#E4E4E7] disabled:opacity-40"
+                  className="grid size-7 cursor-pointer place-items-center rounded-md border border-[#E4E4E7] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronLeft className="size-3.5" />
                 </button>
@@ -481,7 +496,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                     }
                     onClick={() => setPage(pageNumber)}
                     className={cn(
-                      "grid size-7 place-items-center rounded-md border border-[#E4E4E7]",
+                      "grid size-7 cursor-pointer place-items-center rounded-md border border-[#E4E4E7]",
                       pageNumber === currentPage &&
                         "border-[#1980C0] bg-[#1980C0] text-white",
                     )}
@@ -494,7 +509,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                   aria-label="Halaman berikutnya"
                   disabled={currentPage === totalPages}
                   onClick={() => setPage(currentPage + 1)}
-                  className="grid size-7 place-items-center rounded-md border border-[#E4E4E7] disabled:opacity-40"
+                  className="grid size-7 cursor-pointer place-items-center rounded-md border border-[#E4E4E7] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronRight className="size-3.5" />
                 </button>

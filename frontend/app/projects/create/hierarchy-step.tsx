@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Folder, Layers, LayoutGrid, MoreVertical, Pencil, Plus, Trash2, Boxes } from "lucide-react";
+import { ArrowUpDown, Folder, Layers, LayoutGrid, MoreVertical, Pencil, Plus, Trash2, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -23,6 +24,7 @@ export type UnitItem = { id: string; persistedId?: string; locationId: string; c
 
 const ROOT = "root";
 const LEVEL_SUGGESTIONS = ["Cluster", "Zone", "Block", "Tower", "Floor"];
+const UNIT_CODE_SORTER = new Intl.Collator("id-ID", { numeric: true, sensitivity: "base" });
 
 type Draft = { id: string | null; parentId: string; name: string; level: string };
 
@@ -69,6 +71,15 @@ export function HierarchyStep({
   // Hanya lokasi level Block (tanpa child) yang menampung unit; Add Unit disembunyikan di level lain.
   const isLeaf = selected.id !== ROOT && selected.level.trim().toLowerCase() === "block" && children.length === 0;
   const selectedUnits = units.filter((u) => u.locationId === selected.id);
+  const sortedSelectedUnits = [...selectedUnits].sort((a, b) => UNIT_CODE_SORTER.compare(a.code, b.code));
+  const isUnitOrderSorted = selectedUnits.every((unit, index) => unit.id === sortedSelectedUnits[index]?.id);
+  const sortSelectedUnits = () => {
+    let sortedIndex = 0;
+    onUnitsChange(units.map((unit) =>
+      unit.locationId === selected.id ? (sortedSelectedUnits[sortedIndex++] ?? unit) : unit,
+    ));
+    toast.success("Daftar unit berhasil diurutkan.");
+  };
   const desc = descendants(selected.id);
   const leaves = desc.filter((n) => kids(n.id).length === 0);
 
@@ -108,7 +119,7 @@ export function HierarchyStep({
   const rowActions = (n: LocationNode) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" aria-label="Aksi lokasi" className="ml-auto rounded p-1 hover:bg-[#E4E4E7]">
+        <button type="button" aria-label="Aksi lokasi" className="ml-auto cursor-pointer rounded p-1 hover:bg-[#E4E4E7]">
           <MoreVertical className="size-3.5" />
         </button>
       </DropdownMenuTrigger>
@@ -148,25 +159,27 @@ export function HierarchyStep({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div className="rounded-lg border border-[#E4E4E7] p-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex h-[70vh] min-h-[420px] max-h-[600px] flex-col rounded-lg border border-[#E4E4E7] p-4">
+          <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
             <span className="text-xs font-semibold text-[#1f1f1f]">Project Location Structure</span>
             <Button type="button" variant="outline" onClick={() => openAdd(selectedId)} className="h-8 gap-1 rounded-lg border-[#1980C0] bg-[#E8F3FA] px-3 text-xs text-[#1980C0] hover:bg-[#d6eaf6]">
               <Plus className="size-3.5" />
               Add Level
             </Button>
           </div>
-          <TreeRow label={rootName} depth={0} open={expanded.has(ROOT)} hasKids={kids(ROOT).length > 0} active={selectedId === ROOT} onToggle={() => toggle(ROOT)} onSelect={() => setSelectedId(ROOT)} />
-          {expanded.has(ROOT) && renderTree(ROOT, 1)}
+          <ScrollArea className="-mr-2 min-h-0 flex-1 pr-2">
+            <TreeRow label={rootName} depth={0} open={expanded.has(ROOT)} hasKids={kids(ROOT).length > 0} active={selectedId === ROOT} onToggle={() => toggle(ROOT)} onSelect={() => setSelectedId(ROOT)} />
+            {expanded.has(ROOT) && renderTree(ROOT, 1)}
+          </ScrollArea>
         </div>
 
-        <div className="space-y-3 rounded-lg border border-[#E4E4E7] p-4">
-          <div>
+        <div className="flex h-[70vh] min-h-[420px] max-h-[600px] flex-col gap-3 rounded-lg border border-[#E4E4E7] p-4">
+          <div className="shrink-0">
             <h4 className="text-xs font-semibold text-[#1f1f1f]">Detail</h4>
             <p className="text-[11px] text-[#6b6b6b]">Manage the selected location information and add child locations under it</p>
           </div>
 
-          <div className="rounded-lg border border-[#E4E4E7] p-3">
+          <div className="shrink-0 rounded-lg border border-[#E4E4E7] p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <Folder className="size-5 shrink-0 text-[#1980C0]" />
@@ -199,17 +212,24 @@ export function HierarchyStep({
           </div>
 
           {isLeaf && (
-            <>
-              <div className="flex items-center justify-between">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="flex shrink-0 items-center justify-between gap-3">
                 <h4 className="text-sm font-semibold text-[#1f1f1f]">Daftar Unit</h4>
-                <Button type="button" variant="outline" onClick={() => setUnitOpen(true)} className="h-8 gap-1 rounded-lg border-[#1980C0] bg-[#E8F3FA] px-3 text-xs text-[#1980C0] hover:bg-[#d6eaf6]">
-                  <Plus className="size-3.5" />
-                  Add Unit
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" onClick={sortSelectedUnits} disabled={selectedUnits.length < 2 || isUnitOrderSorted} className="h-8 gap-1 rounded-lg px-3 text-xs">
+                    <ArrowUpDown className="size-3.5" />
+                    Sort Unit
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setUnitOpen(true)} className="h-8 gap-1 rounded-lg border-[#1980C0] bg-[#E8F3FA] px-3 text-xs text-[#1980C0] hover:bg-[#d6eaf6]">
+                    <Plus className="size-3.5" />
+                    Add Unit
+                  </Button>
+                </div>
               </div>
-              <div className="overflow-x-auto rounded-lg border border-[#E4E4E7]">
+              <ScrollArea className="min-h-0 flex-1 rounded-lg border border-[#E4E4E7]">
+                <div className="min-w-[560px] overflow-x-auto">
                 <Table className="text-xs">
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-10 bg-white">
                     <TableRow>
                       {["No Unit", "Type", "Status Unit", "Action"].map((h) => (
                         <TableHead key={h} className="h-10 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">{h}</TableHead>
@@ -228,7 +248,7 @@ export function HierarchyStep({
                           <TableCell>{u.type}</TableCell>
                           <TableCell>{u.status}</TableCell>
                           <TableCell>
-                            <button type="button" aria-label="Delete unit" onClick={() => onUnitsChange(units.filter((x) => x.id !== u.id))} className="rounded p-1 text-[#D64545] hover:bg-[#FDECEC]">
+                            <button type="button" aria-label="Delete unit" onClick={() => onUnitsChange(units.filter((x) => x.id !== u.id))} className="cursor-pointer rounded p-1 text-[#D64545] hover:bg-[#FDECEC]">
                               <Trash2 className="size-3.5" />
                             </button>
                           </TableCell>
@@ -237,8 +257,9 @@ export function HierarchyStep({
                     )}
                   </TableBody>
                 </Table>
-              </div>
-            </>
+                </div>
+              </ScrollArea>
+            </div>
           )}
         </div>
       </div>
@@ -251,8 +272,16 @@ export function HierarchyStep({
             remove(pendingDelete.id);
             setPendingDelete(null);
           }}
-          title={`Hapus ${pendingDelete.name}?`}
-          description={`${descendants(pendingDelete.id).length} child location dan ${totalUnits(pendingDelete.id)} unit di dalamnya ikut terhapus. Tindakan ini tidak bisa dibatalkan.`}
+          title={`Hapus “${pendingDelete.name}”?`}
+          description={totalUnits(pendingDelete.id) > 0 ? (
+            <>
+              <strong>{totalUnits(pendingDelete.id)} unit</strong> di dalamnya juga akan dihapus. Penghapusan ini permanen dan tidak dapat dibatalkan.
+            </>
+          ) : (
+            <>Penghapusan ini permanen dan tidak dapat dibatalkan.</>
+          )}
+          cancelLabel="Batal"
+          confirmLabel="Hapus"
         />
       )}
 

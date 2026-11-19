@@ -68,7 +68,7 @@ export function RegionSelect({
       </label>
       <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) setSearch(""); }}>
         <PopoverTrigger asChild>
-          <button ref={triggerRef} type="button" role="combobox" aria-label={label} aria-expanded={open} data-name={name} disabled={disabled || !hasOptions} className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50">
+          <button ref={triggerRef} type="button" role="combobox" aria-label={label} aria-expanded={open} data-name={name} disabled={disabled || !hasOptions} className="flex h-9 w-full cursor-pointer items-center justify-between rounded-md border border-input bg-background px-3 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50">
             <span className={selectedName ? "truncate" : "truncate text-muted-foreground"}>{selectedName ?? hint}</span>
             <ChevronsUpDown className="ml-2 size-3.5 shrink-0 text-muted-foreground" />
           </button>
@@ -77,7 +77,7 @@ export function RegionSelect({
           <Input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Cari ${label.toLowerCase()}...`} className="h-9 text-xs" />
           <div className="mt-2 max-h-56 overflow-y-auto overscroll-contain">
             {visibleOptions.map((option) => (
-              <button key={option.c} type="button" onClick={() => { onChange(option.c); setOpen(false); }} className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent">
+              <button key={option.c} type="button" onClick={() => { onChange(option.c); setOpen(false); }} className="flex w-full cursor-pointer items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent">
                 <span className="truncate">{option.n}</span>
                 {option.c === value && <Check className="size-3.5 shrink-0" />}
               </button>

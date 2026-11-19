@@ -42,7 +42,7 @@ export function RegionFields({ postal, address, initial }: { postal: ReactNode; 
     <>
       {error && <p className="text-xs text-[#D64545] md:col-span-2">{error}</p>}
       <RegionSelect
-        label="Province"
+        label="Provinsi"
         name="province"
         value={provinceCode}
         onChange={(c) => {
@@ -55,7 +55,7 @@ export function RegionFields({ postal, address, initial }: { postal: ReactNode; 
       />
       {postal}
       <RegionSelect
-        label="City/Regency"
+        label="Kota/Kabupaten"
         name="city"
         value={cityCode}
         onChange={(c) => {
@@ -68,7 +68,7 @@ export function RegionFields({ postal, address, initial }: { postal: ReactNode; 
       />
       {address}
       <RegionSelect
-        label="Subdistrict"
+        label="Kecamatan"
         name="subdistrict"
         value={districtCode}
         onChange={(c) => {
@@ -80,7 +80,7 @@ export function RegionFields({ postal, address, initial }: { postal: ReactNode; 
         disabled={!cityCode}
       />
       <RegionSelect
-        label="Village"
+        label="Kelurahan/Desa"
         name="village"
         value={villageCode}
         onChange={(c) => setEdited((current) => ({ ...current, village: c }))}

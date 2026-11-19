@@ -132,7 +132,7 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button type="button" aria-label="Actions" className="rounded p-1 hover:bg-[#F4F4F5]">
+                        <button type="button" aria-label="Actions" className="cursor-pointer rounded p-1 hover:bg-[#F4F4F5]">
                           <MoreVertical className="size-4" />
                         </button>
                       </DropdownMenuTrigger>
@@ -162,7 +162,7 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
           Showing {items.length === 0 ? 0 : start + 1} - {Math.min(start + PAGE_SIZE, items.length)} of {items.length} properties
         </span>
         <div className="flex items-center gap-1">
-          <button type="button" aria-label="Previous page" disabled={current === 1} onClick={() => setPage(current - 1)} className="grid size-6 place-items-center rounded-full border border-[#D9D9DE] disabled:opacity-40">
+          <button type="button" aria-label="Previous page" disabled={current === 1} onClick={() => setPage(current - 1)} className="grid size-6 cursor-pointer place-items-center rounded-full border border-[#D9D9DE] disabled:cursor-not-allowed disabled:opacity-40">
             <ChevronLeft className="size-3.5" />
           </button>
           {Array.from({ length: pages }, (_, p) => p + 1).map((p) => (
@@ -170,12 +170,12 @@ export function UnitTypeStep({ items, units, onChange, onRename }: { items: Unit
               key={p}
               type="button"
               onClick={() => setPage(p)}
-              className={cn("grid size-6 place-items-center rounded-full border text-[11px]", p === current ? "border-[#1980C0] bg-[#1980C0] text-white" : "border-[#D9D9DE]")}
+              className={cn("grid size-6 cursor-pointer place-items-center rounded-full border text-[11px]", p === current ? "border-[#1980C0] bg-[#1980C0] text-white" : "border-[#D9D9DE]")}
             >
               {p}
             </button>
           ))}
-          <button type="button" aria-label="Next page" disabled={current === pages} onClick={() => setPage(current + 1)} className="grid size-6 place-items-center rounded-full border border-[#D9D9DE] disabled:opacity-40">
+          <button type="button" aria-label="Next page" disabled={current === pages} onClick={() => setPage(current + 1)} className="grid size-6 cursor-pointer place-items-center rounded-full border border-[#D9D9DE] disabled:cursor-not-allowed disabled:opacity-40">
             <ChevronRight className="size-3.5" />
           </button>
         </div>
