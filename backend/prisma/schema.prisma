@@ -52,6 +52,8 @@ model Company {
   reservations            Reservation[]
   leadLabels              LeadLabel[]
   stageEvidences          StageEvidenceRequirement[]
+  leadFormTemplates       LeadFormTemplate[]
+  leadFormVersions        LeadFormTemplateVersion[]
 
   @@map("company")
 }
@@ -78,6 +80,8 @@ model User {
   assignedReservations Reservation[]  @relation("ReservationSales")
   requestedPriceAdjustments UnitPriceAdjustment[] @relation("PriceAdjustmentRequester")
   reviewedPriceAdjustments  UnitPriceAdjustment[] @relation("PriceAdjustmentReviewer")
+  updatedFormTemplates      LeadFormTemplate[]        @relation("FormTemplateUpdater")
+  createdFormVersions       LeadFormTemplateVersion[] @relation("FormVersionCreator")
 
   @@map("user")
 }
@@ -947,3 +951,47 @@ model StageEvidenceRequirement {
   @@map("stage_evidence_requirements")
 }
 
+/// Template form Lead (custom field) per company. Field disimpan per versi agar Lead lama tetap memakai snapshot-nya.
+model LeadFormTemplate {
+  id               String                    @id @default(uuid()) @db.VarChar(36)
+  tenantId         String                    @map("company_id") @db.VarChar(36)
+  name             String                    @db.VarChar(150)
+  description      String?                   @db.VarChar(500)
+  icon             String                    @db.VarChar(50)
+  color            String                    @db.VarChar(7)
+  isDefault        Boolean                   @default(false) @map("is_default")
+  /// 'default' bila template default; unik per company sehingga hanya satu default.
+  defaultGuard     String?                   @map("default_guard") @db.VarChar(10)
+  isActive         Boolean                   @default(true) @map("is_active")
+  currentVersionId String?                   @map("current_version_id") @db.VarChar(36)
+  updatedById      String?                   @map("updated_by_id") @db.VarChar(36)
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt        DateTime                  @updatedAt @map("updated_at") @db.DateTime(6)
+  versions         LeadFormTemplateVersion[]
+  updatedBy        User?                     @relation("FormTemplateUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  tenant           Company                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, defaultGuard])
+  @@map("lead_form_templates")
+}
+
+/// Snapshot field sebuah template. Versi yang terkunci (sudah dipakai Lead) tidak pernah diubah.
+model LeadFormTemplateVersion {
+  id          String           @id @default(uuid()) @db.VarChar(36)
+  tenantId    String           @map("company_id") @db.VarChar(36)
+  templateId  String           @map("template_id") @db.VarChar(36)
+  version     Int
+  /// Definisi custom field: [{ key, label, type, required, placeholder, helpText, options }].
+  fields      Json
+  isLocked    Boolean          @default(false) @map("is_locked")
+  createdById String?          @map("created_by_id") @db.VarChar(36)
+  createdAt   DateTime         @default(now()) @map("created_at") @db.DateTime(6)
+  template    LeadFormTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  createdBy   User?            @relation("FormVersionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  tenant      Company          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([tenantId])
+  @@map("lead_form_template_versions")
+}
