@@ -14,7 +14,9 @@ const unitInclude = (tenantId: string) =>
       },
     },
   },
-  typeVariant: { select: { id: true, name: true, basePrice: true, currentPrice: true } },
+  typeVariant: {
+    select: { id: true, name: true, basePrice: true, currentPrice: true },
+  },
   media: {
     where: { tenantId, mediaType: 'IMAGE' as const },
     orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
@@ -113,8 +115,8 @@ function locationOf(product: {
 }
 
 function priceOf(unit: AvailabilityUnit) {
-  const source = unit.typeVariant ?? (unit.variant as typeof unit.variant & { currentPrice?: bigint });
-  return Number(source.currentPrice ?? 0);
+  const legacyVariant = unit.variant as typeof unit.variant & { currentPrice?: bigint };
+  return Number(unit.typeVariant?.currentPrice ?? legacyVariant.currentPrice ?? 0);
 }
 
 function ancestorsOf(categoryId: string, categories: Map<string, AvailabilityCategory>) {
@@ -192,7 +194,12 @@ export class AvailabilityUseCase {
         subdistrict: true,
         city: true,
         province: true,
-        variants: { select: { id: true, typeVariants: { select: { stock: true } } } },
+        variants: {
+          select: {
+            id: true,
+            typeVariants: { select: { stock: true } },
+          },
+        },
         media: {
           where: { tenantId, mediaType: 'IMAGE', variantId: null, unitId: null },
           orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
@@ -272,7 +279,9 @@ export class AvailabilityUseCase {
       subdistrict: true,
       city: true,
       province: true,
-      variants: { select: { typeVariants: { select: { stock: true } } } },
+      variants: {
+        select: { typeVariants: { select: { stock: true } } },
+      },
       media: {
         where: { tenantId, mediaType: 'IMAGE' as const, variantId: null, unitId: null },
         orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
