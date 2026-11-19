@@ -215,7 +215,7 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
     summary: {
       totalTypes,
       totalProjects,
-      totalUnits: rows.reduce((total, row) => total + row.stock, 0),
+      totalUnits: rows.reduce((total, row) => total + row.unitCount, 0),
       averageTypes: totalProjects ? totalTypes / totalProjects : 0,
     },
   };
