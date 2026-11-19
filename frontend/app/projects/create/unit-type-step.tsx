@@ -2,12 +2,13 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, MoreVertical, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, MoreVertical, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { RupiahInput } from "@/components/ui/rupiah-input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -288,24 +289,45 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
                   <Plus className="mr-1 size-3.5" />Tambah varian
                 </Button>
               </div>
+              <ScrollArea className="h-56 overflow-hidden pr-1">
+              <div className="space-y-2">
               {draft.variants.map((option) => (
-                <div key={option.key} className="grid gap-2 rounded-md bg-[#F8FAFC] p-2 sm:grid-cols-[1fr_0.8fr_0.9fr_auto]">
+                <div key={option.key} className="grid gap-2 rounded-md bg-[#F8FAFC] p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.9fr)_auto]">
                   <Input required value={option.name} placeholder="Nama varian" className={INPUT} onChange={(event) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, name: event.target.value } : item) }))} />
                   <Input type="number" required min={0} value={option.stock} placeholder="Stock" className={INPUT} onChange={(event) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, stock: event.target.value } : item) }))} />
                   <RupiahInput required value={option.basePrice} placeholder="Harga dasar" className={INPUT} onValueChange={(value) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, basePrice: value } : item) }))} />
-                  <Button type="button" variant="ghost" disabled={draft.variants.length === 1 || units.some((unit) => unit.typeVariantKey === option.key)} className="h-9 px-2 text-[#D64545]" onClick={() => setDraft((current) => ({ ...current, variants: current.variants.filter((item) => item.key !== option.key) }))}>Hapus</Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Hapus varian ${option.name || "ini"}`}
+                    title="Hapus varian"
+                    disabled={draft.variants.length === 1 || units.some((unit) => unit.typeVariantKey === option.key)}
+                    className="h-9 w-9 text-[#D64545] hover:bg-[#FDECEC] hover:text-[#B42318]"
+                    onClick={() => setDraft((current) => ({ ...current, variants: current.variants.filter((item) => item.key !== option.key) }))}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
                 </div>
               ))}
+              </div>
+              </ScrollArea>
             </div>
             <div className="space-y-2">
               <label className="block text-xs font-medium text-[#1f1f1f]">Gambar tipe (opsional)</label>
-              <div className="flex items-center gap-3">
-                <div className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E4E4E7] bg-[#F6F7F9] text-[10px] text-[#9CA3AF]">
+              <div>
+                <label htmlFor="unit-type-image-upload" className={cn("group relative flex h-28 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#8FC9E8] bg-[#E8F3FA] text-[#1980C0] transition hover:bg-[#D9EEF9]", (draft.imagePreviewUrl || draft.imageUrl) && "bg-[#E8F3FA]")}>
                   {draft.imagePreviewUrl || draft.imageUrl ? (
                     <Image src={draft.imagePreviewUrl ?? draft.imageUrl ?? ""} alt={`Preview ${draft.name || "tipe"}`} fill unoptimized className="object-cover" />
-                  ) : <ImagePlus className="size-5" />}
-                </div>
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="min-w-0 text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[#E8F3FA] file:px-2 file:py-1.5 file:text-[#1980C0]" onChange={(event) => {
+                  ) : (
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      <ImagePlus className="size-5" />
+                      Upload gambar tipe
+                    </span>
+                  )}
+                  {(draft.imagePreviewUrl || draft.imageUrl) && <span className="absolute inset-x-0 bottom-0 bg-black/55 px-3 py-2 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">Ganti gambar</span>}
+                </label>
+                <input id="unit-type-image-upload" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (!file) return;
                   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {

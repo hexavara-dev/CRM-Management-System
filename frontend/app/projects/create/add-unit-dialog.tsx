@@ -1,12 +1,11 @@
 "use client";
 
-import { type ReactNode, useRef, useState } from "react";
-import { Building2, MapPin, Minus, Plus, Trash2 } from "lucide-react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { Building2, ChevronLeft, ChevronRight, MapPin, Minus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -61,6 +60,25 @@ export function AddUnitDialog({
   };
   const [rows, setRows] = useState<UnitRow[]>(() => firstAvailable ? makeRows(1, firstAvailable.type.name, firstAvailable.variant.key, firstAvailable.variant.name) : []);
   const [error, setError] = useState<ReactNode | null>(null);
+  const variantListRef = useRef<HTMLDivElement>(null);
+  const variantNavRef = useRef<HTMLDivElement>(null);
+  const [showVariantArrows, setShowVariantArrows] = useState(false);
+  useLayoutEffect(() => {
+    const nav = variantNavRef.current;
+    const list = variantListRef.current;
+    if (!nav || !list) return;
+    const measure = () => {
+      const cards = Array.from(list.children);
+      const gap = parseFloat(getComputedStyle(list).columnGap) || 0;
+      const contentWidth = cards.reduce((width, card) => width + card.getBoundingClientRect().width, 0) + Math.max(0, cards.length - 1) * gap;
+      setShowVariantArrows(contentWidth > nav.clientWidth + 1);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    Array.from(list.children).forEach((card) => observer.observe(card));
+    measure();
+    return () => observer.disconnect();
+  }, [options.length]);
   // Jumlah kolom per klik "Add Column Unit"; string supaya kotak boleh kosong sementara diketik.
   const [countInput, setCountInput] = useState("1");
 
@@ -134,14 +152,14 @@ export function AddUnitDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] w-[calc(100%-2rem)] min-w-0 max-w-[680px] flex-col overflow-hidden sm:max-w-[680px]">
         <DialogHeader>
           <DialogTitle>Add Unit</DialogTitle>
           <p className="text-xs text-[#6b6b6b]">Add several new units to {location.name}</p>
         </DialogHeader>
-        <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
-          <ScrollArea className="h-[calc(90vh-11rem)] pr-3">
-          <div className="space-y-4">
+        <form onSubmit={save} className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="h-[calc(90vh-11rem)] w-full min-w-0 overflow-x-hidden overflow-y-auto pr-3">
+          <div className="w-full min-w-0 space-y-4">
           <div className="rounded-lg border border-[#E4E4E7] p-3">
             <div className="flex items-center gap-1.5 text-sm font-semibold text-[#1f1f1f]">
               <MapPin className="size-4 text-[#1980C0]" />
@@ -150,7 +168,7 @@ export function AddUnitDialog({
             <div className="pl-5.5 text-[11px] text-[#6b6b6b]">{path ? `${path} > ${location.name}` : location.name}</div>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[#1f1f1f]">
               <Building2 className="size-3.5 text-[#1980C0]" />
               Unit not yet assigned (available)
@@ -159,40 +177,60 @@ export function AddUnitDialog({
               <p className="text-xs text-[#9CA3AF]">Belum ada unit type. Tambahkan dulu di step 2.</p>
             ) : (
               <Tabs value={activeVariant} onValueChange={setActiveVariant} className="mb-4 min-w-0">
-                <TabsList className="mb-5 flex h-auto min-h-0 w-full min-w-0 flex-nowrap justify-start gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent p-0 pb-1 [scrollbar-width:thin]">
+                <div ref={variantNavRef} className="flex w-full min-w-0 items-center gap-2 overflow-hidden">
+                  {showVariantArrows && <button type="button" aria-label="Lihat tipe sebelumnya" onClick={() => variantListRef.current?.scrollBy({ left: -272, behavior: "smooth" })} className="grid h-16 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-[#B9DDF2] bg-[#E8F3FA] text-[#1980C0] hover:bg-[#D9EEF9]">
+                    <ChevronLeft className="size-4" />
+                  </button>}
+                <TabsList ref={variantListRef} className="flex h-auto min-h-0 min-w-0 flex-1 flex-nowrap justify-start gap-2 overflow-x-auto overflow-y-hidden bg-transparent p-0 pb-2 group-data-horizontal/tabs:h-auto [scrollbar-color:#1980C0_#E8F3FA] [scrollbar-width:thin]">
                   {options.map(({ type, variant }) => (
-                    <TabsTrigger key={variant.key} value={variant.key} className="h-auto flex-none flex-col rounded-lg border border-[#E4E4E7] px-3 py-2 data-[state=active]:border-[#1980C0] data-[state=active]:bg-[#E8F3FA]">
-                      <span>{type.name} ({variant.name})</span>
+                    <TabsTrigger key={variant.key} value={variant.key} className="h-auto w-64 min-w-64 flex-none flex-col rounded-lg border border-[#E4E4E7] px-2.5 py-2 text-center whitespace-normal data-[state=active]:border-[#1980C0] data-[state=active]:bg-[#E8F3FA]">
+                      <span className="w-full break-words text-xs leading-4">{type.name} ({variant.name})</span>
                       <span className="text-[11px] text-[#1980C0]">{Math.max(0, remainingOf(variant.key) - addingOf(variant.key))} tersedia</span>
                     </TabsTrigger>
                   ))}
                 </TabsList>
+                  {showVariantArrows && <button type="button" aria-label="Lihat tipe berikutnya" onClick={() => variantListRef.current?.scrollBy({ left: 272, behavior: "smooth" })} className="grid h-16 w-8 shrink-0 cursor-pointer place-items-center rounded-lg border border-[#B9DDF2] bg-[#E8F3FA] text-[#1980C0] hover:bg-[#D9EEF9]">
+                    <ChevronRight className="size-4" />
+                  </button>}
+                </div>
               </Tabs>
             )}
           </div>
 
           {error && <p ref={errorRef} role="alert" className="rounded-lg border border-[#F5C2C2] bg-[#FDECEC] p-3 text-xs font-medium text-[#D64545]">{error}</p>}
 
-          <div className="overflow-x-auto rounded-lg border border-[#E4E4E7]">
-            <Table className="text-xs">
+          <div className="w-full min-w-0 overflow-hidden rounded-lg border border-[#E4E4E7]">
+            <Table className="w-full min-w-0 table-fixed text-xs">
+              <colgroup>
+                <col className="w-[27%]" />
+                <col className="w-[25%]" />
+                <col className="w-[23%]" />
+                <col className="w-[17%]" />
+                <col className="w-[8%]" />
+              </colgroup>
               <TableHeader>
                 <TableRow>
-                  {["No Unit", "Type", "Gambar", "Status Unit", "Action"].map((h) => (
-                    <TableHead key={h} className="h-9 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">{h}</TableHead>
+                  {["No Unit", "Type", "Gambar", "Status", ""].map((h) => (
+                    <TableHead key={h || "action"} className="h-9 min-w-0 px-2 text-xs font-medium text-[#1f1f1f] first:pl-3 last:pr-3">{h}</TableHead>
                   ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {rows.every((row) => row.typeVariantKey !== activeVariant) && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-5 text-center text-xs text-[#6b6b6b]">Belum ada unit untuk varian ini.</TableCell>
+                  </TableRow>
+                )}
                 {rows.map((r, i) => ({ r, i })).filter(({ r }) => r.typeVariantKey === activeVariant).map(({ r, i }) => (
                   <TableRow key={i}>
-                    <TableCell>
-                      <Input required value={r.code} onChange={(e) => update(i, { code: e.target.value })} className={INPUT} />
+                    <TableCell className="min-w-0 px-2 first:pl-3 last:pr-3">
+                      <Input required value={r.code} onChange={(e) => update(i, { code: e.target.value })} className={cn(INPUT, "w-full min-w-0")} />
                     </TableCell>
-                    <TableCell>{r.type} ({r.typeVariantName})</TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-0 break-words px-2 first:pl-3 last:pr-3">{r.type} ({r.typeVariantName})</TableCell>
+                    <TableCell className="min-w-0 px-2 first:pl-3 last:pr-3">
                       <div className="flex flex-col items-start gap-1.5">
                       <UnitImageThumbs files={r.images} label={r.code || "Unit"} />
-                      <label className="cursor-pointer text-[11px] text-[#1980C0] hover:underline">
+                      <label className="max-w-full cursor-pointer truncate text-[11px] text-[#1980C0] hover:underline">
                         {r.images.length ? "Ubah gambar" : "Tambah gambar"}
                         <input
                           type="file"
@@ -213,9 +251,9 @@ export function AddUnitDialog({
                       </label>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-0 px-2 first:pl-3 last:pr-3">
                       <Select value={r.status} onValueChange={(v) => update(i, { status: v })}>
-                        <SelectTrigger className="h-9 w-full text-xs">
+                        <SelectTrigger className="h-9 w-full min-w-0 px-2 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -225,7 +263,7 @@ export function AddUnitDialog({
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-2 text-center first:pl-3 last:pr-3">
                       <button type="button" aria-label="Remove row" onClick={() => removeRow(i)} className="cursor-pointer rounded p-1 text-[#D64545] hover:bg-[#FDECEC]">
                         <Trash2 className="size-3.5" />
                       </button>
@@ -266,7 +304,7 @@ export function AddUnitDialog({
           </div>
 
           </div>
-          </ScrollArea>
+          </div>
           <DialogFooter className="grid grid-cols-2 gap-3 pt-4 sm:space-x-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="h-10 text-xs">Batal</Button>
             <Button type="submit" className="h-10 bg-[#1980C0] text-xs text-white hover:bg-[#166ea6]">Simpan</Button>
