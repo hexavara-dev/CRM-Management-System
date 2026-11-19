@@ -15,7 +15,7 @@ const project = {
   subdistrict: null,
   city: 'Bandung',
   province: null,
-  variants: [{ stock: 2 }],
+  variants: [{ typeVariants: [{ stock: 2 }] }],
   media: [],
 };
 const categories = [
@@ -30,6 +30,8 @@ const unit = {
   categoryId: 'block',
   status: 'AVAILABLE',
   variant: { name: 'Type 45', currentPrice: 650_000_000n, attributes: [] },
+  typeVariant: { id: 'tv-45', name: 'Standard', currentPrice: 650_000_000n },
+  typeVariantId: 'tv-45',
   media: [],
   reservations: [],
 };
@@ -43,6 +45,7 @@ function setup(foundProject: typeof project | null = project) {
     product: { findUnique, findFirst },
     productCategory: { findMany: categoryFindMany },
     productUnit: { findMany: unitFindMany },
+    reservation: { findMany: jest.fn().mockResolvedValue([]) },
   } as never);
   return { useCase, findUnique, findFirst, categoryFindMany, unitFindMany };
 }
@@ -91,16 +94,32 @@ describe('Availability code routes and company ownership', () => {
     }));
   });
 
-  it('includes units without a cluster in a navigable project group', async () => {
+  it('shows units attached to the project root without inventing a hierarchy group', async () => {
     const mocks = setup();
     mocks.unitFindMany.mockResolvedValue([{ ...unit, categoryId: 'root' }] as never);
 
     const projectOverview = await mocks.useCase.project('company-a', 'GREEN-HARMONY');
-    expect(projectOverview?.project.totalUnits).toBe(2);
-    const rootGroup = projectOverview?.clusters.find((item) => item.name === 'Tanpa cluster');
-    expect(rootGroup).toEqual(expect.objectContaining({ units: 1, available: 1 }));
+    expect(projectOverview?.project.totalUnits).toBe(1);
+    expect(projectOverview?.hasCluster).toBe(true);
+    expect(projectOverview?.units.map((item) => item.code)).toEqual(['B1-AV-051']);
 
     const group = await mocks.useCase.cluster('company-a', 'GREEN-HARMONY', 'ROOT');
     expect(group?.units.map((item) => item.code)).toEqual(['B1-AV-051']);
+  });
+
+  it('uses the actual deepest hierarchy instead of requiring a cluster level', async () => {
+    const mocks = setup();
+    mocks.categoryFindMany.mockResolvedValue([
+      categories[0],
+      { id: 'block', code: 'B1', parentId: 'root', name: 'B1', type: 'BLOCK' },
+    ] as never);
+
+    const overview = await mocks.useCase.project('company-a', 'GREEN-HARMONY');
+
+    expect(overview?.hasCluster).toBe(false);
+    expect(overview?.hierarchyLevel).toBe('BLOCK');
+    expect(overview?.groups).toEqual([
+      expect.objectContaining({ code: 'B1', level: 'BLOCK', units: 1, available: 1 }),
+    ]);
   });
 });

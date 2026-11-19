@@ -10,9 +10,13 @@ import {
 import type { UnitDetail } from "./types";
 
 export function UnitInfoCard({ unit }: { unit: UnitDetail }) {
+  const locationLabel =
+    unit.locationLevel.charAt(0) + unit.locationLevel.slice(1).toLowerCase();
   const details = [
-    { icon: Grid2X2, label: "Cluster", value: unit.cluster },
-    { icon: Layers3, label: "Blok", value: unit.block },
+    { icon: Grid2X2, label: locationLabel, value: unit.location },
+    ...(unit.block !== "—" && unit.block !== unit.location
+      ? [{ icon: Layers3, label: "Blok", value: unit.block }]
+      : []),
     { icon: House, label: "Tipe", value: unit.type },
     { icon: Ruler, label: "Luas Bangunan", value: unit.buildingArea },
     { icon: LandPlot, label: "Luas Tanah", value: unit.landArea },

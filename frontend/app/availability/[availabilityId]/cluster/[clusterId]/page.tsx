@@ -9,6 +9,7 @@ import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { ClusterToolbar } from "@/components/availability/cluster/cluster-toolbar";
 import { ClusterSummaryCard } from "@/components/availability/cluster/summary-card";
+import { ClusterAvailabilityOverview } from "@/components/availability/detail/cluster-overview";
 import type {
   BlockFilter,
   ClusterView,
@@ -58,12 +59,12 @@ export default function ClusterDetailPage() {
 
         <main className="min-h-screen px-4 pb-8 pt-4 lg:px-5">
           {availability.isLoading ? (
-            <AvailabilityState loading message="Memuat detail cluster..." />
+            <AvailabilityState loading message="Memuat detail hierarchy..." />
           ) : availability.isError ? (
             <AvailabilityState
               message={errorMessage(
                 availability.error,
-                "Gagal memuat detail cluster.",
+                "Gagal memuat detail hierarchy.",
               )}
             />
           ) : availability.data ? (
@@ -88,7 +89,7 @@ export default function ClusterDetailPage() {
                 >
                   <Link href={availabilityPath(availability.data.project.code)}>
                     <ArrowLeft className="mr-1 size-3" />
-                    Back to Project
+                    Kembali ke Project
                   </Link>
                 </Button>
               </div>
@@ -100,6 +101,8 @@ export default function ClusterDetailPage() {
                       {availability.data.cluster.name}
                     </h1>
                     <p className="mt-1 text-[10px] font-medium text-[#475467]">
+                      {availability.data.cluster.level}
+                      <span className="mx-1.5">â€¢</span>
                       {availability.data.project.name}
                       <span className="mx-1.5">•</span>
                       {availability.data.project.location}
@@ -140,31 +143,43 @@ export default function ClusterDetailPage() {
 
               <div className="my-4 border-t border-[#edf0f3]" />
 
-              <ClusterToolbar
-                block={block}
-                blocks={availability.data.blocks}
-                search={search}
-                view={view}
-                onBlockChange={setBlock}
-                onSearchChange={setSearch}
-                onViewChange={setView}
-              />
+              {availability.data.children.length > 0 && (
+                <ClusterAvailabilityOverview
+                  clusters={availability.data.children}
+                  availabilityId={availability.data.project.code}
+                  level={availability.data.children[0]?.level}
+                />
+              )}
 
-              <ClusterUnitList
-                units={filteredUnits}
-                view={view}
-                availabilityId={availability.data.project.code}
-                clusterId={availability.data.cluster.code}
-              />
+              {availability.data.units.length > 0 && (
+                <div className={availability.data.children.length > 0 ? "mt-6" : undefined}>
+                  <ClusterToolbar
+                    block={block}
+                    blocks={availability.data.blocks}
+                    search={search}
+                    view={view}
+                    onBlockChange={setBlock}
+                    onSearchChange={setSearch}
+                    onViewChange={setView}
+                  />
 
-              {filteredUnits.length === 0 && (
+                  <ClusterUnitList
+                    units={filteredUnits}
+                    view={view}
+                    availabilityId={availability.data.project.code}
+                    clusterId={availability.data.cluster.code}
+                  />
+                </div>
+              )}
+
+              {availability.data.units.length > 0 && filteredUnits.length === 0 && (
                 <div className="mt-10 text-center text-sm text-muted-foreground">
                   Unit tidak ditemukan.
                 </div>
               )}
             </>
           ) : (
-            <AvailabilityState message="Cluster tidak ditemukan." />
+            <AvailabilityState message="Hierarchy tidak ditemukan." />
           )}
         </main>
 

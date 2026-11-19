@@ -78,29 +78,34 @@ export function AvailabilityTable({
                     className="border-b last:border-0 hover:bg-muted/30"
                   >
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-2.5">
+                      <Link
+                        href={availabilityPath(project.code)}
+                        className="group flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1684ff]"
+                      >
                         {project.image ? (
                           <Image
                             src={project.image}
                             alt={project.name}
-                            width={40}
-                            height={40}
+                            width={72}
+                            height={52}
                             unoptimized
-                            className="size-10 rounded-md border object-cover"
+                            className="h-[52px] w-[72px] shrink-0 rounded-md border object-cover"
                           />
                         ) : (
-                          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border bg-gradient-to-br from-blue-50 to-slate-100">
-                            <Building2 className="size-5 text-blue-400" />
+                          <div className="flex h-[52px] w-[72px] shrink-0 items-center justify-center rounded-md border bg-gradient-to-br from-blue-50 to-slate-100">
+                            <Building2 className="size-6 text-blue-400" />
                           </div>
                         )}
 
-                        <div>
-                          <p className="font-semibold">{project.name}</p>
-                          <p className="mt-1 text-[10px] text-muted-foreground">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-[#101828] group-hover:text-[#0878ff] group-hover:underline">
+                            {project.name}
+                          </p>
+                          <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
                             {project.location}
                           </p>
                         </div>
-                      </div>
+                      </Link>
                     </td>
 
                     <td className="px-3 py-3 text-center font-medium">

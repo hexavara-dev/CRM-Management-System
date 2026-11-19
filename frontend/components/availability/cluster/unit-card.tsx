@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
+import { Building2 } from "lucide-react";
 import { unitPath } from "../routes";
 import { formatRupiah } from "./format";
 import type { ClusterUnit } from "./types";
@@ -17,12 +19,26 @@ export function ClusterUnitCard({
   return (
     <Link
       href={unitPath(availabilityId, clusterId, unit.code)}
-      className={`relative min-h-[118px] overflow-hidden rounded-xl border border-[#e6eaf0] p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${sold ? "unit-sold-pattern" : "bg-white"}`}
+      className={`relative overflow-hidden rounded-xl border border-[#e6eaf0] text-left transition hover:-translate-y-0.5 hover:shadow-sm ${sold ? "unit-sold-pattern" : "bg-white"}`}
     >
-      <div className="relative z-10">
+      {unit.image ? (
+        <Image
+          src={unit.image}
+          alt={`Unit ${unit.code}`}
+          width={480}
+          height={240}
+          unoptimized
+          className="h-28 w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-28 items-center justify-center bg-gradient-to-br from-[#e8f4ff] to-[#eef2f6]">
+          <Building2 className="size-8 text-[#2695ff]/45" />
+        </div>
+      )}
+      <div className="relative z-10 p-3">
         <div className="flex items-center justify-between gap-2">
           <UnitStatusBadge status={unit.status} />
-          <UnitBlockBadge block={unit.block} />
+          <UnitBlockBadge block={unit.location} level={unit.locationLevel} />
         </div>
         <h3 className="mt-2 text-[15px] font-bold leading-none text-[#111827]">
           {unit.code}

@@ -36,9 +36,15 @@ export function ClusterAvailabilityCard({
                   {cluster.name}
                 </h3>
                 <p className="mt-0.5 text-[9px] text-[#667085]">
-                  {cluster.units} Unit
+                  {cluster.level}
                   <span className="mx-1">|</span>
-                  {cluster.blocks} Blok
+                  {cluster.units} Unit
+                  {cluster.children > 0 && (
+                    <>
+                      <span className="mx-1">|</span>
+                      {cluster.children} Child
+                    </>
+                  )}
                 </p>
               </div>
             </div>

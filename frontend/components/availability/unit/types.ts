@@ -10,11 +10,15 @@ export type UnitDetail = {
   status: string;
   project: string;
   cluster: string;
+  location: string;
+  locationLevel: string;
   block: string;
   type: string;
+  variant: string;
   buildingArea: string;
   landArea: string;
   price: number;
+  basePrice: number;
   promo: number;
   finalPrice: number;
   images: string[];

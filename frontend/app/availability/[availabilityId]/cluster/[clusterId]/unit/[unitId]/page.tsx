@@ -73,7 +73,7 @@ export default function UnitDetailPage() {
                     href={clusterPath(unit.data.projectCode, unit.data.clusterCode)}
                   >
                     <ArrowLeft className="mr-1.5 size-3" />
-                    Back to Cluster
+                    Kembali ke Hierarchy
                   </Link>
                 </Button>
               </div>

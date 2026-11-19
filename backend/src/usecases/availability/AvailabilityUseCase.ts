@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient, ProductCategoryType, ProductUnitStatus } from '@prisma/client';
+import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 
 const unitInclude = (tenantId: string) =>
   ({
@@ -118,13 +119,6 @@ function priceOf(unit: AvailabilityUnit) {
   return Number(unit.typeVariant?.currentPrice ?? legacyVariant.currentPrice ?? 0);
 }
 
-function stockOfVariant(variant: {
-  typeVariants?: { stock: number }[];
-  stock?: number;
-}) {
-  return variant.typeVariants?.reduce((total, item) => total + item.stock, 0) ?? variant.stock ?? 0;
-}
-
 function ancestorsOf(categoryId: string, categories: Map<string, AvailabilityCategory>) {
   const ancestors: AvailabilityCategory[] = [];
   const visited = new Set<string>();
@@ -145,6 +139,39 @@ function nearestCategory(
   return ancestorsOf(categoryId, categories).find((category) => category.type === type);
 }
 
+function childCategories(
+  parentId: string,
+  categories: Map<string, AvailabilityCategory>
+) {
+  return [...categories.values()].filter((category) => category.parentId === parentId);
+}
+
+function descendantCategoryIds(
+  categoryId: string,
+  categories: Map<string, AvailabilityCategory>
+) {
+  const ids = new Set<string>([categoryId]);
+  const queue = [categoryId];
+  while (queue.length > 0) {
+    const parentId = queue.shift() as string;
+    for (const child of childCategories(parentId, categories)) {
+      if (ids.has(child.id)) continue;
+      ids.add(child.id);
+      queue.push(child.id);
+    }
+  }
+  return ids;
+}
+
+function unitsInCategoryTree(
+  units: AvailabilityUnit[],
+  categoryId: string,
+  categories: Map<string, AvailabilityCategory>
+) {
+  const ids = descendantCategoryIds(categoryId, categories);
+  return units.filter((unit) => ids.has(unit.categoryId));
+}
+
 function displayStatus(status: ProductUnitStatus) {
   if (status === 'BOOKED') return 'Processing';
   return status.charAt(0) + status.slice(1).toLowerCase();
@@ -154,6 +181,7 @@ export class AvailabilityUseCase {
   constructor(private prisma: PrismaClient) {}
 
   async overview(tenantId: string, projectId?: string) {
+    await expireOverdueReservations(this.prisma, tenantId);
     const products = await this.prisma.product.findMany({
       where: { tenantId, ...(projectId ? { id: projectId } : {}) },
       orderBy: { name: 'asc' },
@@ -222,12 +250,8 @@ export class AvailabilityUseCase {
     const summary = emptySummary();
     const projectRows = products.map((product) => {
       const projectSummary = counts.get(product.id) ?? emptySummary();
-      const totalSlots = product.variants.reduce(
-        (total, variant) => total + stockOfVariant(variant),
-        0
-      );
       for (const key of Object.keys(summary) as (keyof Summary)[]) {
-        summary[key] += key === 'total' ? totalSlots : projectSummary[key];
+        summary[key] += projectSummary[key];
       }
       return {
         id: product.id,
@@ -236,7 +260,7 @@ export class AvailabilityUseCase {
         location: locationOf(product),
         image: product.media[0]?.fileUrl ?? null,
         ...projectSummary,
-        total: totalSlots,
+        total: projectSummary.total,
       };
     });
 
@@ -244,6 +268,7 @@ export class AvailabilityUseCase {
   }
 
   private async loadProject(tenantId: string, projectReference: string) {
+    await expireOverdueReservations(this.prisma, tenantId);
     const projectSelect = {
       id: true,
       code: true,
@@ -320,29 +345,18 @@ export class AvailabilityUseCase {
     const location = locationOf(data.product);
     const summary = summarize(data.units);
     const root = data.categories.get(data.product.categoryId);
-    const hasRootUnits = data.units.some((unit) => !nearestCategory(unit.categoryId, 'CLUSTER', data.categories));
-    const clusters = [
-      ...[...data.categories.values()].filter((category) => category.type === 'CLUSTER'),
-      ...(hasRootUnits && root ? [{ ...root, name: 'Tanpa cluster' }] : []),
-    ];
-    const clusterRows = clusters.map((cluster) => {
-      const clusterUnits = data.units.filter(
-        (unit) => cluster.id === data.product.categoryId
-          ? !nearestCategory(unit.categoryId, 'CLUSTER', data.categories)
-          : nearestCategory(unit.categoryId, 'CLUSTER', data.categories)?.id === cluster.id
-      );
-      const blocks = [...data.categories.values()].filter(
-        (category) =>
-          category.type === 'BLOCK' &&
-          nearestCategory(category.id, 'CLUSTER', data.categories)?.id === cluster.id
-      );
-      const unitSummary = summarize(clusterUnits);
+    const groups = root ? childCategories(root.id, data.categories) : [];
+    const groupRows = groups.map((group) => {
+      const groupUnits = unitsInCategoryTree(data.units, group.id, data.categories);
+      const unitSummary = summarize(groupUnits);
       return {
-        id: cluster.id,
-        code: cluster.code,
-        name: cluster.name,
+        id: group.id,
+        code: group.code,
+        name: group.name,
+        level: group.type,
         units: unitSummary.total,
-        blocks: blocks.length,
+        children: childCategories(group.id, data.categories).length,
+        blocks: childCategories(group.id, data.categories).length,
         available: unitSummary.available,
         processing: unitSummary.processing,
         reserved: unitSummary.reserved,
@@ -351,6 +365,10 @@ export class AvailabilityUseCase {
       };
     });
 
+    const directUnits = root
+      ? this.mapUnits(data.units.filter((unit) => unit.categoryId === root.id), data.categories)
+      : [];
+
     return {
       project: {
         id: data.product.id,
@@ -358,62 +376,85 @@ export class AvailabilityUseCase {
         name: data.product.name,
         location,
         image: data.product.media[0]?.fileUrl ?? null,
-        totalUnits: data.product.variants.reduce(
-          (total, variant) => total + stockOfVariant(variant),
-          0
-        ),
+        totalUnits: summary.total,
         available: summary.available,
         processing: summary.processing,
         reserved: summary.reserved,
         sold: summary.sold,
         blocked: summary.blocked,
       },
-      clusters: clusterRows,
+      root: root ? { id: root.id, code: root.code, name: data.product.name, level: root.type } : null,
+      hasCluster: [...data.categories.values()].some((category) => category.type === 'CLUSTER'),
+      hierarchyLevel: groups[0]?.type ?? null,
+      groups: groupRows,
+      // Alias sementara agar consumer lama tetap kompatibel selama route hierarchy dimigrasikan.
+      clusters: groupRows,
+      units: directUnits,
     };
   }
 
-  async cluster(tenantId: string, projectReference: string, clusterReference: string) {
-    const data = await this.loadProject(tenantId, projectReference);
-    const cluster = data && byCodeOrLegacyId(data.categories.values(), clusterReference);
-    if (!data || !cluster || (cluster.type !== 'CLUSTER' && cluster.id !== data.product.categoryId)) return null;
-
-    const clusterUnits = data.units.filter(
-      (unit) => cluster.id === data.product.categoryId
-        ? !nearestCategory(unit.categoryId, 'CLUSTER', data.categories)
-        : nearestCategory(unit.categoryId, 'CLUSTER', data.categories)?.id === cluster.id
-    );
-    const summary = summarize(clusterUnits);
-    const blocks = [...data.categories.values()]
-      .filter(
-        (category) =>
-          category.type === 'BLOCK' &&
-          nearestCategory(category.id, 'CLUSTER', data.categories)?.id === cluster.id
-      )
-      .map((category) => category.name);
-
-    const units = clusterUnits.map((unit) => {
-      const block = nearestCategory(unit.categoryId, 'BLOCK', data.categories);
+  private mapUnits(units: AvailabilityUnit[], categories: Map<string, AvailabilityCategory>) {
+    return units.map((unit) => {
+      const location = categories.get(unit.categoryId);
+      const block = nearestCategory(unit.categoryId, 'BLOCK', categories);
       const status = unitStatusKey(unit);
       return {
         id: unit.id,
         code: unit.code,
         isHook: unit.isHook,
         type: unit.variant.name,
+        variant: unit.typeVariant?.name ?? 'Default',
         price: priceOf(unit),
-        block: block?.name ?? '—',
+        basePrice: Number(unit.typeVariant?.basePrice ?? 0),
+        location: location?.name ?? '—',
+        locationLevel: location?.type ?? 'CATEGORY',
+        // Dipertahankan untuk kompatibilitas tampilan lama; hierarchy baru memakai location.
+        block: block?.name ?? location?.name ?? '—',
+        image: unit.media[0]?.fileUrl ?? null,
         status,
         customer:
           status === 'available' || status === 'blocked'
             ? null
             : (unit.reservations[0]?.customerName ?? null),
-        // Kolom adjustment_amount sudah dihapus; kontrak respons dipertahankan untuk frontend.
         discount: false,
       };
     });
+  }
+
+  async cluster(tenantId: string, projectReference: string, clusterReference: string) {
+    const data = await this.loadProject(tenantId, projectReference);
+    const cluster = data && byCodeOrLegacyId(data.categories.values(), clusterReference);
+    if (!data || !cluster || !data.categories.has(cluster.id)) return null;
+
+    const categoryUnits = unitsInCategoryTree(data.units, cluster.id, data.categories);
+    const summary = summarize(categoryUnits);
+    const children = childCategories(cluster.id, data.categories);
+    const childRows = children.map((child) => {
+      const childSummary = summarize(unitsInCategoryTree(data.units, child.id, data.categories));
+      return {
+        id: child.id,
+        code: child.code,
+        name: child.name,
+        level: child.type,
+        units: childSummary.total,
+        children: childCategories(child.id, data.categories).length,
+        blocks: childCategories(child.id, data.categories).length,
+        available: childSummary.available,
+        processing: childSummary.processing,
+        reserved: childSummary.reserved,
+        sold: childSummary.sold,
+        blocked: childSummary.blocked,
+      };
+    });
+    const directUnits = data.units.filter((unit) => unit.categoryId === cluster.id);
+    const units = this.mapUnits(directUnits, data.categories);
+    const blocks = [...new Set(categoryUnits.map((unit) =>
+      nearestCategory(unit.categoryId, 'BLOCK', data.categories)?.name
+    ).filter((name): name is string => Boolean(name)))];
 
     return {
       project: { id: data.product.id, code: data.product.code, name: data.product.name, location: locationOf(data.product) },
-      cluster: { id: cluster.id, code: cluster.code, name: cluster.id === data.product.categoryId ? 'Tanpa cluster' : cluster.name },
+      cluster: { id: cluster.id, code: cluster.code, name: cluster.id === data.product.categoryId ? data.product.name : cluster.name, level: cluster.type },
       summary: {
         total: summary.total,
         available: summary.available,
@@ -422,6 +463,7 @@ export class AvailabilityUseCase {
         sold: summary.sold,
       },
       blocks,
+      children: childRows,
       units,
     };
   }
@@ -429,11 +471,9 @@ export class AvailabilityUseCase {
   async unit(tenantId: string, projectReference: string, clusterReference: string, unitReference: string) {
     const data = await this.loadProject(tenantId, projectReference);
     const cluster = data && byCodeOrLegacyId(data.categories.values(), clusterReference);
-    if (!data || !cluster || (cluster.type !== 'CLUSTER' && cluster.id !== data.product.categoryId)) return null;
+    if (!data || !cluster || !data.categories.has(cluster.id)) return null;
     const unit = byCodeOrLegacyId(
-      data.units.filter((item) => cluster.id === data.product.categoryId
-        ? !nearestCategory(item.categoryId, 'CLUSTER', data.categories)
-        : nearestCategory(item.categoryId, 'CLUSTER', data.categories)?.id === cluster.id),
+      unitsInCategoryTree(data.units, cluster.id, data.categories),
       unitReference
     );
     if (!unit) return null;
@@ -467,11 +507,15 @@ export class AvailabilityUseCase {
           : displayStatus(unit.status),
       project: data.product.name,
       cluster: cluster.name,
+      location: cluster.name,
+      locationLevel: cluster.type,
       block: block?.name ?? '—',
       type: unit.variant.name,
+      variant: unit.typeVariant?.name ?? 'Default',
       buildingArea: attributeLabel('building_area') ?? '—',
       landArea: attributeLabel('surface_area') ?? '—',
       price,
+      basePrice: Number(unit.typeVariant?.basePrice ?? 0),
       promo: 0,
       finalPrice: price,
       images: unit.media.map((media) => media.fileUrl),

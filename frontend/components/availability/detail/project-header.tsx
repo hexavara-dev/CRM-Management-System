@@ -40,24 +40,24 @@ export function ProjectAvailabilityHeader({
         </Button>
       </div>
 
-      <div className="mt-4 flex items-center gap-3">
+      <div className="mt-4 flex items-center gap-4">
         {project.image ? (
           <Image
             src={project.image}
             alt={project.name}
-            width={100}
-            height={60}
+            width={160}
+            height={90}
             unoptimized
-            className="h-[60px] w-[100px] rounded-lg object-cover"
+            className="h-[90px] w-[160px] rounded-xl object-cover"
           />
         ) : (
-          <div className="flex h-[60px] w-[100px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#e8f4ff] to-[#eef2f6]">
-            <Building2 className="size-6 text-[#2695ff]/55" />
+          <div className="flex h-[90px] w-[160px] shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#e8f4ff] to-[#eef2f6]">
+            <Building2 className="size-8 text-[#2695ff]/55" />
           </div>
         )}
 
         <div>
-          <h2 className="text-[16px] font-bold text-[#111827]">
+          <h2 className="text-[22px] font-bold text-[#111827]">
             {project.name}
           </h2>
 
