@@ -558,11 +558,13 @@ model AuditLog {
 model Source {
   id        String    @id @default(uuid()) @db.VarChar(36)
   tenantId  String    @map("company_id") @db.VarChar(36)
-  name      String    @db.VarChar(50)
-  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(6)
-  tenant    Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  type      String    @default("lead") @db.VarChar(50)
-  color     String?   @db.VarChar(7)
+  name        String    @db.VarChar(255)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(6)
+  tenant      Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type        String    @default("lead") @db.VarChar(50)
+  color       String?   @db.VarChar(7)
+  description String?   @db.VarChar(500)
+  isActive    Boolean   @default(true) @map("is_active")
   leads     Lead[]
   viewings  Viewing[]
   Deal      Deal[]

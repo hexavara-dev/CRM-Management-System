@@ -1,0 +1,53 @@
+"use client";
+
+import * as React from "react";
+import { usePathname } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
+import { getBreadcrumbTrail } from "@/components/PageHeading";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+
+/** Judul halaman CRM Configuration: breadcrumb, kotak ikon, judul, dan deskripsi. */
+export function ConfigHeader({ icon: Icon, description }: { icon: LucideIcon; description: string }) {
+  const trail = getBreadcrumbTrail(usePathname());
+  const title = trail[trail.length - 1] ?? "";
+  return (
+    <div className="space-y-4">
+      {trail.length > 0 && (
+        <Breadcrumb>
+          <BreadcrumbList className="gap-1 text-sm sm:gap-1.5">
+            {trail.map((crumb, index) => {
+              const isLast = index === trail.length - 1;
+              return (
+                <React.Fragment key={crumb}>
+                  <BreadcrumbItem>
+                    {isLast ? (
+                      <BreadcrumbPage className="font-medium text-[#1f1f1f]">{crumb}</BreadcrumbPage>
+                    ) : (
+                      <span className="text-[#1980C0]">{crumb}</span>
+                    )}
+                  </BreadcrumbItem>
+                  {!isLast && <BreadcrumbSeparator className="[&>svg]:size-3.5" />}
+                </React.Fragment>
+              );
+            })}
+          </BreadcrumbList>
+        </Breadcrumb>
+      )}
+      <div className="flex items-center gap-4">
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#E5F1FA] text-[#1980C0] sm:size-14">
+          <Icon className="size-6 sm:size-7" />
+        </span>
+        <div className="min-w-0">
+          <h1 className="type-h3 text-[#1f1f1f]">{title}</h1>
+          <p className="text-sm text-[#475467]">{description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}

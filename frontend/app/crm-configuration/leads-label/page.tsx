@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Flame, Info, Pencil, Plus, Tag, Trash2 } from "lucide-react";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
-import { PageHeading } from "@/components/PageHeading";
+import { ConfigHeader } from "../config-header";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -69,10 +69,10 @@ export default function LeadsLabelPage() {
           <SidebarOpenTrigger />
         </header>
         <div className="space-y-4 p-4">
-          <PageHeading />
-          <p className="-mt-2 text-sm text-[#6b6b6b]">
-            Kelola label yang digunakan untuk mengklasifikasikan dan memberikan konteks pada Lead.
-          </p>
+          <ConfigHeader
+            icon={Tag}
+            description="Kelola label yang digunakan untuk mengklasifikasikan dan memberikan konteks pada Lead."
+          />
 
           <section className="space-y-4 rounded-xl border border-[#E4E4E7] bg-white p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

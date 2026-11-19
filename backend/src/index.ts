@@ -45,6 +45,8 @@ import { UnitPriceUseCase } from './usecases/pricing/UnitPriceUseCase.js';
 import { UnitPriceController } from './presentation/controllers/UnitPriceController.js';
 import { LeadLabelUseCase } from './usecases/crm/LeadLabelUseCase.js';
 import { LeadLabelController } from './presentation/controllers/LeadLabelController.js';
+import { LeadSourceUseCase } from './usecases/crm/LeadSourceUseCase.js';
+import { LeadSourceController } from './presentation/controllers/LeadSourceController.js';
 import { AvailabilityUseCase } from './usecases/availability/AvailabilityUseCase.js';
 import { AvailabilityController } from './presentation/controllers/AvailabilityController.js';
 
@@ -383,6 +385,13 @@ app.get('/api/lead-labels', authMiddleware, leadLabels.list);
 app.post('/api/lead-labels', authMiddleware, ownerOnly, leadLabels.create);
 app.put('/api/lead-labels/:id', authMiddleware, ownerOnly, leadLabels.update);
 app.delete('/api/lead-labels/:id', authMiddleware, ownerOnly, leadLabels.remove);
+
+// Konfigurasi Leads Source per company (tabel `source`, tipe lead). Semua user membaca, owner mengubah.
+const leadSources = new LeadSourceController(new LeadSourceUseCase(prisma));
+app.get('/api/lead-sources', authMiddleware, leadSources.list);
+app.post('/api/lead-sources', authMiddleware, ownerOnly, leadSources.create);
+app.put('/api/lead-sources/:id', authMiddleware, ownerOnly, leadSources.update);
+app.delete('/api/lead-sources/:id', authMiddleware, ownerOnly, leadSources.remove);
 
 // Unit price management (CRM-51, CRM-52, CRM-53). Sementara hanya owner yang menulis.
 const unitPrices = new UnitPriceController(new UnitPriceUseCase(prisma));
