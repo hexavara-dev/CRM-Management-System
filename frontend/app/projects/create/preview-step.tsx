@@ -17,6 +17,7 @@ import { Stat } from "@/components/projects/stat";
 import { SectionCard } from "@/components/projects/section-card";
 import { FacilityIcon } from "@/components/projects/facility-icon";
 import { useProjectFacilities } from "@/hooks/use-projects";
+import { RichTextContent } from "./rich-text";
 
 export type ProjectInfo = {
   code: string;
@@ -246,10 +247,8 @@ export function PreviewStep({
       </div>
 
       {info.description && (
-        <p className="text-xs leading-relaxed text-[#1f1f1f]">
-          <span className={cn(!expanded && "line-clamp-2")}>
-            {info.description}
-          </span>
+        <div className="text-xs leading-relaxed text-[#1f1f1f]">
+          <RichTextContent value={info.description} className={cn(!expanded && "line-clamp-2")} />
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
@@ -257,7 +256,7 @@ export function PreviewStep({
           >
             {expanded ? "Show Less" : "Read More"}
           </button>
-        </p>
+        </div>
       )}
 
       <div className="grid gap-3 lg:grid-cols-[1fr_1.2fr_1.3fr]">

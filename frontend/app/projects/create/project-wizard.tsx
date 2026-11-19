@@ -23,10 +23,11 @@ import {
 } from "./hierarchy-step";
 import { EMPTY_INFO, PreviewStep, type ProjectInfo } from "./preview-step";
 import { UnitTypeStep, type UnitType } from "./unit-type-step";
-import { INPUT, TEXTAREA } from "./form-styles";
+import { INPUT } from "./form-styles";
 import { Field, SelectField } from "./form-fields";
 import { Stepper } from "./stepper";
 import { FacilityPicker } from "./facility-picker";
+import { MiniRichTextEditor } from "./mini-rich-text-editor";
 
 export type WizardInitial = {
   info: ProjectInfo;
@@ -307,55 +308,60 @@ export function ProjectWizard({
                   />
                 </Field>
               </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Deskripsi Proyek (Opsional)">
-                  <textarea
+              <div className="grid items-stretch gap-5 lg:grid-cols-2">
+                <Field label="Deskripsi Proyek (Opsional)" className="flex h-full flex-col">
+                  <MiniRichTextEditor
                     name="description"
-                    rows={6}
-                    placeholder="Deskripsi proyek"
-                    defaultValue={initial?.info.description}
-                    className={cn(TEXTAREA, "h-40")}
+                    initialValue={initial?.info.description}
+                    className="min-h-72 flex-1 sm:min-h-80 lg:min-h-[22rem]"
                   />
                 </Field>
-                <Field label="Sampul Proyek (Opsional)" action={<CoverGuide />}>
-                  <CoverUpload
+                <div className="min-w-0 space-y-5">
+                  <Field label="Sampul Proyek (Opsional)" action={<CoverGuide />}>
+                    <CoverUpload
                     name="cover"
                     existing={existingMedia}
                     onMakePrimary={projectId ? makePrimary : undefined}
                     onDeleteExisting={projectId ? removeMedia : undefined}
                     onUrlsChange={setNewCoverUrls}
                     onFilesChange={setCoverFiles}
-                  />
-                </Field>
+                    />
+                  </Field>
                 <Field label="Siteplan (Opsional)">
                   <div className="space-y-2">
-                    <div className="relative flex h-28 w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#1980C0] bg-[#F6FAFD]">
+                    <label className="group relative flex h-36 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#1980C0] bg-[#F6FAFD] transition hover:bg-[#EAF5FC] focus-within:ring-2 focus-within:ring-[#1980C0]/30">
                       {siteplanPreviewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- object URL lokal atau URL storage.
                         <img src={siteplanPreviewUrl} alt="Preview siteplan" className="size-full object-contain" />
                       ) : (
-                        <span className="text-xs text-[#667085]">Belum ada siteplan</span>
+                        <span className="text-xs text-[#667085]">Klik untuk memilih siteplan</span>
                       )}
-                    </div>
-                    <Input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="text-xs file:mr-2 file:rounded-md file:border-0 file:bg-[#E8F3FA] file:px-2 file:py-1.5 file:text-[#1980C0]"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
-                        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
-                          toast.error("Gunakan JPEG, PNG, atau WebP maksimal 10 MB.");
-                          event.target.value = "";
-                          return;
-                        }
-                        setSiteplanFile(file);
-                        setSiteplanPreviewUrl(URL.createObjectURL(file));
-                      }}
-                    />
-                    <p className="text-[10px] text-[#6b6b6b]">JPEG, PNG, atau WebP; maksimal 10 MB.</p>
+                      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/45 px-3 py-1.5 text-center text-[10px] font-medium text-white opacity-0 transition group-hover:opacity-100">
+                        {siteplanPreviewUrl ? "Klik untuk mengganti siteplan" : "Pilih gambar siteplan"}
+                      </span>
+                      <Input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
+                            toast.error("Gunakan JPEG, PNG, atau WebP maksimal 10 MB.");
+                            event.target.value = "";
+                            return;
+                          }
+                          setSiteplanFile(file);
+                          setSiteplanPreviewUrl(URL.createObjectURL(file));
+                        }}
+                      />
+                    </label>
+                    <p className="truncate text-[10px] text-[#6b6b6b]" title={siteplanFile?.name}>
+                      {siteplanFile?.name ?? (siteplanPreviewUrl ? "Siteplan tersimpan" : "Belum ada file dipilih")} · JPEG, PNG, atau WebP; maksimal 10 MB.
+                    </p>
                   </div>
                 </Field>
+                </div>
               </div>
             </section>
 

@@ -158,8 +158,8 @@ export function AddUnitDialog({
             {unitTypes.length === 0 ? (
               <p className="text-xs text-[#9CA3AF]">Belum ada unit type. Tambahkan dulu di step 2.</p>
             ) : (
-              <Tabs value={activeVariant} onValueChange={setActiveVariant} className="mb-4">
-                <TabsList className="mb-5 h-auto min-h-0 flex-wrap justify-start gap-2 overflow-visible bg-transparent p-0">
+              <Tabs value={activeVariant} onValueChange={setActiveVariant} className="mb-4 min-w-0">
+                <TabsList className="mb-5 flex h-auto min-h-0 w-full min-w-0 flex-nowrap justify-start gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent p-0 pb-1 [scrollbar-width:thin]">
                   {options.map(({ type, variant }) => (
                     <TabsTrigger key={variant.key} value={variant.key} className="h-auto flex-none flex-col rounded-lg border border-[#E4E4E7] px-3 py-2 data-[state=active]:border-[#1980C0] data-[state=active]:bg-[#E8F3FA]">
                       <span>{type.name} ({variant.name})</span>
