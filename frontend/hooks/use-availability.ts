@@ -19,6 +19,7 @@ export interface AvailabilityOverview {
 
 export interface ProjectAvailabilityResponse {
   project: ProjectAvailabilityDetail;
+  hasCluster?: boolean;
   clusters: ClusterAvailability[];
 }
 
