@@ -31,7 +31,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 
 function prisma(over: { stage?: unknown; duplicate?: unknown; all?: unknown[] } = {}) {
   const tx = {
-    stage: { create: fn({ id: 's-new' }), update: fn({}) },
+    stage: { create: fn({ id: 's-new' }), update: fn({}), updateMany: fn({ count: 1 }) },
     stageEvidenceRequirement: { createMany: fn({}), deleteMany: fn({}) },
   };
   const db = {
@@ -106,6 +106,47 @@ describe('PipelineStageUseCase', () => {
     );
     await expect(new PipelineStageUseCase(db as never).remove('s-1', 't-1')).rejects.toThrow(/cannot be deleted/);
     expect(db.stage.delete).not.toHaveBeenCalled();
+  });
+
+  it('moves the default flag from the previous default stage and activates the stage', async () => {
+    const db = prisma({ stage: row({ isActive: false }) });
+    await new PipelineStageUseCase(db as never).update('s-1', 't-1', { isDefaultStage: true });
+    expect(db.tx.stage.updateMany).toHaveBeenCalledWith({
+      where: { tenantId: 't-1', entityType: 'lead', id: { not: 's-1' }, isDefaultStage: true },
+      data: { isDefaultStage: false, defaultGuard: null },
+    });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({
+      where: { id: 's-1' },
+      data: expect.objectContaining({ isDefaultStage: true, defaultGuard: 'lead', isActive: true }),
+    });
+  });
+
+  it('sets the final flag when creating a stage', async () => {
+    const db = prisma();
+    await new PipelineStageUseCase(db as never).create('t-1', 'lead', {
+      name: 'Closed',
+      probability: 100,
+      color: '#000000',
+      isTerminalStage: true,
+    });
+    expect(db.tx.stage.updateMany).toHaveBeenCalledWith({
+      where: { tenantId: 't-1', entityType: 'lead', isTerminalStage: true },
+      data: { isTerminalStage: false, terminalGuard: null },
+    });
+    expect(db.tx.stage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ isTerminalStage: true, terminalGuard: 'lead' }),
+    });
+  });
+
+  it('rejects unsetting a flag directly and combining both flags', async () => {
+    const db = prisma({ stage: row({ isTerminalStage: true }) });
+    await expect(new PipelineStageUseCase(db as never).update('s-1', 't-1', { isTerminalStage: false })).rejects.toThrow(
+      /Choose another final stage/
+    );
+    await expect(new PipelineStageUseCase(db as never).update('s-1', 't-1', { isDefaultStage: true })).rejects.toThrow(
+      /both the default and the final/
+    );
+    expect(db.tx.stage.update).not.toHaveBeenCalled();
   });
 
   it('rejects deleting a stage that still has leads, and scopes to the tenant', async () => {

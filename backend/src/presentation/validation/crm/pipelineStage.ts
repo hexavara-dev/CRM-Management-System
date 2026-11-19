@@ -16,6 +16,8 @@ const stageRules: Record<string, FieldRule> = {
   probability: { type: 'number', required: true, integer: true, min: 0, max: 100 },
   color: { type: 'string', required: true, max: 7 },
   isActive: { type: 'boolean' },
+  isDefaultStage: { type: 'boolean' },
+  isTerminalStage: { type: 'boolean' },
   evidences: { type: 'array' },
 };
 

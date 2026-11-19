@@ -14,6 +14,10 @@ export type PipelineStageInput = {
   probability?: number;
   color?: string;
   isActive?: boolean;
+  /** Jadikan tahapan default (Lead baru masuk ke sini). Hanya satu per pipeline. */
+  isDefaultStage?: boolean;
+  /** Jadikan tahapan akhir. Hanya satu per pipeline. */
+  isTerminalStage?: boolean;
   /** Bila dikirim saat update, menggantikan seluruh daftar evidence tahapan. */
   evidences?: EvidenceInput[];
 };
@@ -59,6 +63,54 @@ const evidenceRows = (tenantId: string, stageId: string, evidences: EvidenceInpu
     sortOrder: index,
   }));
 
+type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
+
+/**
+ * Tanda default/akhir untuk data tahapan. Menjadikan sebuah tahapan default/akhir
+ * melepas tanda itu dari tahapan lain (guard unik per company dan tipe), dan
+ * tahapan bertanda selalu aktif.
+ */
+async function applyFlags(
+  tx: Tx,
+  tenantId: string,
+  entity: string,
+  stageId: string | null,
+  input: PipelineStageInput,
+  current: { isDefaultStage: boolean; isTerminalStage: boolean },
+) {
+  const willBeDefault = input.isDefaultStage ?? current.isDefaultStage;
+  const willBeTerminal = input.isTerminalStage ?? current.isTerminalStage;
+  if (willBeDefault && willBeTerminal) {
+    throw new Error('Invalid stage flags: a stage cannot be both the default and the final stage');
+  }
+  if (input.isDefaultStage === false && current.isDefaultStage) {
+    throw new Error('Choose another default stage instead of unsetting it (conflict)');
+  }
+  if (input.isTerminalStage === false && current.isTerminalStage) {
+    throw new Error('Choose another final stage instead of unsetting it (conflict)');
+  }
+  const others = { tenantId, entityType: entity, ...(stageId ? { id: { not: stageId } } : {}) };
+  if (input.isDefaultStage && !current.isDefaultStage) {
+    await tx.stage.updateMany({
+      where: { ...others, isDefaultStage: true },
+      data: { isDefaultStage: false, defaultGuard: null },
+    });
+  }
+  if (input.isTerminalStage && !current.isTerminalStage) {
+    await tx.stage.updateMany({
+      where: { ...others, isTerminalStage: true },
+      data: { isTerminalStage: false, terminalGuard: null },
+    });
+  }
+  return {
+    isDefaultStage: willBeDefault,
+    defaultGuard: willBeDefault ? entity : null,
+    isTerminalStage: willBeTerminal,
+    terminalGuard: willBeTerminal ? entity : null,
+    ...(willBeDefault || willBeTerminal ? { isActive: true } : {}),
+  };
+}
+
 /** Tahapan pipeline (Lead atau Deal) milik satu company, beserta evidence-nya. */
 export class PipelineStageUseCase {
   constructor(private prisma: PrismaClient) {}
@@ -96,6 +148,10 @@ export class PipelineStageUseCase {
       select: { position: true },
     });
     const created = await this.prisma.$transaction(async (tx) => {
+      const flags = await applyFlags(tx, tenantId, entity, null, input, {
+        isDefaultStage: false,
+        isTerminalStage: false,
+      });
       const stage = await tx.stage.create({
         data: {
           tenantId,
@@ -106,6 +162,7 @@ export class PipelineStageUseCase {
           color: (input.color as string).toUpperCase(),
           isActive: input.isActive ?? true,
           position: (last?.position ?? -1) + 1,
+          ...flags,
         },
       });
       if (input.evidences?.length) {
@@ -119,7 +176,9 @@ export class PipelineStageUseCase {
   async update(id: string, tenantId: string, input: PipelineStageInput) {
     const stage = await this.find(id, tenantId);
     const entity = stage.entityType as PipelineEntity;
-    if (input.isActive === false && (stage.isDefaultStage || stage.isTerminalStage)) {
+    const staysFlagged =
+      (input.isDefaultStage ?? stage.isDefaultStage) || (input.isTerminalStage ?? stage.isTerminalStage);
+    if (input.isActive === false && staysFlagged) {
       throw new Error('Default and final stages cannot be deactivated (conflict)');
     }
     if (input.name !== undefined) await this.assertUniqueName(tenantId, entity, input.name, id);
@@ -132,6 +191,9 @@ export class PipelineStageUseCase {
     if (input.isActive !== undefined) data.isActive = input.isActive;
 
     await this.prisma.$transaction(async (tx) => {
+      if (input.isDefaultStage !== undefined || input.isTerminalStage !== undefined) {
+        Object.assign(data, await applyFlags(tx, tenantId, entity, id, input, stage));
+      }
       if (Object.keys(data).length > 0) await tx.stage.update({ where: { id }, data });
       if (input.evidences !== undefined) {
         await tx.stageEvidenceRequirement.deleteMany({ where: { tenantId, stageId: id } });

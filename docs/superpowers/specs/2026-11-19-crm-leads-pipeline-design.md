@@ -21,7 +21,7 @@ Setiap company mengatur tahapan (stage) pipeline Lead: nama, deskripsi, probabil
 | 1 | Simpan | Tambah/edit/hapus/toggle status langsung tersimpan. **Simpan Perubahan** khusus menyimpan urutan setelah mode **Atur Urutan**. |
 | 2 | Preview Pipeline | Modal pratinjau kanban (kolom tahapan aktif seperti yang dilihat sales). |
 | 3 | Tipe file evidence | Pilihan tetap, boleh lebih dari satu: `PDF`, `DOC` (DOC/DOCX), `IMAGE` (JPG/PNG), `SHEET` (XLS/XLSX). |
-| 4 | Default & akhir | Aturan stage default dan stage akhir dipertahankan; ditandai badge; keduanya tidak bisa dinonaktifkan atau dihapus. |
+| 4 | Default & akhir | Dipilih lewat toggle di modal tahapan (`isDefaultStage`, `isTerminalStage`). Hanya satu per pipeline: memilih tahapan lain memindahkan tanda. Tidak bisa dilepas langsung, tidak bisa keduanya sekaligus, dan tahapan bertanda selalu aktif, tidak bisa dinonaktifkan atau dihapus. Ditandai badge. |
 | 5 | Hapus | Tahapan yang masih berisi Lead tidak boleh dihapus (409). |
 | 6 | Kanban Leads | Pengelolaan tahapan (tambah/edit/hapus/geser kolom) dihapus dari kanban Leads; kanban hanya memindahkan Lead. |
 | 7 | Data awal | Tanpa data default; stage yang ada tetap dipakai dan berstatus aktif. |
