@@ -19,14 +19,20 @@ export interface AvailabilityOverview {
 
 export interface ProjectAvailabilityResponse {
   project: ProjectAvailabilityDetail;
+  root: { id: string; code: string; name: string; level: string } | null;
+  hasCluster: boolean;
+  hierarchyLevel: string | null;
+  groups: ClusterAvailability[];
   clusters: ClusterAvailability[];
+  units: ClusterUnit[];
 }
 
 export interface ClusterAvailabilityResponse {
   project: { id: string; code: string; name: string; location: string };
-  cluster: { id: string; code: string; name: string };
+  cluster: { id: string; code: string; name: string; level: string };
   summary: Omit<AvailabilitySummary, "blocked">;
   blocks: string[];
+  children: ClusterAvailability[];
   units: ClusterUnit[];
 }
 

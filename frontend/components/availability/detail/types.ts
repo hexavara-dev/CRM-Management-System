@@ -2,7 +2,9 @@ export type ClusterAvailability = {
   id: string;
   code: string;
   name: string;
+  level: string;
   units: number;
+  children: number;
   blocks: number;
   available: number;
   processing: number;

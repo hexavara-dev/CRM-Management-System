@@ -6,21 +6,26 @@ import type { ClusterAvailability } from "./types";
 type ClusterOverviewProps = {
   clusters: ClusterAvailability[];
   availabilityId: string;
+  level?: string | null;
 };
 
 export function ClusterAvailabilityOverview({
   clusters,
   availabilityId,
+  level,
 }: ClusterOverviewProps) {
+  const levelLabel = level
+    ? level.charAt(0) + level.slice(1).toLowerCase()
+    : "Hierarchy";
   return (
     <section>
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-[15px] font-bold text-[#101828]">
-            Cluster Overview
+            {levelLabel} Overview
           </h2>
           <p className="mt-0.5 text-[9px] text-[#667085]">
-            Ringkasan ketersediaan unit per cluster pada project ini
+            Ringkasan ketersediaan unit berdasarkan hierarchy project
           </p>
         </div>
 
@@ -55,7 +60,7 @@ export function ClusterAvailabilityOverview({
 
       {clusters.length === 0 && (
         <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Belum ada cluster pada project ini.
+          Belum ada child hierarchy pada project ini.
         </div>
       )}
     </section>

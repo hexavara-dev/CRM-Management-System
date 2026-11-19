@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { ClusterAvailabilityOverview } from "@/components/availability/detail/cluster-overview";
+import { ClusterUnitList } from "@/components/availability/cluster/unit-list";
 import { ProjectAvailabilityHeader } from "@/components/availability/detail/project-header";
 import { ProjectAvailabilitySummary } from "@/components/availability/detail/project-summary";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -48,9 +49,24 @@ export default function AvailabilityDetailPage() {
               <div className="my-4 border-t border-[#edf0f2]" />
 
               <ClusterAvailabilityOverview
-                clusters={availability.data.clusters}
+                clusters={availability.data.groups}
                 availabilityId={availability.data.project.code}
+                level={availability.data.hierarchyLevel}
               />
+
+              {availability.data.units.length > 0 && availability.data.root && (
+                <div className="mt-5">
+                  <h2 className="text-[15px] font-bold text-[#101828]">
+                    Unit pada {availability.data.root.name}
+                  </h2>
+                  <ClusterUnitList
+                    units={availability.data.units}
+                    view="grid"
+                    availabilityId={availability.data.project.code}
+                    clusterId={availability.data.root.code}
+                  />
+                </div>
+              )}
             </>
           ) : (
             <AvailabilityState message="Project tidak ditemukan." />

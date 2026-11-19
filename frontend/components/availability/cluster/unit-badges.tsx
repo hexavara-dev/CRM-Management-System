@@ -41,18 +41,34 @@ export function UnitStatusBadge({ status }: { status: UnitStatus }) {
   );
 }
 
-export function UnitBlockBadge({ block }: { block: Block }) {
-  const className =
-    block === "A1"
-      ? "bg-[#e8eeff] text-[#315cff]"
-      : block === "A2"
-        ? "bg-[#fff0df] text-[#f27d00]"
-        : "bg-[#efe9ff] text-[#6449f5]";
+const LOCATION_COLORS = [
+  "bg-[#e8eeff] text-[#315cff]",
+  "bg-[#fff0df] text-[#b85f00]",
+  "bg-[#efe9ff] text-[#6449f5]",
+  "bg-[#e8faef] text-[#16803a]",
+  "bg-[#e6f8fb] text-[#08788b]",
+  "bg-[#ffe9ef] text-[#b4234d]",
+  "bg-[#fff7d9] text-[#8a6800]",
+  "bg-[#edf1f5] text-[#475467]",
+];
+
+export function UnitBlockBadge({
+  block,
+  level,
+}: {
+  block: Block;
+  level?: string;
+}) {
+  const hash = [...block].reduce((total, character) => total + character.charCodeAt(0), 0);
+  const className = LOCATION_COLORS[hash % LOCATION_COLORS.length];
+  const levelLabel = level
+    ? level.charAt(0) + level.slice(1).toLowerCase()
+    : "Lokasi";
   return (
     <span
       className={`rounded-full px-2 py-1 text-[9px] font-semibold ${className}`}
     >
-      Blok {block}
+      {levelLabel} {block}
     </span>
   );
 }

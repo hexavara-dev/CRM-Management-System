@@ -13,8 +13,13 @@ export type ClusterUnit = {
   code: string;
   isHook: boolean;
   type: string;
+  variant: string;
   price: number;
+  basePrice: number;
   block: Block;
+  location: string;
+  locationLevel: string;
+  image: string | null;
   status: UnitStatus;
   customer: string | null;
   discount?: boolean;
