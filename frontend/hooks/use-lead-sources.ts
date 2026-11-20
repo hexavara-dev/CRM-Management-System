@@ -11,6 +11,8 @@ export interface LeadSource {
   color: string | null;
   isActive: boolean;
   createdAt: string;
+  /** Jumlah campaign di bawah source ini. */
+  campaignCount: number;
 }
 
 export interface LeadSourceList {
