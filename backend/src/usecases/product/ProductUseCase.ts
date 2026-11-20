@@ -566,6 +566,9 @@ export class ProductUseCase {
 
   async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = []) {
     const project = await this.get(id, tenantId);
+    if (input.categoryId !== undefined && input.categoryId !== project.categoryId) {
+      throw new Error('Conflict: a project root category cannot be changed through a regular update');
+    }
     await this.assertProductRelations(tenantId, input);
     const structureProvided = [input.variants, input.locations, input.units].some((part) => part !== undefined);
     let structureInput = input;

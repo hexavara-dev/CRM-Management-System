@@ -45,6 +45,14 @@ export class AvailabilityController {
     this.availability.project(tenantId, referenceOf(req.params.projectRef))
   );
 
+  hierarchyNode = handle((tenantId, req) =>
+    this.availability.hierarchyNode(
+      tenantId,
+      referenceOf(req.params.projectRef),
+      referenceOf(req.params.nodeRef)
+    )
+  );
+
   cluster = handle((tenantId, req) =>
     this.availability.cluster(
       tenantId,

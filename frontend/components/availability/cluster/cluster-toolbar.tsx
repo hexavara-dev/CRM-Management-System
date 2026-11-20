@@ -57,6 +57,7 @@ export function ClusterToolbar({
           <button
             type="button"
             aria-label="Grid view"
+            aria-pressed={view === "grid"}
             onClick={() => onViewChange("grid")}
             className={`flex size-8 items-center justify-center ${
               view === "grid"
@@ -72,6 +73,7 @@ export function ClusterToolbar({
           <button
             type="button"
             aria-label="List view"
+            aria-pressed={view === "list"}
             onClick={() => onViewChange("list")}
             className={`flex size-8 items-center justify-center ${
               view === "list"

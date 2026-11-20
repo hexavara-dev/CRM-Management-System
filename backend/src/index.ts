@@ -380,6 +380,11 @@ app.patch('/api/reservations/:id/status', authMiddleware, reservationController.
 const availabilityController = new AvailabilityController(new AvailabilityUseCase(prisma));
 app.get('/api/availability', authMiddleware, availabilityController.overview);
 app.get('/api/availability/:projectRef', authMiddleware, availabilityController.project);
+app.get(
+  '/api/availability/:projectRef/hierarchy/:nodeRef',
+  authMiddleware,
+  availabilityController.hierarchyNode
+);
 app.get('/api/availability/:projectRef/clusters/:clusterRef', authMiddleware, availabilityController.cluster);
 app.get(
   '/api/availability/:projectRef/clusters/:clusterRef/units/:unitRef',

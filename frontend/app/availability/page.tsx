@@ -1,15 +1,18 @@
 "use client";
 
 import { Ban, CalendarDays, House, Layers, Tag } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { PageHeading } from "@/components/PageHeading";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AvailabilityEmptyState } from "@/components/availability/availability-empty-state";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { AvailabilityTable } from "@/components/availability/availability-table";
 import { SalesProgress } from "@/components/availability/sales-progress";
 import { SummaryCard } from "@/components/availability/summary-card";
 import { UnitDistribution } from "@/components/availability/unit-distribution";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -85,14 +88,48 @@ export default function AvailabilityPage() {
             }
           />
 
-          {availability.isLoading ? (
+          {availability.isLoading || isLoading ? (
             <AvailabilityState loading message="Memuat data availability..." />
-          ) : availability.isError ? (
+          ) : availability.isError || isError ? (
             <AvailabilityState
               message={errorMessage(
-                availability.error,
+                availability.error ?? error,
                 "Gagal memuat data availability.",
               )}
+            />
+          ) : summary.total === 0 ? (
+            <AvailabilityEmptyState
+              title={
+                projects.length === 0
+                  ? "Belum ada proyek"
+                  : projectId === "all"
+                    ? "Belum ada unit yang dapat ditampilkan"
+                    : "Proyek ini belum memiliki unit"
+              }
+              description={
+                projects.length === 0
+                  ? "Buat proyek terlebih dahulu, lalu tambahkan hierarchy dan unit agar data availability dapat ditampilkan."
+                  : "Tambahkan unit melalui pengaturan proyek. Setelah unit tersedia, ringkasan status dan distribusi unit akan muncul di halaman ini."
+              }
+              action={
+                <Button asChild size="sm">
+                  <Link
+                    href={
+                      projects.length === 0
+                        ? "/projects/create"
+                        : projectId === "all"
+                          ? "/projects"
+                          : `/projects/${encodeURIComponent(projectId)}/edit`
+                    }
+                  >
+                    {projects.length === 0
+                      ? "Buat Proyek"
+                      : projectId === "all"
+                        ? "Buka Project Management"
+                        : "Atur Proyek"}
+                  </Link>
+                </Button>
+              }
             />
           ) : (
             <>

@@ -19,6 +19,7 @@ export type ClusterUnit = {
   block: Block;
   location: string;
   locationLevel: string;
+  locationPathIds: string[];
   image: string | null;
   status: UnitStatus;
   customer: string | null;

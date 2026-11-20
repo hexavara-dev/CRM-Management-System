@@ -56,20 +56,28 @@ describe('Availability code routes and company ownership', () => {
 
     const detail = await useCase.unit('company-a', 'GREEN-HARMONY', 'MATAHARI', 'B1-AV-051');
 
-    expect(detail).toEqual(expect.objectContaining({
-      id: unitId,
-      code: 'B1-AV-051',
-      projectId,
-      projectCode: 'GREEN-HARMONY',
-      clusterCode: 'MATAHARI',
-    }));
-    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({
-      where: { tenantId_code: { tenantId: 'company-a', code: 'GREEN-HARMONY' } },
-    }));
-    expect(categoryFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { tenantId: 'company-a' } }));
-    expect(unitFindMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { tenantId: 'company-a', variant: { productId: projectId, tenantId: 'company-a' } },
-    }));
+    expect(detail).toEqual(
+      expect.objectContaining({
+        id: unitId,
+        code: 'B1-AV-051',
+        projectId,
+        projectCode: 'GREEN-HARMONY',
+        clusterCode: 'MATAHARI',
+      })
+    );
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId_code: { tenantId: 'company-a', code: 'GREEN-HARMONY' } },
+      })
+    );
+    expect(categoryFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { tenantId: 'company-a' } })
+    );
+    expect(unitFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tenantId: 'company-a', variant: { productId: projectId, tenantId: 'company-a' } },
+      })
+    );
   });
 
   it('does not resolve a code or unrelated cluster outside company-owned data', async () => {
@@ -79,7 +87,9 @@ describe('Availability code routes and company ownership', () => {
     expect(denied.unitFindMany).not.toHaveBeenCalled();
 
     const owned = setup();
-    expect(await owned.useCase.unit('company-a', 'GREEN-HARMONY', 'OTHER-CLUSTER', 'B1-AV-051')).toBeNull();
+    expect(
+      await owned.useCase.unit('company-a', 'GREEN-HARMONY', 'OTHER-CLUSTER', 'B1-AV-051')
+    ).toBeNull();
   });
 
   it('accepts legacy UUID links after a tenant-scoped lookup', async () => {
@@ -89,9 +99,11 @@ describe('Availability code routes and company ownership', () => {
     const detail = await mocks.useCase.unit('company-a', projectId, clusterId, unitId);
 
     expect(detail?.code).toBe('B1-AV-051');
-    expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: projectId, tenantId: 'company-a' },
-    }));
+    expect(mocks.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: projectId, tenantId: 'company-a' },
+      })
+    );
   });
 
   it('shows units attached to the project root without inventing a hierarchy group', async () => {
@@ -121,5 +133,63 @@ describe('Availability code routes and company ownership', () => {
     expect(overview?.groups).toEqual([
       expect.objectContaining({ code: 'B1', level: 'BLOCK', units: 1, available: 1 }),
     ]);
+  });
+
+  it('drills through arbitrary hierarchy levels and returns subtree units for every node', async () => {
+    const mocks = setup();
+    mocks.categoryFindMany.mockResolvedValue([
+      categories[0],
+      { id: 'zone', code: 'ZONE-A', parentId: 'root', name: 'Zona A', type: 'ZONE' },
+      { id: 'tower', code: 'TOWER-1', parentId: 'zone', name: 'Tower 1', type: 'TOWER' },
+      { id: 'floor', code: 'FLOOR-2', parentId: 'tower', name: 'Lantai 2', type: 'FLOOR' },
+    ] as never);
+    mocks.unitFindMany.mockResolvedValue([{ ...unit, categoryId: 'floor' }] as never);
+
+    const overview = await mocks.useCase.project('company-a', 'GREEN-HARMONY');
+    const zone = await mocks.useCase.hierarchyNode('company-a', 'GREEN-HARMONY', 'ZONE-A');
+    const tower = await mocks.useCase.hierarchyNode('company-a', 'GREEN-HARMONY', 'TOWER-1');
+    const floor = await mocks.useCase.hierarchyNode('company-a', 'GREEN-HARMONY', 'FLOOR-2');
+
+    expect(overview?.groups).toEqual([
+      expect.objectContaining({ code: 'ZONE-A', level: 'ZONE', units: 1, children: 1 }),
+    ]);
+    expect(overview?.hierarchyGroups).toEqual([
+      expect.objectContaining({ code: 'ZONE-A', level: 'ZONE', units: 1, children: 1 }),
+      expect.objectContaining({ code: 'TOWER-1', level: 'TOWER', units: 1, children: 1 }),
+      expect.objectContaining({ code: 'FLOOR-2', level: 'FLOOR', units: 1, children: 0 }),
+    ]);
+    expect(zone).toEqual(
+      expect.objectContaining({
+        node: expect.objectContaining({ code: 'ZONE-A', level: 'ZONE' }),
+        children: [expect.objectContaining({ code: 'TOWER-1', level: 'TOWER', units: 1 })],
+        units: [
+          expect.objectContaining({
+            code: 'B1-AV-051',
+            location: 'Lantai 2',
+            locationLevel: 'FLOOR',
+            locationPathIds: ['floor', 'tower', 'zone', 'root'],
+          }),
+        ],
+      })
+    );
+    expect(tower?.children).toEqual([
+      expect.objectContaining({ code: 'FLOOR-2', level: 'FLOOR', units: 1 }),
+    ]);
+    expect(floor).toEqual(
+      expect.objectContaining({
+        children: [],
+        units: [expect.objectContaining({ code: 'B1-AV-051' })],
+      })
+    );
+  });
+
+  it('keeps the legacy cluster method compatible with the generic hierarchy response', async () => {
+    const mocks = setup();
+
+    const generic = await mocks.useCase.hierarchyNode('company-a', 'GREEN-HARMONY', 'MATAHARI');
+    const legacy = await mocks.useCase.cluster('company-a', 'GREEN-HARMONY', 'MATAHARI');
+
+    expect(legacy).toEqual(generic);
+    expect(legacy?.node).toEqual(legacy?.cluster);
   });
 });

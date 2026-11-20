@@ -1,16 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/components/auth/auth-provider";
 import type { ClusterUnit } from "@/components/availability/cluster/types";
 import type {
   ClusterAvailability,
   ProjectAvailabilityDetail,
 } from "@/components/availability/detail/types";
 import type {
+  AvailabilityIntegrity,
   AvailabilitySummary,
   ProjectAvailability,
 } from "@/components/availability/types";
 import type { UnitDetail } from "@/components/availability/unit/types";
-import { useAuth } from "@/components/auth/auth-provider";
 import api from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 export interface AvailabilityOverview {
   summary: AvailabilitySummary;
@@ -23,8 +24,10 @@ export interface ProjectAvailabilityResponse {
   hasCluster: boolean;
   hierarchyLevel: string | null;
   groups: ClusterAvailability[];
+  hierarchyGroups: ClusterAvailability[];
   clusters: ClusterAvailability[];
   units: ClusterUnit[];
+  integrity?: AvailabilityIntegrity;
 }
 
 export interface ClusterAvailabilityResponse {
@@ -34,6 +37,12 @@ export interface ClusterAvailabilityResponse {
   blocks: string[];
   children: ClusterAvailability[];
   units: ClusterUnit[];
+  integrity?: AvailabilityIntegrity;
+}
+
+export interface HierarchyNodeAvailabilityResponse
+  extends ClusterAvailabilityResponse {
+  node: { id: string; code: string; name: string; level: string };
 }
 
 function apiPath(...segments: string[]) {
@@ -45,9 +54,12 @@ export function useAvailabilityOverview(projectId: string | undefined) {
   return useQuery({
     queryKey: ["availability-overview", user?.tenantId, projectId],
     queryFn: async () => {
-      const response = await api.get<AvailabilityOverview>("/api/availability", {
-        params: projectId ? { projectId } : undefined,
-      });
+      const response = await api.get<AvailabilityOverview>(
+        "/api/availability",
+        {
+          params: projectId ? { projectId } : undefined,
+        },
+      );
       return response.data;
     },
     enabled: !!user,
@@ -59,7 +71,8 @@ export function useProjectAvailability(projectId: string | undefined) {
   return useQuery({
     queryKey: ["availability-project", user?.tenantId, projectId],
     queryFn: async () =>
-      (await api.get<ProjectAvailabilityResponse>(apiPath(projectId as string))).data,
+      (await api.get<ProjectAvailabilityResponse>(apiPath(projectId as string)))
+        .data,
     enabled: !!user && !!projectId,
   });
 }
@@ -81,6 +94,28 @@ export function useClusterAvailability(
   });
 }
 
+export function useHierarchyNodeAvailability(
+  projectId: string | undefined,
+  nodeId: string | undefined,
+) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: [
+      "availability-hierarchy-node",
+      user?.tenantId,
+      projectId,
+      nodeId,
+    ],
+    queryFn: async () =>
+      (
+        await api.get<HierarchyNodeAvailabilityResponse>(
+          apiPath(projectId as string, "hierarchy", nodeId as string),
+        )
+      ).data,
+    enabled: !!user && !!projectId && !!nodeId,
+  });
+}
+
 export function useAvailabilityUnit(
   projectId: string | undefined,
   clusterId: string | undefined,
@@ -88,11 +123,23 @@ export function useAvailabilityUnit(
 ) {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["availability-unit", user?.tenantId, projectId, clusterId, unitId],
+    queryKey: [
+      "availability-unit",
+      user?.tenantId,
+      projectId,
+      clusterId,
+      unitId,
+    ],
     queryFn: async () =>
       (
         await api.get<UnitDetail>(
-          apiPath(projectId as string, "clusters", clusterId as string, "units", unitId as string),
+          apiPath(
+            projectId as string,
+            "clusters",
+            clusterId as string,
+            "units",
+            unitId as string,
+          ),
         )
       ).data,
     enabled: !!user && !!projectId && !!clusterId && !!unitId,

@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { CreateReservationDialog } from "@/app/reservation/create-reservation-dialog";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AvailabilityEmptyState } from "@/components/availability/availability-empty-state";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { clusterPath } from "@/components/availability/routes";
 import { KprSimulationDialog } from "@/components/availability/unit/kpr-simulation-dialog";
@@ -71,7 +72,10 @@ export default function UnitDetailPage() {
                   className="h-8 rounded-lg px-3 text-[10px] font-semibold shadow-none"
                 >
                   <Link
-                    href={clusterPath(unit.data.projectCode, unit.data.clusterCode)}
+                    href={clusterPath(
+                      unit.data.projectCode,
+                      unit.data.clusterCode,
+                    )}
                   >
                     <ArrowLeft className="mr-1.5 size-3" />
                     Kembali ke Hierarchy
@@ -129,7 +133,10 @@ export default function UnitDetailPage() {
               )}
             </>
           ) : (
-            <AvailabilityState message="Unit tidak ditemukan." />
+            <AvailabilityEmptyState
+              title="Unit tidak ditemukan"
+              description="Unit yang Anda buka tidak tersedia atau sudah dipindahkan. Kembali ke halaman hierarchy untuk memilih unit lain."
+            />
           )}
         </main>
       </SidebarInset>

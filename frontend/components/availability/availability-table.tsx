@@ -2,7 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Building2, ChevronRight, Search } from "lucide-react";
+import {
+  Building2,
+  ChevronRight,
+  Search,
+  SearchX,
+  TriangleAlert,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -98,9 +104,17 @@ export function AvailabilityTable({
                         )}
 
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-[#101828] group-hover:text-[#0878ff] group-hover:underline">
-                            {project.name}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="truncate text-sm font-bold text-[#101828] group-hover:text-[#0878ff] group-hover:underline">
+                              {project.name}
+                            </p>
+                            {project.integrity?.status === "degraded" && (
+                              <TriangleAlert
+                                className="size-3.5 shrink-0 text-amber-600"
+                                aria-label="Struktur hierarchy perlu diperiksa"
+                              />
+                            )}
+                          </div>
                           <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
                             {project.location}
                           </p>
@@ -163,11 +177,18 @@ export function AvailabilityTable({
 
               {filteredProjects.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={8}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No projects found.
+                  <td colSpan={8} className="px-4 py-12 text-center">
+                    <SearchX className="mx-auto size-6 text-[#98a2b3]" />
+                    <p className="mt-3 text-sm font-semibold text-[#344054]">
+                      {search.trim()
+                        ? "Proyek tidak ditemukan"
+                        : "Belum ada proyek dengan data availability"}
+                    </p>
+                    <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[#667085]">
+                      {search.trim()
+                        ? `Tidak ada proyek yang cocok dengan pencarian “${search.trim()}”. Coba gunakan nama proyek yang berbeda.`
+                        : "Tambahkan proyek dan unit agar data availability dapat ditampilkan di tabel ini."}
+                    </p>
                   </td>
                 </tr>
               )}
@@ -176,7 +197,8 @@ export function AvailabilityTable({
         </div>
 
         <div className="mt-4 text-xs text-muted-foreground">
-          Showing 1–{filteredProjects.length} of {projects.length} projects
+          Menampilkan {filteredProjects.length === 0 ? 0 : 1}–
+          {filteredProjects.length} dari {projects.length} proyek
         </div>
       </CardContent>
     </Card>

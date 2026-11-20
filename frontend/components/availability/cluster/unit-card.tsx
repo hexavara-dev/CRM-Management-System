@@ -1,8 +1,8 @@
-import Link from "next/link";
-import Image from "next/image";
 import { Building2 } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 import { unitPath } from "../routes";
-import { formatRupiah } from "./format";
+import { formatRupiah, formatUnitType } from "./format";
 import type { ClusterUnit } from "./types";
 import { UnitBlockBadge, UnitStatusBadge } from "./unit-badges";
 
@@ -44,7 +44,7 @@ export function ClusterUnitCard({
           {unit.code}
         </h3>
         <p className="mt-1 text-[10px] font-medium text-[#667085]">
-          Type {unit.type}
+          {formatUnitType(unit.type)}
         </p>
         <div className="mt-2 border-t border-[#e9edf1] pt-2">
           <div className="flex items-center gap-1.5">

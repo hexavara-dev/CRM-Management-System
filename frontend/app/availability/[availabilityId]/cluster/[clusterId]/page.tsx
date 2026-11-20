@@ -1,20 +1,31 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, House, Layers3, Tag } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  ChevronRight,
+  House,
+  Layers3,
+  MapPin,
+  Tag,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AvailabilityEmptyState } from "@/components/availability/availability-empty-state";
+import { AvailabilityIntegrityWarning } from "@/components/availability/availability-integrity-warning";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { ClusterToolbar } from "@/components/availability/cluster/cluster-toolbar";
+import { formatHierarchyLevel } from "@/components/availability/cluster/format";
 import { ClusterSummaryCard } from "@/components/availability/cluster/summary-card";
-import { ClusterAvailabilityOverview } from "@/components/availability/detail/cluster-overview";
 import type {
   BlockFilter,
   ClusterView,
 } from "@/components/availability/cluster/types";
 import { ClusterUnitList } from "@/components/availability/cluster/unit-list";
+import { ClusterAvailabilityOverview } from "@/components/availability/detail/cluster-overview";
 import { availabilityPath } from "@/components/availability/routes";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -74,9 +85,9 @@ export default function ClusterDetailPage() {
                   <span className="text-[#3664ff]">
                     Availability & Reservation
                   </span>
-                  <span className="text-[#98a2b3]">›</span>
+                  <ChevronRight className="size-3 text-[#98a2b3]" />
                   <span className="text-[#3664ff]">Availability Overview</span>
-                  <span className="text-[#98a2b3]">›</span>
+                  <ChevronRight className="size-3 text-[#98a2b3]" />
                   <span className="text-[#344054]">
                     {availability.data.cluster.name}
                   </span>
@@ -100,13 +111,24 @@ export default function ClusterDetailPage() {
                     <h1 className="text-[26px] font-bold tracking-tight text-[#101828]">
                       {availability.data.cluster.name}
                     </h1>
-                    <p className="mt-1 text-[10px] font-medium text-[#475467]">
-                      {availability.data.cluster.level}
-                      <span className="mx-1.5">â€¢</span>
-                      {availability.data.project.name}
-                      <span className="mx-1.5">•</span>
-                      {availability.data.project.location}
-                    </p>
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[#eef4ff] px-2 py-1 text-[9px] font-semibold text-[#3664ff]">
+                          {formatHierarchyLevel(
+                            availability.data.cluster.level,
+                          )}
+                        </span>
+                        <span className="text-[10px] font-semibold text-[#475467]">
+                          {availability.data.project.name}
+                        </span>
+                      </div>
+                      {availability.data.project.location && (
+                        <p className="flex items-start gap-1.5 text-[10px] leading-4 text-[#667085]">
+                          <MapPin className="mt-0.5 size-3 shrink-0" />
+                          <span>{availability.data.project.location}</span>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -141,7 +163,21 @@ export default function ClusterDetailPage() {
                 </div>
               </section>
 
+              <div className="mt-4">
+                <AvailabilityIntegrityWarning
+                  integrity={availability.data.integrity}
+                />
+              </div>
+
               <div className="my-4 border-t border-[#edf0f3]" />
+
+              {availability.data.children.length === 0 &&
+                availability.data.units.length === 0 && (
+                  <AvailabilityEmptyState
+                    title={`Belum ada unit di ${availability.data.cluster.name}`}
+                    description={`Lokasi ${availability.data.cluster.name} belum memiliki sublokasi maupun unit. Tambahkan hierarchy atau unit melalui pengaturan proyek agar data availability dapat ditampilkan.`}
+                  />
+                )}
 
               {availability.data.children.length > 0 && (
                 <ClusterAvailabilityOverview
@@ -152,7 +188,11 @@ export default function ClusterDetailPage() {
               )}
 
               {availability.data.units.length > 0 && (
-                <div className={availability.data.children.length > 0 ? "mt-6" : undefined}>
+                <div
+                  className={
+                    availability.data.children.length > 0 ? "mt-6" : undefined
+                  }
+                >
                   <ClusterToolbar
                     block={block}
                     blocks={availability.data.blocks}
@@ -171,15 +211,12 @@ export default function ClusterDetailPage() {
                   />
                 </div>
               )}
-
-              {availability.data.units.length > 0 && filteredUnits.length === 0 && (
-                <div className="mt-10 text-center text-sm text-muted-foreground">
-                  Unit tidak ditemukan.
-                </div>
-              )}
             </>
           ) : (
-            <AvailabilityState message="Hierarchy tidak ditemukan." />
+            <AvailabilityEmptyState
+              title="Lokasi tidak ditemukan"
+              description="Hierarchy yang Anda buka tidak tersedia atau sudah tidak menjadi bagian dari proyek ini. Kembali ke halaman proyek untuk memilih lokasi lain."
+            />
           )}
         </main>
 
