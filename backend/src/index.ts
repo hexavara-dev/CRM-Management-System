@@ -49,6 +49,8 @@ import { LeadSourceUseCase } from './usecases/crm/LeadSourceUseCase.js';
 import { LeadSourceController } from './presentation/controllers/LeadSourceController.js';
 import { LeadActivityTypeUseCase } from './usecases/crm/LeadActivityTypeUseCase.js';
 import { LeadActivityTypeController } from './presentation/controllers/LeadActivityTypeController.js';
+import { LeadCampaignUseCase } from './usecases/crm/LeadCampaignUseCase.js';
+import { LeadCampaignController } from './presentation/controllers/LeadCampaignController.js';
 import { PipelineStageUseCase } from './usecases/crm/PipelineStageUseCase.js';
 import { PipelineStageController } from './presentation/controllers/PipelineStageController.js';
 import { LeadFormTemplateUseCase } from './usecases/crm/LeadFormTemplateUseCase.js';
@@ -398,6 +400,12 @@ app.get('/api/lead-sources', authMiddleware, leadSources.list);
 app.post('/api/lead-sources', authMiddleware, ownerOnly, leadSources.create);
 app.put('/api/lead-sources/:id', authMiddleware, ownerOnly, leadSources.update);
 app.delete('/api/lead-sources/:id', authMiddleware, ownerOnly, leadSources.remove);
+
+const leadCampaigns = new LeadCampaignController(new LeadCampaignUseCase(prisma));
+app.get('/api/lead-campaigns', authMiddleware, leadCampaigns.list);
+app.post('/api/lead-campaigns', authMiddleware, ownerOnly, leadCampaigns.create);
+app.put('/api/lead-campaigns/:id', authMiddleware, ownerOnly, leadCampaigns.update);
+app.delete('/api/lead-campaigns/:id', authMiddleware, ownerOnly, leadCampaigns.remove);
 
 const leadActivityTypes = new LeadActivityTypeController(new LeadActivityTypeUseCase(prisma));
 app.get('/api/lead-activity-types', authMiddleware, leadActivityTypes.list);

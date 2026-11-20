@@ -53,6 +53,7 @@ model Company {
   reservations            Reservation[]
   leadLabels              LeadLabel[]
   leadActivityTypes       LeadActivityType[]
+  leadCampaigns           LeadCampaign[]
   stageEvidences          StageEvidenceRequirement[]
   leadFormTemplates       LeadFormTemplate[]
   leadFormVersions        LeadFormTemplateVersion[]
@@ -584,6 +585,7 @@ model Source {
   leads     Lead[]
   viewings  Viewing[]
   Deal      Deal[]
+  campaigns LeadCampaign[]
 
   @@map("source")
 }
@@ -1041,4 +1043,24 @@ model LeadActivityType {
   @@unique([tenantId, name])
   @@index([tenantId, sortOrder])
   @@map("lead_activity_types")
+}
+
+/// Campaign di bawah satu Sumber Leads; periode opsional.
+model LeadCampaign {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  tenantId    String    @map("company_id") @db.VarChar(36)
+  sourceId    String    @map("source_id") @db.VarChar(36)
+  name        String    @db.VarChar(255)
+  description String?   @db.VarChar(500)
+  startDate   DateTime? @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant      Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  source      Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, name])
+  @@index([tenantId, sourceId])
+  @@map("lead_campaigns")
 }

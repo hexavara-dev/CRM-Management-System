@@ -12,14 +12,14 @@ const fn = (value?: unknown): Mock => jest.fn<(...args: any[]) => any>().mockRes
 function prisma(over: { found?: unknown; duplicate?: unknown; used?: number } = {}) {
   return {
     source: {
-      findMany: fn([{ id: 's-1', name: 'Website' }]),
+      findMany: fn([{ id: 's-1', name: 'Website', _count: { campaigns: 2 } }]),
       count: fn(1),
       // Panggilan pertama: cek source ada; panggilan berikutnya: cek nama duplikat.
       findFirst: jest.fn<(...args: any[]) => any>().mockImplementation(async (args: { where: { name?: string } }) =>
         args.where.name !== undefined ? (over.duplicate ?? null) : 'found' in over ? over.found : { id: 's-1' }
       ),
-      create: jest.fn(async ({ data }: { data: unknown }) => data),
-      update: jest.fn(async ({ data }: { data: unknown }) => data),
+      create: jest.fn(async ({ data }: { data: object }) => ({ ...data, _count: { campaigns: 0 } })),
+      update: jest.fn(async ({ data }: { data: object }) => ({ ...data, _count: { campaigns: 0 } })),
       delete: fn({}),
     },
     lead: { count: fn(over.used ?? 0) },
@@ -36,6 +36,7 @@ describe('LeadSourceUseCase', () => {
       limit: 10,
     });
     expect(result.meta).toEqual({ total: 1, page: 2, limit: 10, totalPages: 1 });
+    expect(result.data).toEqual([{ id: 's-1', name: 'Website', campaignCount: 2 }]);
     expect(db.source.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { tenantId: 't-1', type: 'lead', name: { contains: 'web' }, isActive: true },

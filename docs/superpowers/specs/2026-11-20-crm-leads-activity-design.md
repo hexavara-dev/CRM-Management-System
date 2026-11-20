@@ -74,3 +74,17 @@ Owner dapat menandai satu tahapan pipeline Deal sebagai **Won Deals**.
 - Tahapan Won selalu aktif (tidak dapat dinonaktifkan); boleh diubah walau sudah berisi Deal.
 - Dashboard: Won Deals, Average Won Value, dan Sales Trend dihitung dari Deal di tahapan Won (sebelumnya dari status `isClosingStatus`). Lost Deals tetap dari status.
 - UI: toggle "Hitung sebagai Won Deals" di form tahapan Deals Pipeline, badge "Won" di daftar tahapan dan preview kanban.
+
+---
+
+# Penyesuaian: Campaign pada Leads Source
+
+Campaign adalah entitas sendiri di bawah satu Sumber Leads (bukan kolom source).
+
+- Tabel `lead_campaigns`: `source_id` (wajib, source `lead` milik company yang sama), nama (unik per source), deskripsi, `start_date`/`end_date` (opsional, `DATE`), aktif. Migrasi `20261120140000_add_lead_campaigns`.
+- Periode opsional karena campaign sering disiapkan sebelum jadwalnya pasti; bila keduanya diisi, akhir ≥ mulai.
+- API `/api/lead-campaigns` (GET semua user login; POST/PUT/DELETE owner). Filter `sourceId`, `search`, `status`, dan `available=true` (aktif, source aktif, periode mencakup hari ini atau kosong) untuk form Add Lead nanti.
+- Source campaign tidak dapat dipindah setelah dibuat.
+- Daftar Leads Source menyertakan `campaignCount`.
+- Hapus campaign yang sudah dipakai Lead ditolak setelah integrasi Add Lead (`lead.campaign_id`).
+- UI: dikelola di halaman Konfigurasi Leads Source (baris source dapat dibuka untuk melihat dan mengelola campaign-nya).
