@@ -43,6 +43,8 @@ import {
   Star,
   Sun,
   Tag,
+  Presentation,
+  StickyNote,
   Target,
   Thermometer,
   ThumbsDown,
@@ -150,6 +152,13 @@ export const LEAD_LABEL_ICON_GROUPS: { title: string; icons: Record<string, Luci
       help: CircleHelp,
       info: Info,
       tag: Tag,
+    },
+  },
+  {
+    title: "Aktivitas",
+    icons: {
+      presentation: Presentation,
+      "sticky-note": StickyNote,
     },
   },
 ];
