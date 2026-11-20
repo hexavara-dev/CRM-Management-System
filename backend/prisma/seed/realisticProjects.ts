@@ -40,10 +40,10 @@ function statusOf(random: () => number, distribution: [ProductUnitStatus, number
   return distribution.at(-1)?.[0] ?? 'AVAILABLE';
 }
 
-function typeVariantOf(types: UnitType[], random: () => number) {
+function typeVariantOf(types: UnitType[], random: () => number, typeIndex?: number) {
   const choices = types.flatMap((type, variantIndex) =>
     type.options.map((option, typeVariantIndex) => ({ variantIndex, typeVariantIndex, weight: option.weight })),
-  );
+  ).filter((choice) => typeIndex === undefined || choice.variantIndex === typeIndex);
   const total = choices.reduce((sum, item) => sum + item.weight, 0);
   let roll = random() * total;
   for (const choice of choices) {
@@ -104,7 +104,10 @@ function landedInventory(input: {
       const blockKey = `${clusterKey}-block-${blockLabel}`;
       locations.push({ key: blockKey, parentKey: clusterKey, name: `Blok ${blockLabel}`, type: 'BLOCK' });
       for (let lot = 1; lot <= input.unitsPerBlock; lot += 1) {
-        const selected = typeVariantOf(input.types, random);
+        // Satu blok memakai satu tipe; opsi Standard/Premium tetap dapat
+        // bervariasi di dalam tipe tersebut.
+        const blockTypeIndex = blockIndex % input.types.length;
+        const selected = typeVariantOf(input.types, random, blockTypeIndex);
         units.push({
           code: `${input.code}-${String(clusterIndex + 1).padStart(2, '0')}${blockLabel}-${String(lot).padStart(3, '0')}`,
           name: `Kavling ${blockLabel}-${String(lot).padStart(3, '0')}`,
@@ -140,7 +143,8 @@ function verticalInventory(input: {
       const floorKey = `${towerKey}-floor-${floor}`;
       locations.push({ key: floorKey, parentKey: towerKey, name: `Lantai ${floor}`, type: 'FLOOR' });
       for (let door = 1; door <= input.unitsPerFloor; door += 1) {
-        const selected = typeVariantOf(input.types, random);
+        const floorTypeIndex = (floor - 1) % input.types.length;
+        const selected = typeVariantOf(input.types, random, floorTypeIndex);
         units.push({
           code: `${input.code}-${String(towerIndex + 1)}${String(floor).padStart(2, '0')}${String(door).padStart(2, '0')}`,
           name: `Unit ${towerName}-${String(floor).padStart(2, '0')}${String(door).padStart(2, '0')}`,
@@ -177,7 +181,8 @@ function commercialInventory(input: {
       const blockKey = `${zoneKey}-block-${blockLabel}`;
       locations.push({ key: blockKey, parentKey: zoneKey, name: `Blok ${blockLabel}`, type: 'BLOCK' });
       for (let unitNo = 1; unitNo <= input.unitsPerBlock; unitNo += 1) {
-        const selected = typeVariantOf(input.types, random);
+        const blockTypeIndex = blockIndex % input.types.length;
+        const selected = typeVariantOf(input.types, random, blockTypeIndex);
         units.push({
           code: `${input.code}-Z${zoneIndex + 1}${blockLabel}-${String(unitNo).padStart(3, '0')}`,
           name: `Kavling Usaha ${blockLabel}-${String(unitNo).padStart(3, '0')}`,
@@ -206,76 +211,39 @@ function scenario(
 }
 
 export function buildRealisticProjectScenarios(): RealisticProjectScenario[] {
-  const bekasiTypes: UnitType[] = [
-    { name: 'Tipe Canna 36', buildingArea: 36, surfaceArea: 60, floors: 1, bedroom: 2, bathroom: 1, carport: 1, options: [
-      { name: 'Standard', code: 'QABKS-C36-STD', price: 785_000_000, weight: 16 },
-      { name: 'Smart Home', code: 'QABKS-C36-SMT', price: 845_000_000, weight: 8 },
+  const houseTypes = (codePrefix: string, basePrice: number): UnitType[] => [
+    { name: 'Type 30/60', buildingArea: 30, surfaceArea: 60, floors: 1, bedroom: 2, bathroom: 1, carport: 1, options: [
+      { name: 'Standard', code: `${codePrefix}-T30-STD`, price: basePrice, weight: 16 },
+      { name: 'Premium', code: `${codePrefix}-T30-PRM`, price: Math.round(basePrice * 1.08), weight: 8 },
     ] },
-    { name: 'Tipe Aralia 45', buildingArea: 45, surfaceArea: 72, floors: 1, bedroom: 2, bathroom: 1, carport: 1, options: [
-      { name: 'Standard', code: 'QABKS-A45-STD', price: 975_000_000, weight: 14 },
-      { name: 'Corner', code: 'QABKS-A45-COR', price: 1_090_000_000, weight: 5 },
+    { name: 'Type 36/60', buildingArea: 36, surfaceArea: 60, floors: 1, bedroom: 2, bathroom: 1, carport: 1, options: [
+      { name: 'Standard', code: `${codePrefix}-T36-STD`, price: Math.round(basePrice * 1.125), weight: 14 },
+      { name: 'Premium', code: `${codePrefix}-T36-PRM`, price: Math.round(basePrice * 1.2), weight: 7 },
     ] },
-    { name: 'Tipe Magnolia 60', buildingArea: 60, surfaceArea: 90, floors: 2, bedroom: 3, bathroom: 2, carport: 1, options: [
-      { name: 'Classic', code: 'QABKS-M60-CLS', price: 1_385_000_000, weight: 10 },
-      { name: 'Premium', code: 'QABKS-M60-PRM', price: 1_525_000_000, weight: 6 },
+    { name: 'Type 40/60', buildingArea: 40, surfaceArea: 60, floors: 1, bedroom: 2, bathroom: 1, carport: 1, options: [
+      { name: 'Standard', code: `${codePrefix}-T40-STD`, price: Math.round(basePrice * 1.225), weight: 12 },
+      { name: 'Premium', code: `${codePrefix}-T40-PRM`, price: Math.round(basePrice * 1.3), weight: 6 },
     ] },
-    { name: 'Tipe Samara 90', buildingArea: 90, surfaceArea: 120, floors: 2, bedroom: 4, bathroom: 3, carport: 2, options: [
-      { name: 'Garden', code: 'QABKS-S90-GDN', price: 2_150_000_000, weight: 4 },
-      { name: 'Boulevard', code: 'QABKS-S90-BLV', price: 2_375_000_000, weight: 3 },
+    { name: 'Type 45/60', buildingArea: 45, surfaceArea: 60, floors: 2, bedroom: 2, bathroom: 1, carport: 1, options: [
+      { name: 'Standard', code: `${codePrefix}-T45-STD`, price: Math.round(basePrice * 1.375), weight: 10 },
+      { name: 'Premium', code: `${codePrefix}-T45-PRM`, price: Math.round(basePrice * 1.48), weight: 5 },
+    ] },
+    { name: 'Type 54/72', buildingArea: 54, surfaceArea: 72, floors: 2, bedroom: 3, bathroom: 2, carport: 1, options: [
+      { name: 'Standard', code: `${codePrefix}-T54-STD`, price: Math.round(basePrice * 1.475), weight: 8 },
+      { name: 'Premium', code: `${codePrefix}-T54-PRM`, price: Math.round(basePrice * 1.6), weight: 4 },
     ] },
   ];
+
+  const bekasiTypes = houseTypes('QABKS', 400_000_000);
   const bekasiInventory = landedInventory({ code: 'QABKS26', seed: 260101, clusterNames: ['Magnolia', 'Akasia', 'Cendana', 'Damar', 'Flamboyan', 'Jasmine'], blocksPerCluster: 8, unitsPerBlock: 24, types: bekasiTypes });
 
-  const bandungTypes: UnitType[] = [
-    { name: 'Tipe Pinus 40', buildingArea: 40, surfaceArea: 72, floors: 1, bedroom: 2, bathroom: 1, carport: 1, options: [
-      { name: 'Valley', code: 'QAKBP-P40-VLY', price: 895_000_000, weight: 15 },
-      { name: 'Hill View', code: 'QAKBP-P40-HIL', price: 975_000_000, weight: 8 },
-    ] },
-    { name: 'Tipe Cemara 55', buildingArea: 55, surfaceArea: 90, floors: 2, bedroom: 3, bathroom: 2, carport: 1, options: [
-      { name: 'Valley', code: 'QAKBP-C55-VLY', price: 1_275_000_000, weight: 13 },
-      { name: 'Corner', code: 'QAKBP-C55-COR', price: 1_425_000_000, weight: 5 },
-    ] },
-    { name: 'Tipe Arunika 75', buildingArea: 75, surfaceArea: 105, floors: 2, bedroom: 3, bathroom: 3, carport: 2, options: [
-      { name: 'Mountain View', code: 'QAKBP-A75-MNT', price: 1_825_000_000, weight: 7 },
-      { name: 'Premium Garden', code: 'QAKBP-A75-GDN', price: 2_050_000_000, weight: 4 },
-    ] },
-  ];
+  const bandungTypes = houseTypes('QAKBP', 450_000_000);
   const bandungInventory = landedInventory({ code: 'QAKBP26', seed: 260202, clusterNames: ['Puspa', 'Sagara', 'Arunika', 'Nawasena', 'Kirana', 'Pradipa', 'Wanasari', 'Lembayung'], blocksPerCluster: 6, unitsPerBlock: 20, types: bandungTypes });
 
-  const surabayaTypes: UnitType[] = [
-    { name: 'Studio', buildingArea: 24, surfaceArea: 0, floors: 1, bedroom: 1, bathroom: 1, carport: 0, options: [
-      { name: 'City View', code: 'QASBY-STD-CIT', price: 525_000_000, weight: 18 },
-      { name: 'Pool View', code: 'QASBY-STD-POL', price: 565_000_000, weight: 8 },
-    ] },
-    { name: 'One Bedroom', buildingArea: 36, surfaceArea: 0, floors: 1, bedroom: 1, bathroom: 1, carport: 0, options: [
-      { name: 'City View', code: 'QASBY-1BR-CIT', price: 785_000_000, weight: 15 },
-      { name: 'Corner', code: 'QASBY-1BR-COR', price: 865_000_000, weight: 6 },
-    ] },
-    { name: 'Two Bedroom', buildingArea: 52, surfaceArea: 0, floors: 1, bedroom: 2, bathroom: 2, carport: 1, options: [
-      { name: 'City View', code: 'QASBY-2BR-CIT', price: 1_175_000_000, weight: 12 },
-      { name: 'Pool View', code: 'QASBY-2BR-POL', price: 1_275_000_000, weight: 5 },
-    ] },
-    { name: 'Three Bedroom', buildingArea: 78, surfaceArea: 0, floors: 1, bedroom: 3, bathroom: 2, carport: 1, options: [
-      { name: 'Skyline', code: 'QASBY-3BR-SKY', price: 1_850_000_000, weight: 5 },
-      { name: 'Corner Skyline', code: 'QASBY-3BR-COR', price: 2_075_000_000, weight: 3 },
-    ] },
-  ];
+  const surabayaTypes = houseTypes('QASBY', 500_000_000);
   const surabayaInventory = verticalInventory({ code: 'QASBY26', seed: 260303, towerNames: ['Arjuna', 'Bromo', 'Cakrawala', 'Dahana'], floors: 30, unitsPerFloor: 12, types: surabayaTypes });
 
-  const businessTypes: UnitType[] = [
-    { name: 'Gudang Ringan 90', buildingArea: 90, surfaceArea: 120, floors: 1, bedroom: 0, bathroom: 1, carport: 2, options: [
-      { name: 'Standard', code: 'QARNG-G90-STD', price: 1_450_000_000, weight: 16 },
-      { name: 'Loading Bay', code: 'QARNG-G90-LOD', price: 1_625_000_000, weight: 8 },
-    ] },
-    { name: 'Gudang Menengah 180', buildingArea: 180, surfaceArea: 240, floors: 1, bedroom: 0, bathroom: 2, carport: 3, options: [
-      { name: 'Standard', code: 'QARNG-G180-STD', price: 2_750_000_000, weight: 12 },
-      { name: 'High Ceiling', code: 'QARNG-G180-HCL', price: 3_050_000_000, weight: 7 },
-    ] },
-    { name: 'Biz Loft 120', buildingArea: 120, surfaceArea: 90, floors: 2, bedroom: 0, bathroom: 2, carport: 2, options: [
-      { name: 'Inner Boulevard', code: 'QARNG-B120-INR', price: 2_150_000_000, weight: 9 },
-      { name: 'Main Boulevard', code: 'QARNG-B120-MBL', price: 2_475_000_000, weight: 5 },
-    ] },
-  ];
+  const businessTypes = houseTypes('QARNG', 590_000_000);
   const businessInventory = commercialInventory({ code: 'QARNG26', seed: 260404, zoneNames: ['Logistik', 'Manufaktur Ringan', 'Niaga', 'Distribusi'], blocksPerZone: 8, unitsPerBlock: 20, types: businessTypes });
 
   return [
