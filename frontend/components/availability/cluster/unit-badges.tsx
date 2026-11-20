@@ -1,4 +1,5 @@
 import { Ban, CalendarClock, CalendarDays, House, Tag } from "lucide-react";
+import { formatHierarchyLevel } from "./format";
 import type { Block, UnitStatus } from "./types";
 
 export function UnitStatusBadge({ status }: { status: UnitStatus }) {
@@ -59,11 +60,12 @@ export function UnitBlockBadge({
   block: Block;
   level?: string;
 }) {
-  const hash = [...block].reduce((total, character) => total + character.charCodeAt(0), 0);
+  const hash = [...block].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
   const className = LOCATION_COLORS[hash % LOCATION_COLORS.length];
-  const levelLabel = level
-    ? level.charAt(0) + level.slice(1).toLowerCase()
-    : "Lokasi";
+  const levelLabel = level ? formatHierarchyLevel(level) : "Lokasi";
   return (
     <span
       className={`rounded-full px-2 py-1 text-[9px] font-semibold ${className}`}

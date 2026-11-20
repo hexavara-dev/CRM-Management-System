@@ -5,6 +5,12 @@ export type UnitStatus =
   | "sold"
   | "blocked";
 
+export interface AvailabilityIntegrity {
+  status: "healthy" | "degraded";
+  ignoredUnitCount: number;
+  skippedCycleEdges: number;
+}
+
 export interface ProjectAvailability {
   id: string;
   code: string;
@@ -17,6 +23,7 @@ export interface ProjectAvailability {
   reserved: number;
   sold: number;
   blocked: number;
+  integrity?: AvailabilityIntegrity;
 }
 
 export interface AvailabilitySummary {
