@@ -54,7 +54,7 @@ export class StatisticsUseCases {
       where: {
         tenantId,
         ...dateFilter,
-        status: { isClosingStatus: true },
+        stage: { isWonStage: true },
       },
     });
 
@@ -136,7 +136,7 @@ export class StatisticsUseCases {
       where: {
         tenantId,
         ...dateFilter,
-        status: { isClosingStatus: true },
+        stage: { isWonStage: true },
       },
       _avg: { amount: true },
     });
@@ -148,7 +148,7 @@ export class StatisticsUseCases {
     const wonDealsForTrend = await this.prisma.deal.findMany({
       where: {
         tenantId,
-        status: { isClosingStatus: true },
+        stage: { isWonStage: true },
         closingDate: { not: null },
         ...dateFilter,
       },

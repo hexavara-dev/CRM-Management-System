@@ -65,6 +65,9 @@ export const LEAD_LABEL_ICONS = [
   'help',
   'info',
   'tag',
+  // Aktivitas
+  'presentation',
+  'sticky-note',
 ] as const;
 
 export type LeadLabelIcon = (typeof LEAD_LABEL_ICONS)[number];

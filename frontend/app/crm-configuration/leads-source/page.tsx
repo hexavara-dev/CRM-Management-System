@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Target, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Megaphone, Pencil, Plus, Search, Target, Trash2 } from "lucide-react";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { ConfigHeader } from "../config-header";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -21,6 +21,7 @@ import {
 } from "@/hooks/use-lead-sources";
 import { errorMessage } from "@/hooks/use-projects";
 import { cn } from "@/lib/utils";
+import { CampaignModal } from "./campaign-modal";
 import { SourceDialog } from "./source-dialog";
 
 const PAGE_SIZE = 10;
@@ -43,6 +44,7 @@ export default function LeadsSourcePage() {
   const [page, setPage] = useState(1);
   const [dialog, setDialog] = useState<{ open: boolean; source?: LeadSource }>({ open: false });
   const [deleting, setDeleting] = useState<LeadSource>();
+  const [campaignSource, setCampaignSource] = useState<LeadSource>();
   const search = useDebouncedValue(query.trim());
 
   const sources = useLeadSources({ search, status, page, limit: PAGE_SIZE });
@@ -133,6 +135,7 @@ export default function LeadsSourcePage() {
                       <TableHead>Nama Leads Source</TableHead>
                       <TableHead>Deskripsi</TableHead>
                       <TableHead>Warna</TableHead>
+                      <TableHead>Campaign</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Tanggal Dibuat</TableHead>
                       {canWrite && <TableHead className="text-right">Aksi</TableHead>}
@@ -155,6 +158,17 @@ export default function LeadsSourcePage() {
                           ) : (
                             <span className="text-[#6b6b6b]">-</span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            aria-label={`Lihat campaign ${source.name}`}
+                            onClick={() => setCampaignSource(source)}
+                            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-[#F3F4F6] px-2 py-1 text-xs font-medium text-[#475467] hover:bg-[#E5F1FA] hover:text-[#1980C0]"
+                          >
+                            <Megaphone className="size-3.5" />
+                            {source.campaignCount} campaign
+                          </button>
                         </TableCell>
                         <TableCell>
                           <span
@@ -236,6 +250,11 @@ export default function LeadsSourcePage() {
           onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
         />
       )}
+      <CampaignModal
+        source={campaignSource}
+        canWrite={canWrite}
+        onOpenChange={(open) => !open && setCampaignSource(undefined)}
+      />
       <ConfirmModal
         isOpen={!!deleting}
         onClose={() => setDeleting(undefined)}

@@ -90,8 +90,13 @@ export function DealPreviewDialog({
                   >
                     <div className="rounded-t-2xl" style={{ backgroundColor: `${color}26` }}>
                       <div className="flex items-center justify-between gap-2 px-4 py-3">
-                        <p className="truncate text-lg font-semibold" style={{ color }}>
-                          {stage.name}
+                        <p className="flex min-w-0 items-center gap-2 text-lg font-semibold" style={{ color }}>
+                          <span className="truncate">{stage.name}</span>
+                          {stage.isWonStage && (
+                            <span className="shrink-0 rounded bg-[#FEF3C7] px-1.5 py-0.5 text-xs font-medium text-[#B45309]">
+                              Won
+                            </span>
+                          )}
                         </p>
                         <span className="shrink-0 rounded-full bg-white px-2.5 py-0.5 text-sm font-medium text-[#1f1f1f]">
                           {stage.itemCount} deals

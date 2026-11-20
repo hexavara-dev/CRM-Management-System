@@ -24,7 +24,15 @@ const select = {
   color: true,
   isActive: true,
   createdAt: true,
+  _count: { select: { campaigns: true } },
 } satisfies Prisma.SourceSelect;
+
+type SourceRow = Prisma.SourceGetPayload<{ select: typeof select }>;
+
+/** `_count` diratakan menjadi `campaignCount`. */
+function present({ _count, ...source }: SourceRow) {
+  return { ...source, campaignCount: _count.campaigns };
+}
 
 /** Sumber Leads milik satu company. */
 export class LeadSourceUseCase {
@@ -45,7 +53,7 @@ export class LeadSourceUseCase {
       this.prisma.source.count({ where }),
     ]);
     return {
-      data,
+      data: data.map(present),
       meta: { total, page: filters.page, limit: filters.limit, totalPages: Math.ceil(total / filters.limit) },
     };
   }
@@ -68,7 +76,7 @@ export class LeadSourceUseCase {
   async create(tenantId: string, input: LeadSourceInput) {
     const name = input.name as string;
     await this.assertUniqueName(tenantId, name);
-    return this.prisma.source.create({
+    const created = await this.prisma.source.create({
       data: {
         tenantId,
         type: LEAD,
@@ -79,6 +87,7 @@ export class LeadSourceUseCase {
       },
       select,
     });
+    return present(created);
   }
 
   async update(id: string, tenantId: string, input: LeadSourceInput) {
@@ -89,7 +98,7 @@ export class LeadSourceUseCase {
     if (input.description !== undefined) data.description = input.description;
     if (input.color !== undefined) data.color = input.color.toUpperCase();
     if (input.isActive !== undefined) data.isActive = input.isActive;
-    return this.prisma.source.update({ where: { id }, data, select });
+    return present(await this.prisma.source.update({ where: { id }, data, select }));
   }
 
   /** Source yang sudah dipakai Lead tidak boleh dihapus; nonaktifkan saja. */

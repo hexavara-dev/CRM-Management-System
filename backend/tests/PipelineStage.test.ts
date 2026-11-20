@@ -22,6 +22,7 @@ const row = (over: Record<string, unknown> = {}) => ({
   isActive: true,
   isDefaultStage: false,
   isTerminalStage: false,
+  isWonStage: false,
   defaultGuard: null,
   terminalGuard: null,
   evidences: [{ id: 'e-1', tenantId: 't-1', stageId: 's-1', name: 'Foto', fileTypes: ['IMAGE'], isRequired: true, sortOrder: 0 }],
@@ -214,6 +215,63 @@ describe('PipelineStageUseCase for deals', () => {
     expect(db.tx.stage.update).toHaveBeenCalledWith({
       where: { id: 's-1' },
       data: expect.objectContaining({ isTerminalStage: true, terminalGuard: 'deal' }),
+    });
+  });
+
+  it('marks one deal stage as won and moves the flag from the previous won stage', async () => {
+    const db = prisma({ stage: deal({ isTerminalStage: true }) });
+    const stage = await new PipelineStageUseCase(db as never).update('s-1', 't-1', { isWonStage: true });
+    expect(db.tx.stage.updateMany).toHaveBeenCalledWith({
+      where: { tenantId: 't-1', isWonStage: true, id: { not: 's-1' } },
+      data: { isWonStage: false, wonGuard: null },
+    });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({
+      where: { id: 's-1' },
+      data: expect.objectContaining({ isWonStage: true, wonGuard: 'deal', isTerminalStage: true, isActive: true }),
+    });
+    expect(stage).toHaveProperty('isWonStage');
+  });
+
+  it('allows unsetting the won stage', async () => {
+    const db = prisma({ stage: deal({ isWonStage: true }) });
+    await new PipelineStageUseCase(db as never).update('s-1', 't-1', { isWonStage: false });
+    expect(db.tx.stage.updateMany).not.toHaveBeenCalled();
+    expect(db.tx.stage.update).toHaveBeenCalledWith({
+      where: { id: 's-1' },
+      data: expect.objectContaining({ isWonStage: false, wonGuard: null }),
+    });
+  });
+
+  it('rejects won on lead stages, on the default stage, and deactivating the won stage', async () => {
+    await expect(
+      new PipelineStageUseCase(prisma() as never).update('s-1', 't-1', { isWonStage: true })
+    ).rejects.toThrow(/only deal stages/);
+    await expect(
+      new PipelineStageUseCase(prisma({ stage: deal({ isDefaultStage: true }) }) as never).update('s-1', 't-1', {
+        isWonStage: true,
+      })
+    ).rejects.toThrow(/default stage cannot be counted/);
+    await expect(
+      new PipelineStageUseCase(prisma({ stage: deal({ isWonStage: true }) }) as never).update('s-1', 't-1', {
+        isActive: false,
+      })
+    ).rejects.toThrow(/cannot be deactivated/);
+  });
+
+  it('creates a deal stage marked as won', async () => {
+    const db = prisma();
+    await new PipelineStageUseCase(db as never).create('t-1', 'deal', {
+      name: 'Akad',
+      probability: 100,
+      color: '#16a34a',
+      isWonStage: true,
+    });
+    expect(db.tx.stage.updateMany).toHaveBeenCalledWith({
+      where: { tenantId: 't-1', isWonStage: true },
+      data: { isWonStage: false, wonGuard: null },
+    });
+    expect(db.tx.stage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ isWonStage: true, wonGuard: 'deal' }),
     });
   });
 

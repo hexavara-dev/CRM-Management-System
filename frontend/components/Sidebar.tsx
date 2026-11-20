@@ -31,6 +31,7 @@ import {
 import {
   Archive,
   Bell,
+  CalendarDays,
   Columns3,
   GitBranch,
   Handshake,
@@ -271,6 +272,7 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
             { title: "Konfigurasi Leads Pipeline", url: "/crm-configuration/leads-pipeline", icon: Columns3 },
             { title: "Konfigurasi Deals Pipeline", url: "/crm-configuration/deals-pipeline", icon: GitBranch },
             { title: "Konfigurasi Leads Source", url: "/crm-configuration/leads-source", icon: Target },
+            { title: "Konfigurasi Leads Activity", url: "/crm-configuration/leads-activity", icon: CalendarDays },
           ],
         },
       ],

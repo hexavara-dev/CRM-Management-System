@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { PrismaClient } from '@prisma/client';
 import type { IRepository } from '../../domain/repositories/IRepository.js';
+import { defaultLeadActivityTypes } from '../crm/LeadActivityTypeUseCase.js';
 
 // Masa berlaku sesi: token JWT dan cookie memakai nilai yang sama (365 hari).
 export const SESSION_DAYS = 365;
@@ -101,6 +102,7 @@ export class AuthUseCases {
             closingGuard: null,
           })),
         });
+        await tx.leadActivityType.createMany({ data: defaultLeadActivityTypes(tenant.id) });
         return { tenant, user };
       });
       newTenant = result.tenant;

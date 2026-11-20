@@ -18,6 +18,7 @@ const stageRules: Record<string, FieldRule> = {
   isActive: { type: 'boolean' },
   isDefaultStage: { type: 'boolean' },
   isTerminalStage: { type: 'boolean' },
+  isWonStage: { type: 'boolean' },
   evidences: { type: 'array' },
 };
 
