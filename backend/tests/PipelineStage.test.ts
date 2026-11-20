@@ -30,9 +30,14 @@ const row = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-function prisma(over: { stage?: unknown; duplicate?: unknown; all?: unknown[] } = {}) {
+function prisma(over: { stage?: unknown; duplicate?: unknown; all?: unknown[]; ordered?: unknown[] } = {}) {
   const tx = {
-    stage: { create: fn({ id: 's-new' }), update: fn({}), updateMany: fn({ count: 1 }) },
+    stage: {
+      create: fn({ id: 's-new' }),
+      update: fn({}),
+      updateMany: fn({ count: 1 }),
+      findMany: fn(over.ordered ?? over.all ?? [row()]),
+    },
     stageEvidenceRequirement: { createMany: fn({}), deleteMany: fn({}) },
   };
   const db = {
@@ -161,12 +166,18 @@ describe('PipelineStageUseCase', () => {
   });
 
   it('reorders only with the complete set of stages of the tenant', async () => {
-    const db = prisma({ all: [row({ id: 'a' }), row({ id: 'b' })] });
+    const db = prisma({ all: [row({ id: 'a', position: 0 }), row({ id: 'b', position: 1 })] });
     await expect(new PipelineStageUseCase(db as never).reorder('t-1', 'lead', ['a'])).rejects.toThrow(/every stage/);
     await expect(new PipelineStageUseCase(db as never).reorder('t-1', 'lead', ['a', 'x'])).rejects.toThrow(/every stage/);
     await new PipelineStageUseCase(db as never).reorder('t-1', 'lead', ['b', 'a']);
-    expect(db.stage.update).toHaveBeenCalledWith({ where: { id: 'b' }, data: { position: 0 } });
-    expect(db.stage.update).toHaveBeenCalledWith({ where: { id: 'a' }, data: { position: 1 } });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({
+      where: { id: 'b' },
+      data: expect.objectContaining({ position: 0, isDefaultStage: true, defaultGuard: 'lead' }),
+    });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({
+      where: { id: 'a' },
+      data: expect.objectContaining({ position: 1, isTerminalStage: true, terminalGuard: 'lead' }),
+    });
   });
 });
 
@@ -276,12 +287,78 @@ describe('PipelineStageUseCase for deals', () => {
   });
 
   it('reorders deal stages only', async () => {
-    const db = prisma({ all: [deal({ id: 'itj' }), deal({ id: 'dp' })] });
+    const db = prisma({ all: [deal({ id: 'itj', position: 0 }), deal({ id: 'dp', position: 1 })] });
     await new PipelineStageUseCase(db as never).reorder('t-1', 'deal', ['dp', 'itj']);
     expect(db.stage.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tenantId: 't-1', entityType: 'deal' } })
     );
-    expect(db.stage.update).toHaveBeenCalledWith({ where: { id: 'dp' }, data: { position: 0 } });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({
+      where: { id: 'dp' },
+      data: expect.objectContaining({ position: 0, isDefaultStage: true, defaultGuard: 'deal' }),
+    });
+  });
+});
+
+describe('default and final stages stay pinned', () => {
+  const stages = () => [
+    row({ id: 'new', position: 0, isDefaultStage: true }),
+    row({ id: 'fu', position: 1 }),
+    row({ id: 'won', position: 2, isTerminalStage: true }),
+    row({ id: 'nego', position: 3 }),
+  ];
+
+  it('moves the default and final flags to the first and last stages of the new order', async () => {
+    const db = prisma({ all: stages() });
+    await new PipelineStageUseCase(db as never).reorder('t-1', 'lead', ['fu', 'new', 'nego', 'won']);
+    expect(db.tx.stage.updateMany).toHaveBeenCalledWith({
+      where: { tenantId: 't-1', entityType: 'lead' },
+      data: { isDefaultStage: false, defaultGuard: null, isTerminalStage: false, terminalGuard: null },
+    });
+    const calls = Object.fromEntries(db.tx.stage.update.mock.calls.map(([arg]) => [arg.where.id, arg.data]));
+    expect(calls.fu).toMatchObject({ position: 0, isDefaultStage: true, isTerminalStage: false, isActive: true });
+    expect(calls.new).toMatchObject({ position: 1, isDefaultStage: false, isTerminalStage: false });
+    expect(calls.won).toMatchObject({ position: 3, isDefaultStage: false, isTerminalStage: true, isActive: true });
+  });
+
+  it('rejects an order that puts the won stage first', async () => {
+    const db = prisma({ all: [...stages(), row({ id: 'w', isWonStage: true })] });
+    await expect(
+      new PipelineStageUseCase(db as never).reorder('t-1', 'lead', ['w', 'new', 'fu', 'won', 'nego'])
+    ).rejects.toThrow(/won stage cannot be the first/);
+    expect(db.tx.stage.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('inserts a new stage before the final stage', async () => {
+    const db = prisma({ ordered: [...stages().slice(0, 3), row({ id: 's-new', position: 5 })] });
+    await new PipelineStageUseCase(db as never).create('t-1', 'lead', { name: 'Visit', probability: 40, color: '#22c55e' });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({ where: { id: 's-new' }, data: { position: 2 } });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({ where: { id: 'won' }, data: { position: 3 } });
+  });
+
+  it('moves a stage to the end when it becomes the final stage', async () => {
+    const db = prisma({
+      stage: row({ id: 'fu', position: 1 }),
+      ordered: [
+        row({ id: 'new', position: 0, isDefaultStage: true }),
+        row({ id: 'fu', position: 1, isTerminalStage: true }),
+        row({ id: 'nego', position: 2 }),
+      ],
+    });
+    await new PipelineStageUseCase(db as never).update('fu', 't-1', { isTerminalStage: true });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({ where: { id: 'nego' }, data: { position: 1 } });
+    expect(db.tx.stage.update).toHaveBeenCalledWith({ where: { id: 'fu' }, data: { position: 2 } });
+  });
+
+  it('does not touch positions when only other fields change', async () => {
+    const db = prisma({ stage: row({ id: 'fu' }) });
+    await new PipelineStageUseCase(db as never).update('fu', 't-1', { name: 'Follow Up 2' });
+    expect(db.tx.stage.findMany).not.toHaveBeenCalled();
+  });
+
+  it('lists default first and final last even if stored positions are out of order', async () => {
+    const db = prisma({ all: [row({ id: 'won', isTerminalStage: true }), row({ id: 'fu' }), row({ id: 'new', isDefaultStage: true })] });
+    const list = await new PipelineStageUseCase(db as never).list('t-1', 'lead');
+    expect(list.map((s) => s.id)).toEqual(['new', 'fu', 'won']);
   });
 });
 

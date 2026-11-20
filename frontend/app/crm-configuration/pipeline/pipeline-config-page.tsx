@@ -174,10 +174,16 @@ export function PipelineConfigPage({ entity }: { entity: PipelineEntity }) {
 
   const data = stages.data ?? [];
   const sorting = order !== null;
+  // Saat mengatur urutan, tanda mengikuti posisi: pertama = default, terakhir = akhir.
   const rows = sorting
-    ? (order.map((id) => data.find((s) => s.id === id)).filter(Boolean) as PipelineStage[])
+    ? (order.map((id) => data.find((s) => s.id === id)).filter(Boolean) as PipelineStage[]).map((stage, index, list) => ({
+        ...stage,
+        isDefaultStage: index === 0,
+        isTerminalStage: list.length > 1 && index === list.length - 1,
+      }))
     : data;
   const dirty = sorting && order.some((id, index) => id !== data[index]?.id);
+  const wonFirst = sorting && rows.length > 1 && !!rows[0]?.isWonStage;
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id || !order) return;
@@ -204,7 +210,7 @@ export function PipelineConfigPage({ entity }: { entity: PipelineEntity }) {
                 {canWrite && (
                   <Button
                     type="button"
-                    disabled={!dirty || reorder.isPending}
+                    disabled={!dirty || wonFirst || reorder.isPending}
                     title={!dirty ? "Aktif setelah urutan tahapan diubah lewat Atur Urutan" : undefined}
                     onClick={() => order && reorder.mutate(order, { onSuccess: () => setOrder(null) })}
                     className="bg-[#1980C0] text-white hover:bg-[#166ea6]"
@@ -255,7 +261,14 @@ export function PipelineConfigPage({ entity }: { entity: PipelineEntity }) {
 
             {sorting && (
               <p className="rounded-lg bg-[#E5F1FA] px-3 py-2 text-sm text-[#1980C0]">
-                Geser baris lewat ikon ⠿ untuk mengubah urutan, lalu klik <strong>Simpan Perubahan</strong>.
+                Geser baris lewat ikon ⠿ untuk mengubah urutan, lalu klik <strong>Simpan Perubahan</strong>. Tahapan
+                paling atas otomatis menjadi <strong>Default</strong> dan paling bawah menjadi <strong>Akhir</strong>.
+              </p>
+            )}
+            {wonFirst && (
+              <p className="rounded-lg bg-[#FDECEC] px-3 py-2 text-sm text-[#D64545]">
+                Tahapan Won Deals tidak boleh di urutan pertama karena akan menjadi tahapan default. Pindahkan tahapan
+                lain ke paling atas.
               </p>
             )}
 

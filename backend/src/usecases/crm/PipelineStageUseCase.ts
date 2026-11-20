@@ -68,6 +68,30 @@ const evidenceRows = (tenantId: string, stageId: string, evidences: EvidenceInpu
 
 type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
+type Positioned = { id: string; isDefaultStage: boolean; isTerminalStage: boolean };
+
+/** Tahapan default selalu pertama dan tahapan akhir selalu terakhir; sisanya mempertahankan urutan. */
+export function pinFlaggedStages<T extends Positioned>(stages: T[]): T[] {
+  return [
+    ...stages.filter((s) => s.isDefaultStage),
+    ...stages.filter((s) => !s.isDefaultStage && !s.isTerminalStage),
+    ...stages.filter((s) => s.isTerminalStage && !s.isDefaultStage),
+  ];
+}
+
+/** Menyimpan posisi 0..n dengan default di awal dan akhir di akhir (setelah tanda diubah lewat form). */
+async function normalizePositions(tx: Tx, tenantId: string, entity: string) {
+  const stages = await tx.stage.findMany({
+    where: { tenantId, entityType: entity },
+    select: { id: true, position: true, isDefaultStage: true, isTerminalStage: true },
+    orderBy: [{ position: 'asc' }, { name: 'asc' }],
+  });
+  const pinned = pinFlaggedStages(stages);
+  for (const [position, stage] of pinned.entries()) {
+    if (stage.position !== position) await tx.stage.update({ where: { id: stage.id }, data: { position } });
+  }
+}
+
 /**
  * Tanda default/akhir/won untuk data tahapan. Menjadikan sebuah tahapan default/akhir
  * melepas tanda itu dari tahapan lain (guard unik per company dan tipe), dan
@@ -140,7 +164,8 @@ export class PipelineStageUseCase {
       include,
       orderBy: [{ position: 'asc' }, { name: 'asc' }],
     });
-    return stages.map((stage) => present(stage, entity));
+    // Data lama dirapikan saat ada perubahan; tampilan selalu default di awal dan akhir di akhir.
+    return pinFlaggedStages(stages).map((stage) => present(stage, entity));
   }
 
   private async find(id: string, tenantId: string) {
@@ -188,6 +213,8 @@ export class PipelineStageUseCase {
       if (input.evidences?.length) {
         await tx.stageEvidenceRequirement.createMany({ data: evidenceRows(tenantId, stage.id, input.evidences) });
       }
+      // Tahapan baru masuk sebelum tahapan akhir (atau menjadi pertama/terakhir sesuai tandanya).
+      await normalizePositions(tx, tenantId, entity);
       return stage;
     });
     return present(await this.find(created.id, tenantId), entity);
@@ -213,6 +240,9 @@ export class PipelineStageUseCase {
     if (input.isActive !== undefined) data.isActive = input.isActive;
 
     await this.prisma.$transaction(async (tx) => {
+      const flagsChanged =
+        (input.isDefaultStage !== undefined && input.isDefaultStage !== stage.isDefaultStage) ||
+        (input.isTerminalStage !== undefined && input.isTerminalStage !== stage.isTerminalStage);
       if (
         input.isDefaultStage !== undefined ||
         input.isTerminalStage !== undefined ||
@@ -221,6 +251,7 @@ export class PipelineStageUseCase {
         Object.assign(data, await applyFlags(tx, tenantId, entity, id, input, stage));
       }
       if (Object.keys(data).length > 0) await tx.stage.update({ where: { id }, data });
+      if (flagsChanged) await normalizePositions(tx, tenantId, entity);
       if (input.evidences !== undefined) {
         await tx.stageEvidenceRequirement.deleteMany({ where: { tenantId, stageId: id } });
         if (input.evidences.length) {
@@ -235,15 +266,41 @@ export class PipelineStageUseCase {
   async reorder(tenantId: string, entity: PipelineEntity, ids: string[]) {
     const stages = await this.prisma.stage.findMany({
       where: { tenantId, entityType: entity },
-      select: { id: true },
+      select: { id: true, isWonStage: true },
     });
     const known = new Set(stages.map((s) => s.id));
     if (ids.length !== known.size || ids.some((id) => !known.has(id))) {
       throw new Error('ids must contain every stage of the pipeline exactly once');
     }
-    await this.prisma.$transaction(
-      ids.map((id, position) => this.prisma.stage.update({ where: { id }, data: { position } }))
-    );
+    // Urutan menentukan tanda: tahapan pertama menjadi default, tahapan terakhir menjadi akhir.
+    const first = ids[0] as string;
+    const last = ids[ids.length - 1] as string;
+    if (ids.length > 1 && stages.some((s) => s.id === first && s.isWonStage)) {
+      throw new Error('Invalid stage order: the won stage cannot be the first (default) stage');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      // Lepas dulu semua tanda agar guard unik tidak bentrok saat tanda dipindah.
+      await tx.stage.updateMany({
+        where: { tenantId, entityType: entity },
+        data: { isDefaultStage: false, defaultGuard: null, isTerminalStage: false, terminalGuard: null },
+      });
+      for (const [position, id] of ids.entries()) {
+        const isDefault = id === first;
+        const isTerminal = ids.length > 1 && id === last;
+        await tx.stage.update({
+          where: { id },
+          data: {
+            position,
+            isDefaultStage: isDefault,
+            defaultGuard: isDefault ? entity : null,
+            isTerminalStage: isTerminal,
+            terminalGuard: isTerminal ? entity : null,
+            // Tahapan default/akhir selalu aktif.
+            ...(isDefault || isTerminal ? { isActive: true } : {}),
+          },
+        });
+      }
+    });
     return this.list(tenantId, entity);
   }
 
