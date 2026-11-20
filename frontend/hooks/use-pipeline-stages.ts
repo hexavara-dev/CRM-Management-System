@@ -32,6 +32,8 @@ export interface PipelineStage {
   isActive: boolean;
   isDefaultStage: boolean;
   isTerminalStage: boolean;
+  /** Khusus Deal: tahapan yang dihitung sebagai Won Deals (maks. satu). */
+  isWonStage: boolean;
   evidences: StageEvidence[];
   /** Jumlah Lead (atau Deal) di tahapan ini. */
   itemCount: number;
@@ -44,6 +46,8 @@ export type PipelineStagePayload = {
   color: string;
   isDefaultStage: boolean;
   isTerminalStage: boolean;
+  /** Hanya dikirim untuk pipeline Deal. */
+  isWonStage?: boolean;
   evidences: StageEvidence[];
 };
 

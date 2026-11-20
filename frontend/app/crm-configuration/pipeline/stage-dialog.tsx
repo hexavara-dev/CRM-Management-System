@@ -43,6 +43,7 @@ const schema = z.object({
     .refine((value) => Number(value) <= 100, "Probabilitas maksimal 100"),
   isDefaultStage: z.boolean(),
   isTerminalStage: z.boolean(),
+  isWonStage: z.boolean(),
   evidences: z
     .array(
       z.object({
@@ -121,6 +122,8 @@ export function StageDialog({
   const copy = PIPELINE_COPY[entity];
   const currentDefault = stages.find((s) => s.isDefaultStage && s.id !== stage?.id);
   const currentTerminal = stages.find((s) => s.isTerminalStage && s.id !== stage?.id);
+  const currentWon = stages.find((s) => s.isWonStage && s.id !== stage?.id);
+  const isDeal = entity === "deal";
   const save = useSavePipelineStage(entity);
   const form = useForm<FormData>({ resolver: zodResolver(schema) });
   const evidences = useFieldArray({ control: form.control, name: "evidences" });
@@ -134,6 +137,7 @@ export function StageDialog({
       probability: String(stage?.probability ?? 0),
       isDefaultStage: stage?.isDefaultStage ?? false,
       isTerminalStage: stage?.isTerminalStage ?? false,
+      isWonStage: stage?.isWonStage ?? false,
       evidences: stage?.evidences.map(({ name, fileTypes, isRequired }) => ({ name, fileTypes, isRequired })) ?? [],
     });
   }, [open, stage, form]);
@@ -170,6 +174,7 @@ export function StageDialog({
                     probability: Number(data.probability),
                     isDefaultStage: data.isDefaultStage,
                     isTerminalStage: data.isTerminalStage,
+                    ...(isDeal ? { isWonStage: data.isWonStage } : {}),
                     evidences: data.evidences.map((e) => ({ ...e, name: e.name.trim() })),
                   },
                 });
@@ -260,7 +265,7 @@ export function StageDialog({
                   </div>
                 </div>
 
-                <div className="grid gap-3 rounded-lg border border-[#E4E4E7] p-3 md:grid-cols-2">
+                <div className={cn("grid gap-3 rounded-lg border border-[#E4E4E7] p-3 md:grid-cols-2", isDeal && "lg:grid-cols-3")}>
                   <Controller
                     control={form.control}
                     name="isDefaultStage"
@@ -274,7 +279,10 @@ export function StageDialog({
                         replaces={currentDefault?.name}
                         onChange={(checked) => {
                           field.onChange(checked);
-                          if (checked) form.setValue("isTerminalStage", false);
+                          if (checked) {
+                            form.setValue("isTerminalStage", false);
+                            form.setValue("isWonStage", false);
+                          }
                         }}
                       />
                     )}
@@ -297,6 +305,26 @@ export function StageDialog({
                       />
                     )}
                   />
+                  {isDeal && (
+                    <Controller
+                      control={form.control}
+                      name="isWonStage"
+                      render={({ field }) => (
+                        <FlagToggle
+                          label="Hitung sebagai Won Deals"
+                          description="Deal di tahapan ini dihitung sebagai Won Deals pada dashboard. Hanya satu tahapan."
+                          checked={field.value}
+                          locked={false}
+                          lockedNote=""
+                          replaces={currentWon?.name}
+                          onChange={(checked) => {
+                            field.onChange(checked);
+                            if (checked) form.setValue("isDefaultStage", false);
+                          }}
+                        />
+                      )}
+                    />
+                  )}
                 </div>
               </section>
 

@@ -115,6 +115,9 @@ model Stage {
   isDefaultStage  Boolean @default(false) @map("is_default")
   terminalGuard   String? @map("terminal_guard") @db.VarChar(10)
   defaultGuard    String? @map("default_guard") @db.VarChar(10)
+  /// Tahapan Deal yang dihitung sebagai Won Deals. Hanya satu per company.
+  isWonStage      Boolean @default(false) @map("is_won")
+  wonGuard        String? @map("won_guard") @db.VarChar(10)
   description     String? @db.VarChar(500)
   /// Probabilitas closing (0-100) untuk tahapan ini.
   probability     Int     @default(0)
@@ -126,6 +129,7 @@ model Stage {
 
   @@unique([tenantId, terminalGuard])
   @@unique([tenantId, defaultGuard])
+  @@unique([tenantId, wonGuard])
   @@map("stage")
 }
 

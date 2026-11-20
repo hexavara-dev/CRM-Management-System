@@ -69,6 +69,8 @@ function StageRow({
   });
   const locked = stage.isDefaultStage || stage.isTerminalStage;
   const lockReason = stage.isDefaultStage ? "Tahapan default" : "Tahapan akhir";
+  const activeLocked = locked || stage.isWonStage;
+  const activeLockReason = locked ? lockReason : "Tahapan Won Deals";
 
   return (
     <div
@@ -100,6 +102,9 @@ function StageRow({
           {stage.isTerminalStage && (
             <span className="rounded bg-[#E6F6EC] px-1.5 py-0.5 text-[10px] font-medium text-[#1E9E55]">Akhir</span>
           )}
+          {stage.isWonStage && (
+            <span className="rounded bg-[#FEF3C7] px-1.5 py-0.5 text-[10px] font-medium text-[#B45309]">Won</span>
+          )}
           {stage.evidences.length > 0 && (
             <span className="rounded bg-[#F3F4F6] px-1.5 py-0.5 text-[10px] text-[#475467]">
               {stage.evidences.length} evidence
@@ -113,11 +118,11 @@ function StageRow({
         <span className="size-5 rounded" style={{ backgroundColor: stage.color ?? "#94A3B8" }} />
         {stage.color ?? "-"}
       </span>
-      <div title={locked ? `${lockReason} tidak dapat dinonaktifkan` : undefined}>
+      <div title={activeLocked ? `${activeLockReason} tidak dapat dinonaktifkan` : undefined}>
         <Switch
           label={`Status ${stage.name}`}
           checked={stage.isActive}
-          disabled={!canWrite || sorting || locked || toggling}
+          disabled={!canWrite || sorting || activeLocked || toggling}
           onChange={onToggle}
         />
       </div>
