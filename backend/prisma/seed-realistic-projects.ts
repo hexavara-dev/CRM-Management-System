@@ -31,6 +31,65 @@ async function resolveTenantId() {
   return owners[0]!.tenantId;
 }
 
+async function replaceExistingProjects(tenantId: string, codes: string[]) {
+  const existing = await prisma.product.findMany({
+    where: { tenantId, code: { in: codes } },
+    select: { id: true, categoryId: true },
+  });
+  if (existing.length === 0) return;
+
+  const existingIds = existing.map((item) => item.id);
+  const categoryRows = await prisma.productCategory.findMany({
+    where: { tenantId },
+    select: { id: true, parentId: true },
+  });
+  const categoryIds = new Set(existing.map((item) => item.categoryId));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const row of categoryRows) {
+      if (row.parentId && categoryIds.has(row.parentId) && !categoryIds.has(row.id)) {
+        categoryIds.add(row.id);
+        changed = true;
+      }
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const units = await tx.productUnit.findMany({
+      where: { tenantId, variant: { productId: { in: existingIds } } },
+      select: { id: true },
+    });
+    const unitIds = units.map((unit) => unit.id);
+
+    if (unitIds.length > 0) {
+      await tx.reservation.deleteMany({ where: { tenantId, unitId: { in: unitIds } } });
+      await tx.unitPriceAdjustment.deleteMany({ where: { tenantId, unitId: { in: unitIds } } });
+      await tx.productUnit.deleteMany({ where: { tenantId, id: { in: unitIds } } });
+    }
+    await tx.productVariantPriceLog.deleteMany({
+      where: { tenantId, OR: [
+        { categoryId: { in: [...categoryIds] } },
+        { typeVariant: { productVariant: { productId: { in: existingIds } } } },
+      ] },
+    });
+    await tx.product.deleteMany({ where: { tenantId, id: { in: existingIds } } });
+    const remainingCategories = new Set(categoryIds);
+    while (remainingCategories.size > 0) {
+      const leaves = categoryRows.filter((row) =>
+        remainingCategories.has(row.id) &&
+        !categoryRows.some((child) => child.parentId === row.id && remainingCategories.has(child.id)),
+      );
+      for (const leaf of leaves) {
+        await tx.productCategory.delete({ where: { id: leaf.id } });
+        remainingCategories.delete(leaf.id);
+      }
+    }
+  });
+
+  console.log(`Replaced ${existing.length} existing realistic projects.`);
+}
+
 async function main() {
   assertLocalDatabase();
   const scenarios = buildRealisticProjectScenarios();
@@ -47,6 +106,9 @@ async function main() {
   }
 
   const tenantId = await resolveTenantId();
+  if (process.argv.includes('--replace')) {
+    await replaceExistingProjects(tenantId, scenarios.map((item) => item.payload.code as string));
+  }
   await seedAttributeCatalog(prisma, tenantId);
   const facilityRows = await prisma.attribute.findMany({
     where: { tenantId, source: 'PROJECT' },
@@ -58,7 +120,7 @@ async function main() {
   for (const item of scenarios) {
     const code = item.payload.code as string;
     const existing = await prisma.product.findFirst({ where: { tenantId, code }, select: { id: true } });
-    if (existing) {
+    if (existing && !process.argv.includes('--replace')) {
       console.log(`Skipped ${code}: already exists.`);
       continue;
     }
