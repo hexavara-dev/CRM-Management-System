@@ -52,6 +52,7 @@ model Company {
   unitPriceAdjustments    UnitPriceAdjustment[]
   reservations            Reservation[]
   leadLabels              LeadLabel[]
+  leadActivityTypes       LeadActivityType[]
   stageEvidences          StageEvidenceRequirement[]
   leadFormTemplates       LeadFormTemplate[]
   leadFormVersions        LeadFormTemplateVersion[]
@@ -1017,4 +1018,23 @@ model LeadFormTemplateVersion {
   @@unique([templateId, version])
   @@index([tenantId])
   @@map("lead_form_template_versions")
+}
+
+/// Jenis aktivitas Lead per company (Follow Up, Penawaran, dst.).
+model LeadActivityType {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("company_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  icon        String   @db.VarChar(50)
+  color       String   @db.VarChar(20)
+  description String?  @db.VarChar(255)
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  tenant      Company  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, sortOrder])
+  @@map("lead_activity_types")
 }

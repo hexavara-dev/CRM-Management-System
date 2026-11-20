@@ -47,6 +47,8 @@ import { LeadLabelUseCase } from './usecases/crm/LeadLabelUseCase.js';
 import { LeadLabelController } from './presentation/controllers/LeadLabelController.js';
 import { LeadSourceUseCase } from './usecases/crm/LeadSourceUseCase.js';
 import { LeadSourceController } from './presentation/controllers/LeadSourceController.js';
+import { LeadActivityTypeUseCase } from './usecases/crm/LeadActivityTypeUseCase.js';
+import { LeadActivityTypeController } from './presentation/controllers/LeadActivityTypeController.js';
 import { PipelineStageUseCase } from './usecases/crm/PipelineStageUseCase.js';
 import { PipelineStageController } from './presentation/controllers/PipelineStageController.js';
 import { LeadFormTemplateUseCase } from './usecases/crm/LeadFormTemplateUseCase.js';
@@ -396,6 +398,12 @@ app.get('/api/lead-sources', authMiddleware, leadSources.list);
 app.post('/api/lead-sources', authMiddleware, ownerOnly, leadSources.create);
 app.put('/api/lead-sources/:id', authMiddleware, ownerOnly, leadSources.update);
 app.delete('/api/lead-sources/:id', authMiddleware, ownerOnly, leadSources.remove);
+
+const leadActivityTypes = new LeadActivityTypeController(new LeadActivityTypeUseCase(prisma));
+app.get('/api/lead-activity-types', authMiddleware, leadActivityTypes.list);
+app.post('/api/lead-activity-types', authMiddleware, ownerOnly, leadActivityTypes.create);
+app.put('/api/lead-activity-types/:id', authMiddleware, ownerOnly, leadActivityTypes.update);
+app.delete('/api/lead-activity-types/:id', authMiddleware, ownerOnly, leadActivityTypes.remove);
 
 // Konfigurasi pipeline (tahapan Lead/Deal beserta evidence) per company. Semua user membaca, owner mengubah.
 const pipelineStages = new PipelineStageController(new PipelineStageUseCase(prisma));
