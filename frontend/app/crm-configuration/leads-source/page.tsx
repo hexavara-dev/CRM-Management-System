@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Megaphone, Pencil, Plus, Search, Target, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight, Megaphone, Pencil, Plus, Search, Target, Trash2 } from "lucide-react";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { ConfigHeader } from "../config-header";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -21,7 +21,7 @@ import {
 } from "@/hooks/use-lead-sources";
 import { errorMessage } from "@/hooks/use-projects";
 import { cn } from "@/lib/utils";
-import { CampaignPanel } from "./campaign-panel";
+import { CampaignModal } from "./campaign-modal";
 import { SourceDialog } from "./source-dialog";
 
 const PAGE_SIZE = 10;
@@ -44,7 +44,7 @@ export default function LeadsSourcePage() {
   const [page, setPage] = useState(1);
   const [dialog, setDialog] = useState<{ open: boolean; source?: LeadSource }>({ open: false });
   const [deleting, setDeleting] = useState<LeadSource>();
-  const [expanded, setExpanded] = useState<string>();
+  const [campaignSource, setCampaignSource] = useState<LeadSource>();
   const search = useDebouncedValue(query.trim());
 
   const sources = useLeadSources({ search, status, page, limit: PAGE_SIZE });
@@ -131,7 +131,6 @@ export default function LeadsSourcePage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-[#F8FAFC]">
-                      <TableHead className="w-10" />
                       <TableHead className="w-14">No</TableHead>
                       <TableHead>Nama Leads Source</TableHead>
                       <TableHead>Deskripsi</TableHead>
@@ -143,95 +142,72 @@ export default function LeadsSourcePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((source, index) => {
-                      const open = expanded === source.id;
-                      return (
-                        <Fragment key={source.id}>
-                          <TableRow className={cn(open && "border-b-0 bg-[#F8FAFC]")}>
-                            <TableCell>
+                    {rows.map((source, index) => (
+                      <TableRow key={source.id}>
+                        <TableCell>{start + index + 1}</TableCell>
+                        <TableCell className="max-w-64 whitespace-normal font-semibold text-[#1f1f1f]">{source.name}</TableCell>
+                        <TableCell className="min-w-64 max-w-md whitespace-normal text-sm text-[#1f1f1f]">
+                          {source.description ?? <span className="text-[#6b6b6b]">-</span>}
+                        </TableCell>
+                        <TableCell>
+                          {source.color ? (
+                            <span className="inline-flex items-center gap-2 font-mono text-sm">
+                              <span className="size-5 rounded" style={{ backgroundColor: source.color }} />
+                              {source.color}
+                            </span>
+                          ) : (
+                            <span className="text-[#6b6b6b]">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            aria-label={`Lihat campaign ${source.name}`}
+                            onClick={() => setCampaignSource(source)}
+                            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-[#F3F4F6] px-2 py-1 text-xs font-medium text-[#475467] hover:bg-[#E5F1FA] hover:text-[#1980C0]"
+                          >
+                            <Megaphone className="size-3.5" />
+                            {source.campaignCount} campaign
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={cn(
+                              "rounded-md px-2 py-1 text-xs font-medium",
+                              source.isActive ? "bg-[#E6F6EC] text-[#1E9E55]" : "bg-[#F3F4F6] text-[#6b6b6b]",
+                            )}
+                          >
+                            {source.isActive ? "Aktif" : "Nonaktif"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-sm">{formatDateTime(source.createdAt)}</TableCell>
+                        {canWrite && (
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-expanded={open}
-                                aria-label={`${open ? "Tutup" : "Lihat"} campaign ${source.name}`}
-                                onClick={() => setExpanded(open ? undefined : source.id)}
+                                aria-label={`Edit ${source.name}`}
+                                onClick={() => setDialog({ open: true, source })}
                               >
-                                <ChevronDown className={cn("size-4 transition-transform", !open && "-rotate-90")} />
+                                <Pencil className="size-4" />
                               </Button>
-                            </TableCell>
-                            <TableCell>{start + index + 1}</TableCell>
-                            <TableCell className="max-w-64 whitespace-normal font-semibold text-[#1f1f1f]">{source.name}</TableCell>
-                            <TableCell className="min-w-64 max-w-md whitespace-normal text-sm text-[#1f1f1f]">
-                              {source.description ?? <span className="text-[#6b6b6b]">-</span>}
-                            </TableCell>
-                            <TableCell>
-                              {source.color ? (
-                                <span className="inline-flex items-center gap-2 font-mono text-sm">
-                                  <span className="size-5 rounded" style={{ backgroundColor: source.color }} />
-                                  {source.color}
-                                </span>
-                              ) : (
-                                <span className="text-[#6b6b6b]">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <button
+                              <Button
                                 type="button"
-                                onClick={() => setExpanded(open ? undefined : source.id)}
-                                className="inline-flex items-center gap-1.5 rounded-md bg-[#F3F4F6] px-2 py-1 text-xs font-medium text-[#475467] hover:bg-[#E5E7EB]"
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={`Hapus ${source.name}`}
+                                className="text-[#D64545] hover:text-[#D64545]"
+                                onClick={() => setDeleting(source)}
                               >
-                                <Megaphone className="size-3.5" />
-                                {source.campaignCount} campaign
-                              </button>
-                            </TableCell>
-                            <TableCell>
-                              <span
-                                className={cn(
-                                  "rounded-md px-2 py-1 text-xs font-medium",
-                                  source.isActive ? "bg-[#E6F6EC] text-[#1E9E55]" : "bg-[#F3F4F6] text-[#6b6b6b]",
-                                )}
-                              >
-                                {source.isActive ? "Aktif" : "Nonaktif"}
-                              </span>
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-sm">{formatDateTime(source.createdAt)}</TableCell>
-                            {canWrite && (
-                              <TableCell>
-                                <div className="flex justify-end gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={`Edit ${source.name}`}
-                                    onClick={() => setDialog({ open: true, source })}
-                                  >
-                                    <Pencil className="size-4" />
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={`Hapus ${source.name}`}
-                                    className="text-[#D64545] hover:text-[#D64545]"
-                                    onClick={() => setDeleting(source)}
-                                  >
-                                    <Trash2 className="size-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            )}
-                          </TableRow>
-                          {open && (
-                            <TableRow className="hover:bg-transparent">
-                              <TableCell colSpan={canWrite ? 9 : 8} className="whitespace-normal p-0">
-                                <CampaignPanel source={source} canWrite={canWrite} />
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </Fragment>
-                      );
-                    })}
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -274,6 +250,11 @@ export default function LeadsSourcePage() {
           onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
         />
       )}
+      <CampaignModal
+        source={campaignSource}
+        canWrite={canWrite}
+        onOpenChange={(open) => !open && setCampaignSource(undefined)}
+      />
       <ConfirmModal
         isOpen={!!deleting}
         onClose={() => setDeleting(undefined)}
