@@ -76,7 +76,46 @@ export class ProductCategoryUseCase {
 
   async update(id: string, tenantId: string, input: CategoryInput) {
     await this.get(id, tenantId);
+    const projectRoots =
+      input.parentId !== undefined || input.type !== undefined
+        ? new Set(
+            (
+              await this.prisma.product.findMany({
+                where: { tenantId },
+                select: { categoryId: true },
+              })
+            ).map((product) => product.categoryId)
+          )
+        : new Set<string>();
+    if (projectRoots.has(id) && input.parentId) {
+      throw new Error('Conflict: a project root category cannot be assigned a parent');
+    }
+    if (projectRoots.has(id) && input.type !== undefined && input.type !== 'PROJECT') {
+      throw new Error('Conflict: a project root category must keep the PROJECT type');
+    }
     if (input.parentId) await this.assertParent(tenantId, input.parentId, id);
+    if (input.parentId !== undefined && !projectRoots.has(id)) {
+      const categories = await this.prisma.productCategory.findMany({
+        where: { tenantId },
+        select: { id: true, parentId: true },
+      });
+      const byId = new Map(categories.map((category) => [category.id, category]));
+      const owningRoot = (categoryId: string | null) => {
+        const visited = new Set<string>();
+        let currentId = categoryId;
+        while (currentId && !visited.has(currentId)) {
+          if (projectRoots.has(currentId)) return currentId;
+          visited.add(currentId);
+          currentId = byId.get(currentId)?.parentId ?? null;
+        }
+        return null;
+      };
+      const currentRoot = owningRoot(id);
+      const nextRoot = owningRoot(input.parentId ?? null);
+      if (currentRoot && currentRoot !== nextRoot) {
+        throw new Error('Conflict: a category subtree cannot be moved into another project tree');
+      }
+    }
     const data: Prisma.ProductCategoryUncheckedUpdateInput = {};
     if (input.parentId !== undefined) data.parentId = input.parentId;
     if (input.name !== undefined) data.name = input.name;

@@ -19,6 +19,18 @@ describe('orderLocations', () => {
     expect(() => orderLocations([loc('a', 'x')])).toThrow(/Unknown parentKey/);
     expect(() => orderLocations([loc('a'), loc('a')])).toThrow(/Duplicate location key/);
   });
+
+  it('orders the maximum accepted 1000-level hierarchy without losing a node', () => {
+    const locations = Array.from({ length: 1000 }, (_, index) =>
+      loc(`level-${index + 1}`, index === 0 ? null : `level-${index}`)
+    ).reverse();
+
+    const ordered = orderLocations(locations);
+
+    expect(ordered).toHaveLength(1000);
+    expect(ordered[0]?.key).toBe('level-1');
+    expect(ordered.at(-1)?.key).toBe('level-1000');
+  });
 });
 
 describe('assertUnits', () => {

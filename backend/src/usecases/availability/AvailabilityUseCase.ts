@@ -1,44 +1,41 @@
 import type { Prisma, PrismaClient, ProductCategoryType, ProductUnitStatus } from '@prisma/client';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
+import {
+  availabilityIntegrity,
+  buildSafeAvailabilityHierarchy,
+  type AvailabilityCategory,
+} from './availabilityHierarchy.js';
 
 const unitInclude = (tenantId: string) =>
   ({
-  category: { select: { id: true, parentId: true, name: true, type: true } },
-  variant: {
-    select: {
-      id: true,
-      name: true,
-      attributes: {
-        where: { tenantId, attribute: { tenantId } },
-        include: { attribute: { select: { code: true, name: true, unit: true } } },
+    category: { select: { id: true, parentId: true, name: true, type: true } },
+    variant: {
+      select: {
+        id: true,
+        name: true,
+        attributes: {
+          where: { tenantId, attribute: { tenantId } },
+          include: { attribute: { select: { code: true, name: true, unit: true } } },
+        },
       },
     },
-  },
-  typeVariant: {
-    select: { id: true, name: true, basePrice: true, currentPrice: true },
-  },
-  media: {
-    where: { tenantId, mediaType: 'IMAGE' as const },
-    orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
-    select: { fileUrl: true, isPrimary: true, sortOrder: true },
-  },
-  reservations: {
-    where: { tenantId, status: { in: ['ACTIVE', 'PAYMENT_PENDING', 'COMPLETED'] } },
-    orderBy: { reservedAt: 'desc' },
-    take: 1,
-    select: { status: true, customerName: true },
-  },
+    typeVariant: {
+      select: { id: true, name: true, basePrice: true, currentPrice: true },
+    },
+    media: {
+      where: { tenantId, mediaType: 'IMAGE' as const },
+      orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
+      select: { fileUrl: true, isPrimary: true, sortOrder: true },
+    },
+    reservations: {
+      where: { tenantId, status: { in: ['ACTIVE', 'PAYMENT_PENDING', 'COMPLETED'] } },
+      orderBy: { reservedAt: 'desc' },
+      take: 1,
+      select: { status: true, customerName: true },
+    },
   }) satisfies Prisma.ProductUnitInclude;
 
 type AvailabilityUnit = Prisma.ProductUnitGetPayload<{ include: ReturnType<typeof unitInclude> }>;
-type AvailabilityCategory = {
-  id: string;
-  code: string;
-  parentId: string | null;
-  name: string;
-  type: ProductCategoryType;
-};
-
 type Summary = {
   total: number;
   available: number;
@@ -57,13 +54,19 @@ const emptySummary = (): Summary => ({
   blocked: 0,
 });
 
-const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
-function byCodeOrLegacyId<T extends { id: string; code: string }>(rows: Iterable<T>, reference: string) {
+function byCodeOrLegacyId<T extends { id: string; code: string }>(
+  rows: Iterable<T>,
+  reference: string
+) {
   const items = [...rows];
   const code = reference.toLowerCase();
-  return items.find((item) => item.code.toLowerCase() === code) ??
-    (isUuid(reference) ? items.find((item) => item.id === reference) : undefined);
+  return (
+    items.find((item) => item.code.toLowerCase() === code) ??
+    (isUuid(reference) ? items.find((item) => item.id === reference) : undefined)
+  );
 }
 
 function statusKey(status: ProductUnitStatus): keyof Omit<Summary, 'total'> {
@@ -82,18 +85,13 @@ function statusKey(status: ProductUnitStatus): keyof Omit<Summary, 'total'> {
 }
 
 function unitStatusKey(unit: Pick<AvailabilityUnit, 'status' | 'reservations'>) {
-  if (
-    unit.status === 'RESERVED' &&
-    unit.reservations[0]?.status === 'PAYMENT_PENDING'
-  ) {
+  if (unit.status === 'RESERVED' && unit.reservations[0]?.status === 'PAYMENT_PENDING') {
     return 'processing';
   }
   return statusKey(unit.status);
 }
 
-function summarize(
-  units: readonly Pick<AvailabilityUnit, 'status' | 'reservations'>[]
-): Summary {
+function summarize(units: readonly Pick<AvailabilityUnit, 'status' | 'reservations'>[]): Summary {
   const summary = emptySummary();
   for (const unit of units) {
     summary.total += 1;
@@ -139,17 +137,11 @@ function nearestCategory(
   return ancestorsOf(categoryId, categories).find((category) => category.type === type);
 }
 
-function childCategories(
-  parentId: string,
-  categories: Map<string, AvailabilityCategory>
-) {
+function childCategories(parentId: string, categories: Map<string, AvailabilityCategory>) {
   return [...categories.values()].filter((category) => category.parentId === parentId);
 }
 
-function descendantCategoryIds(
-  categoryId: string,
-  categories: Map<string, AvailabilityCategory>
-) {
+function descendantCategoryIds(categoryId: string, categories: Map<string, AvailabilityCategory>) {
   const ids = new Set<string>([categoryId]);
   const queue = [categoryId];
   while (queue.length > 0) {
@@ -188,6 +180,7 @@ export class AvailabilityUseCase {
       select: {
         id: true,
         code: true,
+        categoryId: true,
         name: true,
         address: true,
         village: true,
@@ -213,24 +206,42 @@ export class AvailabilityUseCase {
     for (const product of products) {
       for (const variant of product.variants) productByVariant.set(variant.id, product.id);
     }
+    const categoryRows = products.length
+      ? await this.prisma.productCategory.findMany({
+          where: { tenantId },
+          select: { id: true, code: true, parentId: true, name: true, type: true },
+        })
+      : [];
+    const hierarchyByProduct = new Map(
+      products.map((product) => [
+        product.id,
+        buildSafeAvailabilityHierarchy(product.categoryId, categoryRows),
+      ])
+    );
+    const ignoredUnitsByProduct = new Map(products.map((product) => [product.id, 0]));
     const counts = new Map(products.map((product) => [product.id, emptySummary()]));
     const variantIds = [...productByVariant.keys()];
     if (variantIds.length > 0) {
       const rows = await this.prisma.productUnit.groupBy({
-        by: ['variantId', 'status'],
+        by: ['variantId', 'categoryId', 'status'],
         where: { tenantId, variantId: { in: variantIds } },
         _count: { _all: true },
       });
       for (const row of rows) {
-        const summary = counts.get(productByVariant.get(row.variantId) as string);
+        const productId = productByVariant.get(row.variantId) as string;
+        const summary = counts.get(productId);
         if (!summary) continue;
         const count = row._count._all;
+        if (!hierarchyByProduct.get(productId)?.categories.has(row.categoryId)) {
+          ignoredUnitsByProduct.set(productId, (ignoredUnitsByProduct.get(productId) ?? 0) + count);
+          continue;
+        }
         summary.total += count;
         summary[statusKey(row.status)] += count;
       }
 
       const paymentPendingUnits = await this.prisma.productUnit.groupBy({
-        by: ['variantId'],
+        by: ['variantId', 'categoryId'],
         where: {
           tenantId,
           variantId: { in: variantIds },
@@ -240,8 +251,10 @@ export class AvailabilityUseCase {
         _count: { _all: true },
       });
       for (const row of paymentPendingUnits) {
-        const summary = counts.get(productByVariant.get(row.variantId) as string);
+        const productId = productByVariant.get(row.variantId) as string;
+        const summary = counts.get(productId);
         if (!summary) continue;
+        if (!hierarchyByProduct.get(productId)?.categories.has(row.categoryId)) continue;
         summary.reserved -= row._count._all;
         summary.processing += row._count._all;
       }
@@ -261,6 +274,10 @@ export class AvailabilityUseCase {
         image: product.media[0]?.fileUrl ?? null,
         ...projectSummary,
         total: projectSummary.total,
+        integrity: availabilityIntegrity(
+          ignoredUnitsByProduct.get(product.id) ?? 0,
+          hierarchyByProduct.get(product.id)?.skippedCycleEdges ?? 0
+        ),
       };
     });
 
@@ -289,53 +306,38 @@ export class AvailabilityUseCase {
         select: { fileUrl: true },
       },
     } satisfies Prisma.ProductSelect;
-    const product = await this.prisma.product.findUnique({
-      where: { tenantId_code: { tenantId, code: projectReference } },
-      select: projectSelect,
-    }) ?? (isUuid(projectReference)
-      ? await this.prisma.product.findFirst({
-          where: { id: projectReference, tenantId },
-          select: projectSelect,
-        })
-      : null);
+    const product =
+      (await this.prisma.product.findUnique({
+        where: { tenantId_code: { tenantId, code: projectReference } },
+        select: projectSelect,
+      })) ??
+      (isUuid(projectReference)
+        ? await this.prisma.product.findFirst({
+            where: { id: projectReference, tenantId },
+            select: projectSelect,
+          })
+        : null);
     if (!product) return null;
 
     const categoryRows = await this.prisma.productCategory.findMany({
       where: { tenantId },
       select: { id: true, code: true, parentId: true, name: true, type: true },
     });
-    const allCategories = new Map(categoryRows.map((category) => [category.id, category]));
-    if (!allCategories.has(product.categoryId)) return null;
+    const hierarchy = buildSafeAvailabilityHierarchy(product.categoryId, categoryRows);
+    if (!hierarchy) return null;
 
-    const children = new Map<string, string[]>();
-    for (const category of categoryRows) {
-      if (!category.parentId) continue;
-      const childIds = children.get(category.parentId) ?? [];
-      childIds.push(category.id);
-      children.set(category.parentId, childIds);
-    }
-    const categoryIds: string[] = [];
-    const queue = [product.categoryId];
-    while (queue.length > 0) {
-      const id = queue.shift() as string;
-      if (categoryIds.includes(id)) continue;
-      categoryIds.push(id);
-      queue.push(...(children.get(id) ?? []));
-    }
-    const categories = new Map(
-      categoryIds.flatMap((id) => {
-        const category = allCategories.get(id);
-        return category ? [[id, category] as const] : [];
-      })
-    );
-
-    const units = await this.prisma.productUnit.findMany({
+    const projectUnits = await this.prisma.productUnit.findMany({
       where: { tenantId, variant: { productId: product.id, tenantId } },
       orderBy: { code: 'asc' },
       include: unitInclude(tenantId),
     });
+    const units = projectUnits.filter((unit) => hierarchy.categories.has(unit.categoryId));
+    const integrity = availabilityIntegrity(
+      projectUnits.length - units.length,
+      hierarchy.skippedCycleEdges
+    );
 
-    return { product, categories, units };
+    return { product, categories: hierarchy.categories, units, integrity };
   }
 
   async project(tenantId: string, projectId: string) {
@@ -346,7 +348,7 @@ export class AvailabilityUseCase {
     const summary = summarize(data.units);
     const root = data.categories.get(data.product.categoryId);
     const groups = root ? childCategories(root.id, data.categories) : [];
-    const groupRows = groups.map((group) => {
+    const mapGroup = (group: AvailabilityCategory) => {
       const groupUnits = unitsInCategoryTree(data.units, group.id, data.categories);
       const unitSummary = summarize(groupUnits);
       return {
@@ -363,10 +365,17 @@ export class AvailabilityUseCase {
         sold: unitSummary.sold,
         blocked: unitSummary.blocked,
       };
-    });
+    };
+    const groupRows = groups.map(mapGroup);
+    const hierarchyGroups = [...data.categories.values()]
+      .filter((category) => category.id !== root?.id)
+      .map(mapGroup);
 
     const directUnits = root
-      ? this.mapUnits(data.units.filter((unit) => unit.categoryId === root.id), data.categories)
+      ? this.mapUnits(
+          data.units.filter((unit) => unit.categoryId === root.id),
+          data.categories
+        )
       : [];
 
     return {
@@ -383,13 +392,17 @@ export class AvailabilityUseCase {
         sold: summary.sold,
         blocked: summary.blocked,
       },
-      root: root ? { id: root.id, code: root.code, name: data.product.name, level: root.type } : null,
+      root: root
+        ? { id: root.id, code: root.code, name: data.product.name, level: root.type }
+        : null,
       hasCluster: [...data.categories.values()].some((category) => category.type === 'CLUSTER'),
       hierarchyLevel: groups[0]?.type ?? null,
       groups: groupRows,
+      hierarchyGroups,
       // Alias sementara agar consumer lama tetap kompatibel selama route hierarchy dimigrasikan.
       clusters: groupRows,
       units: directUnits,
+      integrity: data.integrity,
     };
   }
 
@@ -408,6 +421,7 @@ export class AvailabilityUseCase {
         basePrice: Number(unit.typeVariant?.basePrice ?? 0),
         location: location?.name ?? '—',
         locationLevel: location?.type ?? 'CATEGORY',
+        locationPathIds: ancestorsOf(unit.categoryId, categories).map((category) => category.id),
         // Dipertahankan untuk kompatibilitas tampilan lama; hierarchy baru memakai location.
         block: block?.name ?? location?.name ?? '—',
         image: unit.media[0]?.fileUrl ?? null,
@@ -421,14 +435,14 @@ export class AvailabilityUseCase {
     });
   }
 
-  async cluster(tenantId: string, projectReference: string, clusterReference: string) {
+  async hierarchyNode(tenantId: string, projectReference: string, nodeReference: string) {
     const data = await this.loadProject(tenantId, projectReference);
-    const cluster = data && byCodeOrLegacyId(data.categories.values(), clusterReference);
-    if (!data || !cluster || !data.categories.has(cluster.id)) return null;
+    const node = data && byCodeOrLegacyId(data.categories.values(), nodeReference);
+    if (!data || !node || !data.categories.has(node.id)) return null;
 
-    const categoryUnits = unitsInCategoryTree(data.units, cluster.id, data.categories);
+    const categoryUnits = unitsInCategoryTree(data.units, node.id, data.categories);
     const summary = summarize(categoryUnits);
-    const children = childCategories(cluster.id, data.categories);
+    const children = childCategories(node.id, data.categories);
     const childRows = children.map((child) => {
       const childSummary = summarize(unitsInCategoryTree(data.units, child.id, data.categories));
       return {
@@ -446,15 +460,40 @@ export class AvailabilityUseCase {
         blocked: childSummary.blocked,
       };
     });
-    const directUnits = data.units.filter((unit) => unit.categoryId === cluster.id);
-    const units = this.mapUnits(directUnits, data.categories);
-    const blocks = [...new Set(categoryUnits.map((unit) =>
-      nearestCategory(unit.categoryId, 'BLOCK', data.categories)?.name
-    ).filter((name): name is string => Boolean(name)))];
+    // Unit pada wizard proyek ditempelkan ke lokasi leaf (mis. block/floor),
+    // bukan selalu langsung ke cluster. Summary di atas sudah menghitung
+    // seluruh subtree, jadi tabel juga harus memakai unit dari seluruh subtree
+    // agar angka dan daftar unit konsisten dengan hierarchy Step 4.
+    const nodeUnits = unitsInCategoryTree(data.units, node.id, data.categories);
+    const units = this.mapUnits(nodeUnits, data.categories);
+    const blocks = [
+      ...new Set(
+        categoryUnits
+          .map((unit) => nearestCategory(unit.categoryId, 'BLOCK', data.categories)?.name)
+          .filter((name): name is string => Boolean(name))
+      ),
+    ];
 
     return {
-      project: { id: data.product.id, code: data.product.code, name: data.product.name, location: locationOf(data.product) },
-      cluster: { id: cluster.id, code: cluster.code, name: cluster.id === data.product.categoryId ? data.product.name : cluster.name, level: cluster.type },
+      project: {
+        id: data.product.id,
+        code: data.product.code,
+        name: data.product.name,
+        location: locationOf(data.product),
+      },
+      node: {
+        id: node.id,
+        code: node.code,
+        name: node.id === data.product.categoryId ? data.product.name : node.name,
+        level: node.type,
+      },
+      // Alias kompatibilitas untuk halaman availability lama.
+      cluster: {
+        id: node.id,
+        code: node.code,
+        name: node.id === data.product.categoryId ? data.product.name : node.name,
+        level: node.type,
+      },
       summary: {
         total: summary.total,
         available: summary.available,
@@ -465,10 +504,21 @@ export class AvailabilityUseCase {
       blocks,
       children: childRows,
       units,
+      integrity: data.integrity,
     };
   }
 
-  async unit(tenantId: string, projectReference: string, clusterReference: string, unitReference: string) {
+  /** Compatibility wrapper for existing cluster-named routes and screens. */
+  async cluster(tenantId: string, projectReference: string, clusterReference: string) {
+    return this.hierarchyNode(tenantId, projectReference, clusterReference);
+  }
+
+  async unit(
+    tenantId: string,
+    projectReference: string,
+    clusterReference: string,
+    unitReference: string
+  ) {
     const data = await this.loadProject(tenantId, projectReference);
     const cluster = data && byCodeOrLegacyId(data.categories.values(), clusterReference);
     if (!data || !cluster || !data.categories.has(cluster.id)) return null;
@@ -501,10 +551,7 @@ export class AvailabilityUseCase {
       projectCode: data.product.code,
       clusterCode: cluster.code,
       number: unit.name ?? unit.code,
-      status:
-        unitStatusKey(unit) === 'processing'
-          ? 'Processing'
-          : displayStatus(unit.status),
+      status: unitStatusKey(unit) === 'processing' ? 'Processing' : displayStatus(unit.status),
       project: data.product.name,
       cluster: cluster.name,
       location: cluster.name,

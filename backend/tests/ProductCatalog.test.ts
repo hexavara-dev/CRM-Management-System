@@ -144,6 +144,7 @@ describe('ProductCategoryUseCase', () => {
       { id: 'b', parentId: 'a' },
     ];
     const prisma = {
+      product: { findMany: fn([]) },
       productCategory: {
         findFirst: fn({ id: 'a', parentId: null }),
         findMany: fn(rows),
@@ -151,6 +152,51 @@ describe('ProductCategoryUseCase', () => {
     };
     const useCase = new ProductCategoryUseCase(prisma as never);
     await expect(useCase.update('a', 't-1', { parentId: 'b' })).rejects.toThrow(/descendants/);
+  });
+
+  it('rejects reparenting a project root or changing its PROJECT type', async () => {
+    const prisma = {
+      product: { findMany: fn([{ categoryId: 'root-a' }]) },
+      productCategory: {
+        findFirst: fn({ id: 'root-a', parentId: null }),
+        findMany: fn([
+          { id: 'root-a', parentId: null },
+          { id: 'detached', parentId: null },
+        ]),
+        update: fn(),
+      },
+    };
+    const useCase = new ProductCategoryUseCase(prisma as never);
+
+    await expect(useCase.update('root-a', 't-1', { parentId: 'detached' })).rejects.toThrow(
+      /project root/i
+    );
+    await expect(useCase.update('root-a', 't-1', { type: 'BLOCK' })).rejects.toThrow(
+      /PROJECT type/i
+    );
+    expect(prisma.productCategory.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects moving a project subtree into another project tree', async () => {
+    const rows = [
+      { id: 'root-a', parentId: null },
+      { id: 'block-a', parentId: 'root-a' },
+      { id: 'root-b', parentId: null },
+    ];
+    const prisma = {
+      product: { findMany: fn([{ categoryId: 'root-a' }, { categoryId: 'root-b' }]) },
+      productCategory: {
+        findFirst: fn({ id: 'block-a', parentId: 'root-a' }),
+        findMany: fn(rows),
+        update: fn(),
+      },
+    };
+    const useCase = new ProductCategoryUseCase(prisma as never);
+
+    await expect(useCase.update('block-a', 't-1', { parentId: 'root-b' })).rejects.toThrow(
+      /another project tree/i
+    );
+    expect(prisma.productCategory.update).not.toHaveBeenCalled();
   });
 
   it('refuses to delete a category that is still in use', async () => {
