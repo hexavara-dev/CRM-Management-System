@@ -63,12 +63,12 @@ export function RegionSelect({
   const visibleOptions = matches.slice(0, 60);
   return (
     <div className="min-w-0">
-      <label className="mb-1.5 block text-xs font-medium text-[#1f1f1f]">
+      <label className="mb-2 block text-sm font-medium text-[#1f1f1f]">
         {label} <span className="text-[#D64545]">*</span>
       </label>
       <Popover open={open} onOpenChange={(next) => { setOpen(next); if (!next) setSearch(""); }}>
         <PopoverTrigger asChild>
-          <button ref={triggerRef} type="button" role="combobox" aria-label={label} aria-expanded={open} data-name={name} disabled={disabled || !hasOptions} className="flex h-9 w-full cursor-pointer items-center justify-between rounded-md border border-input bg-background px-3 text-left text-xs disabled:cursor-not-allowed disabled:opacity-50">
+          <button ref={triggerRef} type="button" role="combobox" aria-label={label} aria-expanded={open} data-name={name} disabled={disabled || !hasOptions} className="flex h-11 w-full cursor-pointer items-center justify-between rounded-lg border border-input bg-background px-3.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50">
             <span className={selectedName ? "truncate" : "truncate text-muted-foreground"}>{selectedName ?? hint}</span>
             <ChevronsUpDown className="ml-2 size-3.5 shrink-0 text-muted-foreground" />
           </button>
