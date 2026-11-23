@@ -3,7 +3,7 @@ import type {
   ProductInput,
   VariantInput,
 } from '../../../usecases/product/ProductUseCase.js';
-import { CATEGORY_TYPES, INT_MAX, MAX_LOCATIONS, MAX_UNITS, MAX_VARIANTS, PRICE_MAX } from './constants.js';
+import { CATEGORY_TYPES, MAX_LOCATIONS, MAX_UNITS, MAX_VARIANTS, PRICE_MAX, STOCK_MAX } from './constants.js';
 import { newAttributeRules } from './attribute.js';
 import { unitRules } from './unit.js';
 
@@ -13,7 +13,7 @@ const variantRules: Record<string, FieldRule> = {
   basePrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
   currentPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
   minPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX, nullable: true },
-  stock: { type: 'number', integer: true, min: 0, max: INT_MAX },
+  stock: { type: 'number', integer: true, min: 0, max: STOCK_MAX },
   typeVariants: { type: 'array' },
 };
 
@@ -24,7 +24,7 @@ const typeVariantRules: Record<string, FieldRule> = {
   basePrice: { type: 'number', required: true, integer: true, min: 0, max: PRICE_MAX },
   currentPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX },
   minPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX, nullable: true },
-  stock: { type: 'number', required: true, integer: true, min: 0, max: INT_MAX },
+  stock: { type: 'number', required: true, integer: true, min: 0, max: STOCK_MAX },
   isActive: { type: 'boolean' },
 };
 

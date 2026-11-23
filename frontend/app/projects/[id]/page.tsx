@@ -122,7 +122,6 @@ export default function ProjectDetailPage() {
             <>
               {!summaryCollapsed && (
                 <div className="space-y-4">
-                  <CoverGallery project={project} />
                   <div className="flex justify-end gap-3">
                     <Button
                       asChild
@@ -162,7 +161,7 @@ export default function ProjectDetailPage() {
                       </Button>
                     </span>
                   </div>
-
+                  <CoverGallery project={project} />
                   <div className="flex flex-col gap-4 px-1 md:flex-row md:items-end md:justify-between">
                     <div className="space-y-1">
                       <p className="text-[11px] text-[#6b6b6b]">
