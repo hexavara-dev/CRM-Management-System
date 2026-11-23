@@ -1,14 +1,16 @@
 import { validateBody, type FieldRule } from '../../../infrastructure/utils/RequestValidation.js';
 import { LEAD_LABEL_ICONS } from '../../../usecases/crm/leadLabelIcons.js';
 import {
-  FORM_FIELD_TYPES,
+  ALL_FIELD_TYPES,
+  SECTION_TYPE,
   type FormFieldInput,
   type FormTemplateInput,
 } from '../../../usecases/crm/LeadFormTemplateUseCase.js';
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/;
 const KEY = /^[a-z0-9_]{1,50}$/;
-const MAX_FIELDS = 50;
+/** Termasuk section dan field sistem. */
+const MAX_FIELDS = 60;
 const MAX_OPTIONS = 50;
 const CHOICE_TYPES = new Set(['SELECT', 'MULTISELECT', 'RADIO']);
 
@@ -25,11 +27,12 @@ const templateRules: Record<string, FieldRule> = {
 const fieldRules: Record<string, FieldRule> = {
   key: { type: 'string', allowEmpty: true, max: 50 },
   label: { type: 'string', required: true, max: 100 },
-  type: { type: 'string', required: true, values: FORM_FIELD_TYPES },
+  type: { type: 'string', required: true, values: ALL_FIELD_TYPES },
   required: { type: 'boolean' },
   placeholder: { type: 'string', nullable: true, allowEmpty: true, max: 200 },
   helpText: { type: 'string', nullable: true, allowEmpty: true, max: 200 },
   options: { type: 'array', nullable: true },
+  icon: { type: 'string', nullable: true, allowEmpty: true, values: [...LEAD_LABEL_ICONS, ''] },
 };
 
 const optional = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
@@ -69,14 +72,18 @@ function validateField(item: unknown, index: number): FormFieldInput {
     placeholder: optional(data.placeholder),
     helpText: optional(data.helpText),
     options,
+    ...(type === SECTION_TYPE ? { icon: optional(data.icon) } : {}),
   };
 }
 
 function validateFields(value: unknown[]): FormFieldInput[] {
   if (value.length > MAX_FIELDS) throw new Error(`fields must contain at most ${MAX_FIELDS} items`);
   const fields = value.map(validateField);
-  const labels = fields.map((f) => f.label.toLowerCase());
-  if (new Set(labels).size !== labels.length) throw new Error('field labels must be unique within a template');
+  // Section boleh berlabel sama dengan field; label field (dan label section) masing-masing unik.
+  for (const group of [fields.filter((f) => f.type !== SECTION_TYPE), fields.filter((f) => f.type === SECTION_TYPE)]) {
+    const labels = group.map((f) => f.label.toLowerCase());
+    if (new Set(labels).size !== labels.length) throw new Error('field labels must be unique within a template');
+  }
   return fields;
 }
 

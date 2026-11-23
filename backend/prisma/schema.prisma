@@ -54,6 +54,7 @@ model Company {
   leadLabels              LeadLabel[]
   leadActivityTypes       LeadActivityType[]
   leadCampaigns           LeadCampaign[]
+  leadInterests           LeadInterest[]
   stageEvidences          StageEvidenceRequirement[]
   leadFormTemplates       LeadFormTemplate[]
   leadFormVersions        LeadFormTemplateVersion[]
@@ -218,7 +219,24 @@ model Lead {
   location       Location?      @relation(fields: [locationId], references: [id])
   source         Source?        @relation(fields: [sourceId], references: [id])
   sourceId       String?        @db.VarChar(36)
+  /// Budget pembelian (rupiah) dari form Add Lead.
+  budget                BigInt?
+  /// Catatan kebutuhan / preferensi dari form Add Lead.
+  needsNotes            String?                  @map("needs_notes") @db.Text
+  campaignId            String?                  @map("campaign_id") @db.VarChar(36)
+  campaign              LeadCampaign?            @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  temperatureLabelId    String?                  @map("temperature_label_id") @db.VarChar(36)
+  temperatureLabel      LeadLabel?               @relation(fields: [temperatureLabelId], references: [id], onDelete: SetNull)
+  /// Versi template form yang dipakai saat Lead dibuat (snapshot field).
+  formTemplateVersionId String?                  @map("form_template_version_id") @db.VarChar(36)
+  formTemplateVersion   LeadFormTemplateVersion? @relation(fields: [formTemplateVersionId], references: [id], onDelete: SetNull)
+  /// Nilai custom field: { [key]: value } sesuai versi template.
+  customValues          Json?                    @map("custom_values")
+  interests             LeadInterest[]
 
+  @@index([campaignId])
+  @@index([temperatureLabelId])
+  @@index([formTemplateVersionId])
   @@map("lead")
 }
 
@@ -684,6 +702,7 @@ model Product {
   variants          ProductVariant[]
   attributes        ProductAttribute[]
   media             ProductMedia[]
+  leadInterests     LeadInterest[]
 
   @@unique([tenantId, code])
   @@index([categoryId])
@@ -703,6 +722,7 @@ model ProductVariant {
   media        ProductMedia[]
   units        ProductUnit[]
   typeVariants ProductTypeVariant[]
+  leadInterests LeadInterest[]
 
   @@index([productId])
   @@map("product_variants")
@@ -957,6 +977,7 @@ model LeadLabel {
   createdAt   DateTime      @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.DateTime(6)
   tenant      Company       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leads       Lead[]
 
   @@unique([tenantId, type, name])
   @@index([tenantId, type, sortOrder])
@@ -1021,6 +1042,8 @@ model LeadFormTemplateVersion {
   createdBy   User?            @relation("FormVersionCreator", fields: [createdById], references: [id], onDelete: SetNull)
   tenant      Company          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  leads       Lead[]
+
   @@unique([templateId, version])
   @@index([tenantId])
   @@map("lead_form_template_versions")
@@ -1059,8 +1082,29 @@ model LeadCampaign {
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.DateTime(6)
   tenant      Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   source      Source    @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  leads       Lead[]
 
   @@unique([sourceId, name])
   @@index([tenantId, sourceId])
   @@map("lead_campaigns")
+}
+
+/// Minat Lead pada proyek (dan opsional tipe rumah) dari form Add Lead.
+model LeadInterest {
+  id        String          @id @default(uuid()) @db.VarChar(36)
+  tenantId  String          @map("company_id") @db.VarChar(36)
+  leadId    String          @map("lead_id") @db.VarChar(36)
+  productId String          @map("product_id") @db.VarChar(36)
+  /// Tipe rumah (ProductVariant); kosong bila hanya proyek yang diminati.
+  variantId String?         @map("variant_id") @db.VarChar(36)
+  createdAt DateTime        @default(now()) @map("created_at") @db.DateTime(6)
+  tenant    Company         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead      Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant   ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, productId])
+  @@index([leadId])
+  @@index([variantId])
+  @@map("lead_interests")
 }

@@ -33,7 +33,9 @@ import {
   FileText,
   GripVertical,
   Hash,
+  Heading,
   Info,
+  Lock,
   type LucideIcon,
   Monitor,
   MousePointerClick,
@@ -46,6 +48,7 @@ import {
   ToggleLeft,
   Trash2,
   Type,
+  Database,
 } from "lucide-react";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import {
@@ -64,25 +67,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import {
   CHOICE_TYPES,
+  SYSTEM_FIELD_KEYS,
+  isSystemKey,
+  systemDefinition,
+  systemField,
   useSaveFormTemplate,
+  type CustomFieldType,
   type FormField,
   type FormFieldType,
   type FormTemplate,
+  type SystemFieldKey,
 } from "@/hooks/use-form-templates";
 import { cn } from "@/lib/utils";
 import { LEAD_LABEL_ICONS, LabelIcon } from "../leads-label/label-icons";
 import { Switch } from "../leads-label/toggle";
-import { FULL_WIDTH_TYPES, FieldControl, FieldLabel, FormPreview, STANDARD_FIELDS } from "./form-preview";
+import { DEFAULT_TEMPLATE_FIELDS, FULL_WIDTH_TYPES, FieldControl, FieldLabel, FormPreview, SectionHeader } from "./form-preview";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const DEFAULT_COLOR = "#3B82F6";
-const MAX_FIELDS = 50;
+/** Termasuk section dan field sistem. */
+const MAX_FIELDS = 60;
 const MAX_OPTIONS = 50;
 const LIST_URL = "/crm-configuration/form-template";
 const PALETTE_MIME = "application/x-form-field-type";
+const SYSTEM_PREFIX = "system:";
 
-/** Palet tipe field. File dan Relasi Data menyusul. */
-const PALETTE: { type: FormFieldType; label: string; icon: LucideIcon }[] = [
+/** Palet tipe custom field. File menyusul. */
+const PALETTE: { type: CustomFieldType; label: string; icon: LucideIcon }[] = [
   { type: "TEXT", label: "Teks Singkat", icon: Type },
   { type: "TEXTAREA", label: "Teks Panjang", icon: AlignLeft },
   { type: "SELECT", label: "Dropdown", icon: ChevronDown },
@@ -96,9 +107,16 @@ const PALETTE: { type: FormFieldType; label: string; icon: LucideIcon }[] = [
   { type: "EMAIL", label: "Email", icon: AtSign },
 ];
 const TYPE_META = Object.fromEntries(PALETTE.map((p) => [p.type, p])) as Record<
-  FormFieldType,
+  CustomFieldType,
   (typeof PALETTE)[number]
 >;
+
+/** Field sistem opsional yang dapat ditambahkan dari palet. */
+const OPTIONAL_SYSTEM_KEYS = SYSTEM_FIELD_KEYS.filter((key) => !systemDefinition(key).always);
+
+const isSection = (field: { type: FormFieldType }) => field.type === "SECTION";
+const systemKeyOf = (field: { key?: string; standard?: boolean }) =>
+  field.standard && isSystemKey(field.key) ? field.key : null;
 
 type EditorField = {
   uid: string;
@@ -110,6 +128,7 @@ type EditorField = {
   helpText: string;
   options: { uid: string; value: string }[];
   standard?: boolean;
+  icon?: string;
 };
 
 type Info = { name: string; description: string; icon: string; color: string; isActive: boolean; isDefault: boolean };
@@ -128,6 +147,7 @@ const toEditor = (field: FormField): EditorField => ({
   helpText: field.helpText ?? "",
   options: (field.options ?? []).map((value) => ({ uid: uid(), value })),
   standard: field.standard,
+  ...(field.type === "SECTION" ? { icon: field.icon ?? "info" } : {}),
 });
 
 const toField = (field: EditorField): FormField => ({
@@ -137,16 +157,27 @@ const toField = (field: EditorField): FormField => ({
   required: field.required,
   placeholder: field.placeholder.trim() || null,
   helpText: field.helpText.trim() || null,
-  options: CHOICE_TYPES.includes(field.type) ? field.options.map((o) => o.value.trim()).filter(Boolean) : null,
+  options:
+    CHOICE_TYPES.includes(field.type) || field.type === "GENDER"
+      ? field.options.map((o) => o.value.trim()).filter(Boolean)
+      : null,
   ...(field.standard ? { standard: true } : {}),
+  ...(field.type === "SECTION" ? { icon: field.icon ?? null } : {}),
 });
 
 /** Payload API: penanda `standard` tidak dikirim; field standar dikenali dari kuncinya. */
 const toPayloadField = ({ standard: _standard, ...field }: FormField): FormField => field;
 
-function newField(type: FormFieldType, existing: EditorField[]): EditorField {
+function newSection(existing: EditorField[]): EditorField {
+  const taken = new Set(existing.filter(isSection).map((f) => f.label.trim().toLowerCase()));
+  let label = "Section Baru";
+  for (let n = 2; taken.has(label.toLowerCase()); n += 1) label = `Section Baru ${n}`;
+  return { uid: uid(), label, type: "SECTION", required: false, placeholder: "", helpText: "", options: [], icon: "info" };
+}
+
+function newField(type: CustomFieldType, existing: EditorField[]): EditorField {
   const base = TYPE_META[type].label;
-  const taken = new Set(existing.map((f) => f.label.trim().toLowerCase()));
+  const taken = new Set(existing.filter((f) => !isSection(f)).map((f) => f.label.trim().toLowerCase()));
   let label = base;
   for (let n = 2; taken.has(label.toLowerCase()); n += 1) label = `${base} ${n}`;
   return {
@@ -170,10 +201,12 @@ function validate(info: Info, fields: EditorField[]): Errors {
   for (const field of fields) {
     const fieldErrors: { label?: string; options?: string } = {};
     const label = field.label.trim().toLowerCase();
-    if (!label) fieldErrors.label = "Label wajib diisi";
+    // Label section dan label field diperiksa terpisah.
+    const seenKey = `${isSection(field) ? "s" : "f"}:${label}`;
+    if (!label) fieldErrors.label = isSection(field) ? "Judul section wajib diisi" : "Label wajib diisi";
     else if (field.label.trim().length > 100) fieldErrors.label = "Label maksimal 100 karakter";
-    else if (seen.has(label)) fieldErrors.label = "Label sudah dipakai field lain";
-    seen.set(label, field.uid);
+    else if (seen.has(seenKey)) fieldErrors.label = isSection(field) ? "Judul sudah dipakai section lain" : "Label sudah dipakai field lain";
+    seen.set(seenKey, field.uid);
     if (CHOICE_TYPES.includes(field.type)) {
       const options = field.options.map((o) => o.value.trim()).filter(Boolean);
       if (options.length === 0) fieldErrors.options = "Isi minimal satu pilihan";
@@ -231,6 +264,9 @@ function CanvasField({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.uid, disabled: !editable });
   const preview = toField(field);
+  const systemKey = systemKeyOf(field);
+  const removable = !systemKey || !systemDefinition(systemKey).always;
+  const section = isSection(field);
   return (
     <div
       ref={setNodeRef}
@@ -240,6 +276,7 @@ function CanvasField({
         "group relative flex cursor-pointer gap-2 rounded-lg border p-3 transition-colors",
         selected ? "border-[#1980C0] bg-[#E5F1FA]/60" : invalid ? "border-[#D64545]/60" : "border-transparent hover:border-[#E4E4E7] hover:bg-[#F8FAFC]",
         !compact && FULL_WIDTH_TYPES.includes(field.type) && "sm:col-span-2",
+        section && "mt-3 border-b-[#E4E4E7] first:mt-0",
         isDragging && "z-10 bg-white shadow-lg",
       )}
     >
@@ -248,7 +285,7 @@ function CanvasField({
           type="button"
           aria-label={`Geser ${field.label || "field"}`}
           onClick={(e) => e.stopPropagation()}
-          className="mt-7 shrink-0 cursor-grab text-[#9ca3af] active:cursor-grabbing"
+          className={cn("shrink-0 cursor-grab text-[#9ca3af] active:cursor-grabbing", section ? "mt-1" : "mt-7")}
           {...attributes}
           {...listeners}
         >
@@ -256,18 +293,24 @@ function CanvasField({
         </button>
       )}
       <div className="min-w-0 flex-1">
-        <FieldLabel field={preview} className={selected ? "text-[#1980C0]" : undefined} />
-        <FieldControl field={preview} />
-        {preview.helpText && <p className="mt-1 text-xs text-[#6b6b6b]">{preview.helpText}</p>}
+        {section ? (
+          <SectionHeader field={preview} />
+        ) : (
+          <>
+            <FieldLabel field={preview} className={selected ? "text-[#1980C0]" : undefined} />
+            <FieldControl field={preview} />
+            {preview.helpText && <p className="mt-1 text-xs text-[#6b6b6b]">{preview.helpText}</p>}
+          </>
+        )}
       </div>
       {editable && (
         <div className={cn("absolute right-2 top-2 flex gap-1", selected ? "flex" : "hidden group-hover:flex")}>
-          {!field.standard && (
+          {!field.standard && !section && (
             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Duplikat ${field.label}`} onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="text-[#1980C0] hover:text-[#1980C0]">
               <Copy className="size-4" />
             </Button>
           )}
-          {!field.standard && (
+          {removable && (
             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Hapus ${field.label}`} onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-[#D64545] hover:text-[#D64545]">
               <Trash2 className="size-4" />
             </Button>
@@ -293,6 +336,47 @@ function OptionRow({ id, value, editable, onChange, onRemove }: { id: string; va
   );
 }
 
+/** Pengaturan section: judul, deskripsi, dan ikon. */
+function SectionSettings({ field, error, onChange }: { field: EditorField; error?: string; onChange: (patch: Partial<EditorField>) => void }) {
+  return (
+    <>
+      <p className="rounded-lg bg-[#F8FAFC] px-3 py-2 text-xs text-[#475467]">
+        Section mengelompokkan field di bawahnya sampai section berikutnya. Tidak menyimpan data.
+      </p>
+      <div>
+        <LabelText className="mb-1.5 block">
+          Judul Section <span className="text-[#D64545]">*</span>
+        </LabelText>
+        <input value={field.label} maxLength={100} onChange={(e) => onChange({ label: e.target.value })} className={inputClass(error)} />
+        {error && <ErrorText className="mt-1">{error}</ErrorText>}
+      </div>
+      <div>
+        <LabelText className="mb-1.5 block">Deskripsi</LabelText>
+        <input value={field.helpText} maxLength={200} onChange={(e) => onChange({ helpText: e.target.value })} placeholder="Opsional" className={inputClass()} />
+      </div>
+      <div>
+        <LabelText className="mb-1.5 block">Ikon</LabelText>
+        <div role="radiogroup" aria-label="Pilih ikon section" className="grid max-h-48 grid-cols-7 gap-1.5 overflow-y-auto rounded-lg border border-[#E4E4E7] p-2">
+          {Object.entries(LEAD_LABEL_ICONS).map(([key, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={field.icon === key}
+              aria-label={key}
+              title={key}
+              onClick={() => onChange({ icon: key })}
+              className={cn("flex aspect-square items-center justify-center rounded-md border", field.icon === key ? "border-[#1980C0] bg-[#E5F1FA] text-[#1980C0]" : "border-[#E4E4E7] text-[#6b6b6b] hover:bg-muted")}
+            >
+              <Icon className="size-4" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 /** Editor template form 3 kolom: informasi & palet, kanvas preview, pengaturan field. */
 export function TemplateEditor({ template, canWrite }: { template?: FormTemplate; canWrite: boolean }) {
   const router = useRouter();
@@ -309,7 +393,7 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
     }),
     [template],
   );
-  const initialFields = useMemo(() => (template ? template.fields : STANDARD_FIELDS).map(toEditor), [template]);
+  const initialFields = useMemo(() => (template ? template.fields : DEFAULT_TEMPLATE_FIELDS).map(toEditor), [template]);
   const [info, setInfo] = useState<Info>(initialInfo);
   const [fields, setFields] = useState<EditorField[]>(initialFields);
   const [selected, setSelected] = useState<string | null>(initialFields[0]?.uid ?? null);
@@ -342,11 +426,27 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
   const patchField = (id: string, patch: Partial<EditorField>) =>
     setFields((list) => list.map((f) => (f.uid === id ? { ...f, ...patch } : f)));
 
-  const addField = (type: FormFieldType) => {
-    if (!canWrite || fields.length >= MAX_FIELDS) return;
-    const field = newField(type, fields);
+  const usedSystemKeys = new Set(fields.map(systemKeyOf).filter(Boolean));
+  const canAddSystem = (key: SystemFieldKey) => {
+    const requires = systemDefinition(key).requires as SystemFieldKey | undefined;
+    return !usedSystemKeys.has(key) && (!requires || systemDefinition(requires).always || usedSystemKeys.has(requires));
+  };
+
+  const append = (field: EditorField) => {
     setFields((list) => [...list, field]);
     setSelected(field.uid);
+  };
+
+  /** Dari palet: tipe custom field, "SECTION", atau "system:<kunci>". */
+  const addFromPalette = (value: string) => {
+    if (!canWrite || fields.length >= MAX_FIELDS) return;
+    if (value === "SECTION") return append(newSection(fields));
+    if (value.startsWith(SYSTEM_PREFIX)) {
+      const key = value.slice(SYSTEM_PREFIX.length);
+      if (isSystemKey(key) && canAddSystem(key)) append(toEditor(systemField(key)));
+      return;
+    }
+    if (value in TYPE_META) append(newField(value as CustomFieldType, fields));
   };
 
   const duplicateField = (field: EditorField) => {
@@ -365,7 +465,15 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
   };
 
   const removeField = (id: string) => {
-    setFields((list) => list.filter((f) => f.uid !== id));
+    setFields((list) => {
+      const removed = list.find((f) => f.uid === id);
+      const key = removed ? systemKeyOf(removed) : null;
+      // Field yang bergantung (mis. Tipe Rumah pada Project Diminati) ikut dihapus.
+      const dependents = new Set(
+        list.filter((f) => { const k = systemKeyOf(f); return !!key && !!k && systemDefinition(k).requires === key; }).map((f) => f.uid),
+      );
+      return list.filter((f) => f.uid !== id && !dependents.has(f.uid));
+    });
     if (selected === id) setSelected(null);
   };
 
@@ -593,7 +701,7 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
                         disabled={fields.length >= MAX_FIELDS}
                         draggable
                         onDragStart={(e) => e.dataTransfer.setData(PALETTE_MIME, type)}
-                        onClick={() => addField(type)}
+                        onClick={() => addFromPalette(type)}
                         title={`Tambah ${label}`}
                         className="relative flex flex-col items-center gap-1 rounded-lg border border-[#E4E4E7] px-1.5 py-2 text-xs text-[#1f1f1f] transition-colors hover:border-[#1980C0] hover:bg-[#E5F1FA]/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[#E4E4E7] disabled:hover:bg-transparent"
                       >
@@ -601,6 +709,52 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
                         {label}
                       </button>
                     ))}
+                    <button
+                      type="button"
+                      disabled={fields.length >= MAX_FIELDS}
+                      draggable
+                      onDragStart={(e) => e.dataTransfer.setData(PALETTE_MIME, "SECTION")}
+                      onClick={() => addFromPalette("SECTION")}
+                      title="Tambah section untuk mengelompokkan field"
+                      className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-[#1980C0]/60 px-1.5 py-2 text-xs text-[#1980C0] transition-colors hover:bg-[#E5F1FA]/50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Heading className="size-4" />
+                      Section
+                    </button>
+                  </div>
+                </Card>
+              )}
+
+              {canWrite && (
+                <Card icon={Database} title="Field Sistem">
+                  <p className="mb-3 text-sm text-[#475467]">Terhubung ke data CRM. Masing-masing hanya dapat dipakai sekali.</p>
+                  <div className="space-y-1.5">
+                    {OPTIONAL_SYSTEM_KEYS.map((key) => {
+                      const def = systemDefinition(key);
+                      const used = usedSystemKeys.has(key);
+                      const blocked = !used && !canAddSystem(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          disabled={used || blocked || fields.length >= MAX_FIELDS}
+                          draggable={!used && !blocked}
+                          onDragStart={(e) => e.dataTransfer.setData(PALETTE_MIME, `${SYSTEM_PREFIX}${key}`)}
+                          onClick={() => addFromPalette(`${SYSTEM_PREFIX}${key}`)}
+                          title={
+                            used
+                              ? "Sudah ada di form"
+                              : blocked && def.requires
+                                ? `Tambahkan ${systemDefinition(def.requires as SystemFieldKey).label} terlebih dahulu`
+                                : `Tambah ${def.label}`
+                          }
+                          className="flex w-full items-center justify-between gap-2 rounded-lg border border-[#E4E4E7] px-2.5 py-1.5 text-left text-xs text-[#1f1f1f] transition-colors hover:border-[#1980C0] hover:bg-[#E5F1FA]/50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-[#E4E4E7] disabled:hover:bg-transparent"
+                        >
+                          <span className="truncate">{def.label}</span>
+                          {used ? <span className="shrink-0 text-[#1E9E55]">Dipakai</span> : <Plus className="size-3.5 shrink-0 text-[#1980C0]" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </Card>
               )}
@@ -641,8 +795,8 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
                 onDragLeave={() => setDropActive(false)}
                 onDrop={(e) => {
                   setDropActive(false);
-                  const type = e.dataTransfer.getData(PALETTE_MIME) as FormFieldType;
-                  if (type) addField(type);
+                  const value = e.dataTransfer.getData(PALETTE_MIME);
+                  if (value) addFromPalette(value);
                 }}
                 className={cn("mx-auto rounded-xl border border-[#EDEDED] p-3 transition-colors sm:p-4", compact ? "max-w-sm" : "max-w-none", dropActive && "border-dashed border-[#1980C0] bg-[#E5F1FA]/40")}
               >
@@ -681,12 +835,25 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
             {/* Kolom kanan: pengaturan field terpilih */}
             <Card icon={Settings2} title="Pengaturan Field" className="xl:sticky xl:top-4">
               {!current ? (
-                <p className="py-8 text-center text-sm text-[#6b6b6b]">Pilih field di form untuk mengatur label, tipe, dan pilihannya.</p>
+                <p className="py-8 text-center text-sm text-[#6b6b6b]">Pilih field atau section di form untuk mengatur label, tipe, dan pilihannya.</p>
               ) : (
                 <fieldset disabled={!canWrite} className="space-y-4">
-                  {current.standard && (
-                    <p className="rounded-lg bg-[#F8FAFC] px-3 py-2 text-xs text-[#475467]">
-                      Field standar: tipenya tetap{current.key === "name" ? " dan selalu wajib diisi" : ""}. Label, placeholder, dan posisinya dapat diubah.
+                  {isSection(current) ? (
+                    <SectionSettings
+                      field={current}
+                      error={shown.fields[current.uid]?.label}
+                      onChange={(patch) => patchField(current.uid, patch)}
+                    />
+                  ) : (
+                  <>
+                  {systemKeyOf(current) && (
+                    <p className="flex gap-2 rounded-lg bg-[#F8FAFC] px-3 py-2 text-xs text-[#475467]">
+                      <Lock className="mt-0.5 size-3.5 shrink-0" />
+                      <span>
+                        Field sistem dari <strong>{systemDefinition(systemKeyOf(current) as SystemFieldKey).source}</strong>. Tipenya tetap
+                        {systemDefinition(systemKeyOf(current) as SystemFieldKey).forceRequired ? " dan selalu wajib diisi" : ""}
+                        {systemDefinition(systemKeyOf(current) as SystemFieldKey).always ? "; tidak dapat dihapus" : ""}.
+                      </span>
                     </p>
                   )}
                   <div>
@@ -696,6 +863,7 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
                     <input value={current.label} maxLength={100} onChange={(e) => patchField(current.uid, { label: e.target.value })} className={inputClass(shown.fields[current.uid]?.label)} />
                     {shown.fields[current.uid]?.label && <ErrorText className="mt-1">{shown.fields[current.uid]?.label}</ErrorText>}
                   </div>
+                  {systemKeyOf(current) ? null : (
                   <div>
                     <LabelText className="mb-1.5 block">Tipe Field</LabelText>
                     <Select
@@ -724,11 +892,12 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
                       </SelectContent>
                     </Select>
                   </div>
+                  )}
 
-                  {CHOICE_TYPES.includes(current.type) && (
+                  {CHOICE_TYPES.includes(current.type) && !current.standard && (
                     <div>
                       <LabelText className="mb-1.5 block">
-                        Pilihan ({TYPE_META[current.type].label}) <span className="text-[#D64545]">*</span>
+                        Pilihan ({TYPE_META[current.type as CustomFieldType].label}) <span className="text-[#D64545]">*</span>
                       </LabelText>
                       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onOptionDragEnd}>
                         <SortableContext items={current.options.map((o) => o.uid)} strategy={verticalListSortingStrategy}>
@@ -762,12 +931,23 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
 
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-sm font-medium text-[#1f1f1f]">Wajib Diisi</span>
-                    <Switch label="Wajib diisi" checked={current.required} disabled={!canWrite || current.key === "name"} onChange={(required) => patchField(current.uid, { required })} />
+                    <Switch
+                      label="Wajib diisi"
+                      checked={current.required}
+                      disabled={!canWrite || !!(systemKeyOf(current) && systemDefinition(systemKeyOf(current) as SystemFieldKey).forceRequired)}
+                      onChange={(required) => patchField(current.uid, { required })}
+                    />
                   </div>
                   <div>
                     <LabelText className="mb-1.5 block">Placeholder</LabelText>
                     <input value={current.placeholder} maxLength={200} onChange={(e) => patchField(current.uid, { placeholder: e.target.value })} placeholder="Opsional" className={inputClass()} />
                   </div>
+                  <div>
+                    <LabelText className="mb-1.5 block">Teks Bantuan</LabelText>
+                    <input value={current.helpText} maxLength={200} onChange={(e) => patchField(current.uid, { helpText: e.target.value })} placeholder="Opsional, tampil di bawah field" className={inputClass()} />
+                  </div>
+                  </>
+                  )}
                 </fieldset>
               )}
             </Card>

@@ -12,8 +12,9 @@ const fn = (value?: unknown): Mock => jest.fn<(...args: any[]) => any>().mockRes
 
 const hot = { id: 'l-1', tenantId: 't-1', type: 'TEMPERATURE', name: 'Hot', sortOrder: 0 };
 
-function prisma(over: { found?: unknown; last?: unknown; createError?: unknown } = {}) {
+function prisma(over: { found?: unknown; last?: unknown; createError?: unknown; used?: number } = {}) {
   return {
+    lead: { count: fn(over.used ?? 0) },
     leadLabel: {
       findMany: fn([hot]),
       count: fn(1),
@@ -83,6 +84,13 @@ describe('LeadLabelUseCase', () => {
     expect(db.leadLabel.update).toHaveBeenCalledWith({ where: { id: 'l-1' }, data: { isRequired: false, color: '#3B82F6' } });
     await new LeadLabelUseCase(db as never).remove('l-1', 't-1');
     expect(db.leadLabel.delete).toHaveBeenCalledWith({ where: { id: 'l-1' } });
+  });
+
+  it('rejects deleting a label that is used by leads', async () => {
+    const db = prisma({ used: 2 });
+    await expect(new LeadLabelUseCase(db as never).remove('l-1', 't-1')).rejects.toThrow(/used by 2 leads/);
+    expect(db.lead.count).toHaveBeenCalledWith({ where: { tenantId: 't-1', temperatureLabelId: 'l-1' } });
+    expect(db.leadLabel.delete).not.toHaveBeenCalled();
   });
 });
 

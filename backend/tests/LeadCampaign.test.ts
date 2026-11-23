@@ -22,8 +22,9 @@ const row = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-function prisma(over: { found?: unknown; source?: unknown; duplicate?: unknown } = {}) {
+function prisma(over: { found?: unknown; source?: unknown; duplicate?: unknown; used?: number } = {}) {
   return {
+    lead: { count: fn(over.used ?? 0) },
     source: { findFirst: fn('source' in over ? over.source : { id: 'src-1' }) },
     leadCampaign: {
       findMany: fn([row()]),
@@ -128,6 +129,13 @@ describe('LeadCampaignUseCase', () => {
     const db = prisma();
     await new LeadCampaignUseCase(db as never).remove('c-1', 't-1');
     expect(db.leadCampaign.delete).toHaveBeenCalledWith({ where: { id: 'c-1' } });
+  });
+
+  it('rejects deleting a campaign that is used by leads', async () => {
+    const db = prisma({ used: 3 });
+    await expect(new LeadCampaignUseCase(db as never).remove('c-1', 't-1')).rejects.toThrow(/used by 3 leads/);
+    expect(db.lead.count).toHaveBeenCalledWith({ where: { tenantId: 't-1', campaignId: 'c-1' } });
+    expect(db.leadCampaign.delete).not.toHaveBeenCalled();
   });
 });
 

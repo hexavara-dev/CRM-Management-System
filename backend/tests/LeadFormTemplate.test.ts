@@ -95,14 +95,61 @@ describe('field keys', () => {
     expect(() => assignFieldKeys([{ ...field('Nama'), key: 'name' }, { ...field('Nama 2'), key: 'name' }])).toThrow(/duplicated/);
   });
 
-  it('puts missing standard fields first and keeps the position of sent ones', () => {
-    expect(assignFieldKeys([field('Budget')]).map((f) => f.key)).toEqual(['name', 'phone', 'email', 'budget']);
-    expect(assignFieldKeys([field('Budget'), { ...field('Email'), key: 'email' }]).map((f) => f.key)).toEqual([
+  it('puts missing standard fields first, always-present system fields last, and keeps sent positions', () => {
+    expect(assignFieldKeys([field('Budget')]).map((f) => f.key)).toEqual([
       'name',
       'phone',
-      'budget',
       'email',
+      'budget',
+      'lead_source',
+      'assigned_sales',
     ]);
+    expect(
+      assignFieldKeys([{ ...field('Sales'), key: 'assigned_sales' }, field('Budget'), { ...field('Email'), key: 'email' }]).map(
+        (f) => f.key
+      )
+    ).toEqual(['name', 'phone', 'assigned_sales', 'budget', 'email', 'lead_source']);
+  });
+
+  it('fixes the type and options of system fields and forces the lead source to be required', () => {
+    const fields = assignFieldKeys([
+      { ...field('Gender', { type: 'TEXT' }), key: 'customer_gender', options: ['X'] },
+      { ...field('Sumber'), key: 'lead_source', required: false },
+    ]);
+    expect(fields.find((f) => f.key === 'customer_gender')).toMatchObject({
+      label: 'Gender',
+      type: 'GENDER',
+      options: ['Laki-laki', 'Perempuan'],
+      standard: true,
+    });
+    expect(fields.find((f) => f.key === 'lead_source')).toMatchObject({ type: 'LEAD_SOURCE', required: true });
+  });
+
+  it('rejects relation types on custom fields and dependent system fields without their parent', () => {
+    expect(() => assignFieldKeys([field('Proyek', { type: 'PROJECT' })])).toThrow(/only available for system fields/);
+    expect(() => assignFieldKeys([{ ...field('Tipe'), key: 'interest_types' }])).toThrow(/requires interest_projects/);
+    expect(() =>
+      assignFieldKeys([{ ...field('Proyek'), key: 'interest_projects' }, { ...field('Tipe'), key: 'interest_types' }])
+    ).not.toThrow();
+    // Campaign bergantung pada Sumber Lead yang selalu ada.
+    expect(() => assignFieldKeys([{ ...field('Campaign'), key: 'lead_campaign' }])).not.toThrow();
+  });
+
+  it('keeps sections as non-data elements with a section key and icon', () => {
+    const [section] = assignFieldKeys([
+      { ...field('Informasi Personal', { type: 'SECTION' }), required: true, helpText: 'Data diri', icon: 'user', options: ['x'] },
+    ]).filter((f) => f.type === 'SECTION');
+    expect(section).toEqual({
+      key: 'section_informasi_personal',
+      label: 'Informasi Personal',
+      type: 'SECTION',
+      required: false,
+      placeholder: null,
+      helpText: 'Data diri',
+      options: null,
+      icon: 'user',
+    });
+    expect(() => assignFieldKeys([{ ...field('A', { type: 'SECTION' }), key: 'abc' }])).toThrow(/must start with section_/);
   });
 
   it('lets standard fields change label and settings but not their type, and keeps the name required', () => {
@@ -124,7 +171,7 @@ describe('LeadFormTemplateUseCase', () => {
     expect(db.leadFormTemplate.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tenantId: 't-1', name: { contains: 'lead' }, isActive: true } })
     );
-    expect(result.data[0]).toMatchObject({ fieldCount: 4, version: 1, updatedBy: { name: 'Demo Owner' } });
+    expect(result.data[0]).toMatchObject({ fieldCount: 6, version: 1, updatedBy: { name: 'Demo Owner' } });
   });
 
   it('creates a template with version 1', async () => {
@@ -248,7 +295,10 @@ describe('form template validation', () => {
     expect(create([{ label: 'A', type: 'SELECT', options: ['x', 'X'] }])).toThrow(/options must be unique/);
     expect(create([{ label: 'A', type: 'TEXT', key: 'Bad Key' }])).toThrow(/lowercase letters/);
     expect(create([{ label: 'A', type: 'TEXT' }, { label: 'a', type: 'TEXT' }])).toThrow(/labels must be unique/);
-    expect(create(Array.from({ length: 51 }, (_, i) => ({ label: `F${i}`, type: 'TEXT' })))).toThrow(/at most 50/);
+    expect(create(Array.from({ length: 61 }, (_, i) => ({ label: `F${i}`, type: 'TEXT' })))).toThrow(/at most 60/);
+    expect(create([{ label: 'A', type: 'SECTION', icon: 'rocket' }])).toThrow(/icon must be one of/);
+    // Section boleh berlabel sama dengan field.
+    expect(() => validateFormTemplateCreate({ ...base, fields: [{ label: 'Kontak', type: 'SECTION' }, { label: 'Kontak', type: 'TEXT' }] })).not.toThrow();
   });
 
   it('rejects invalid template fields', () => {

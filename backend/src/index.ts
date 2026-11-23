@@ -51,6 +51,8 @@ import { LeadActivityTypeUseCase } from './usecases/crm/LeadActivityTypeUseCase.
 import { LeadActivityTypeController } from './presentation/controllers/LeadActivityTypeController.js';
 import { LeadCampaignUseCase } from './usecases/crm/LeadCampaignUseCase.js';
 import { LeadCampaignController } from './presentation/controllers/LeadCampaignController.js';
+import { LeadFormSubmissionUseCase } from './usecases/crm/LeadFormSubmissionUseCase.js';
+import { LeadFormSubmissionController } from './presentation/controllers/LeadFormSubmissionController.js';
 import { PipelineStageUseCase } from './usecases/crm/PipelineStageUseCase.js';
 import { PipelineStageController } from './presentation/controllers/PipelineStageController.js';
 import { LeadFormTemplateUseCase } from './usecases/crm/LeadFormTemplateUseCase.js';
@@ -411,6 +413,11 @@ app.get('/api/lead-campaigns', authMiddleware, leadCampaigns.list);
 app.post('/api/lead-campaigns', authMiddleware, ownerOnly, leadCampaigns.create);
 app.put('/api/lead-campaigns/:id', authMiddleware, ownerOnly, leadCampaigns.update);
 app.delete('/api/lead-campaigns/:id', authMiddleware, ownerOnly, leadCampaigns.remove);
+
+// Form Add Lead dari template default: semua user login dapat membaca dan mengirim.
+const leadForm = new LeadFormSubmissionController(new LeadFormSubmissionUseCase(prisma));
+app.get('/api/lead-form', authMiddleware, leadForm.defaultForm);
+app.post('/api/lead-form/submissions', authMiddleware, leadForm.submit);
 
 const leadActivityTypes = new LeadActivityTypeController(new LeadActivityTypeUseCase(prisma));
 app.get('/api/lead-activity-types', authMiddleware, leadActivityTypes.list);

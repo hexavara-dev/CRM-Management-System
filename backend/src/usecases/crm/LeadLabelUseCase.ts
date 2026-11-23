@@ -106,6 +106,10 @@ export class LeadLabelUseCase {
    */
   async remove(id: string, tenantId: string) {
     const label = await this.find(id, tenantId);
+    const used = await this.prisma.lead.count({ where: { tenantId, temperatureLabelId: label.id } });
+    if (used > 0) {
+      throw new Error(`Lead label is used by ${used} leads and cannot be deleted; deactivate it instead (conflict)`);
+    }
     await this.prisma.leadLabel.delete({ where: { id: label.id } });
   }
 }

@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 
+/** Tipe yang boleh dipakai custom field. */
 export const FORM_FIELD_TYPES = [
   'TEXT',
   'TEXTAREA',
@@ -13,10 +14,23 @@ export const FORM_FIELD_TYPES = [
   'PHONE',
   'EMAIL',
 ] as const;
-export type FormFieldType = (typeof FORM_FIELD_TYPES)[number];
 
-/** Kunci field standar Lead; tidak boleh dipakai custom field. */
-export const RESERVED_FIELD_KEYS = ['name', 'phone', 'email'] as const;
+/** Tipe data CRM; hanya untuk field sistem dengan kunci tetap. */
+export const RELATION_FIELD_TYPES = [
+  'PROJECT',
+  'PROJECT_TYPE',
+  'LEAD_SOURCE',
+  'CAMPAIGN',
+  'USER',
+  'LEAD_LABEL',
+  'GENDER',
+] as const;
+
+/** Pengelompok field; tidak menyimpan data. */
+export const SECTION_TYPE = 'SECTION' as const;
+
+export const ALL_FIELD_TYPES = [...FORM_FIELD_TYPES, ...RELATION_FIELD_TYPES, SECTION_TYPE] as const;
+export type FormFieldType = (typeof ALL_FIELD_TYPES)[number];
 
 export type FormField = {
   key: string;
@@ -26,21 +40,88 @@ export type FormField = {
   placeholder: string | null;
   helpText: string | null;
   options: string[] | null;
-  /** Field standar (Nama, Nomor HP, Email): tipe tetap; posisi, label, dan pengaturan lain dapat diatur. */
+  /** Field standar/sistem: tipe tetap; posisi, label, dan pengaturan lain dapat diatur. */
   standard?: boolean;
+  /** Khusus SECTION. */
+  icon?: string | null;
 };
 
-/** Definisi tetap field standar; disimpan di daftar field hanya untuk menandai posisinya. */
-export const STANDARD_FIELDS: Record<(typeof RESERVED_FIELD_KEYS)[number], FormField> = {
-  name: { key: 'name', label: 'Nama Lengkap', type: 'TEXT', required: true, placeholder: null, helpText: null, options: null, standard: true },
-  phone: { key: 'phone', label: 'Nomor HP', type: 'PHONE', required: true, placeholder: null, helpText: null, options: null, standard: true },
-  email: { key: 'email', label: 'Email', type: 'EMAIL', required: false, placeholder: null, helpText: null, options: null, standard: true },
+type SystemDefinition = {
+  label: string;
+  type: FormFieldType;
+  /** Selalu ada di setiap template dan tidak dapat dihapus. */
+  always?: boolean;
+  /** Selalu wajib diisi. */
+  forceRequired?: boolean;
+  /** Bawaan saat ditambahkan. */
+  required?: boolean;
+  options?: readonly string[];
+  /** Hanya boleh ada bila field sistem ini juga ada. */
+  requires?: string;
 };
 
-const isStandardKey = (key: string | null | undefined): key is keyof typeof STANDARD_FIELDS =>
-  !!key && (RESERVED_FIELD_KEYS as readonly string[]).includes(key);
+/**
+ * Katalog field standar/sistem. Tiga kunci pertama tetap tanpa awalan (sudah dipakai template lama);
+ * kunci baru memakai awalan agar tidak bentrok dengan kunci custom field yang sudah tersimpan.
+ */
+export const SYSTEM_FIELDS = {
+  name: { label: 'Nama Lengkap', type: 'TEXT', always: true, forceRequired: true },
+  phone: { label: 'Nomor HP', type: 'PHONE', always: true, required: true },
+  email: { label: 'Email', type: 'EMAIL', always: true },
+  lead_source: { label: 'Sumber Lead', type: 'LEAD_SOURCE', always: true, forceRequired: true },
+  assigned_sales: { label: 'Assigned Sales', type: 'USER', always: true },
+  customer_gender: { label: 'Jenis Kelamin', type: 'GENDER', options: ['Laki-laki', 'Perempuan'] },
+  customer_address: { label: 'Alamat', type: 'TEXTAREA' },
+  interest_projects: { label: 'Project Diminati', type: 'PROJECT' },
+  interest_types: { label: 'Tipe Rumah', type: 'PROJECT_TYPE', requires: 'interest_projects' },
+  lead_budget: { label: 'Budget Pembelian', type: 'CURRENCY' },
+  lead_notes: { label: 'Catatan Kebutuhan / Preferensi', type: 'TEXTAREA' },
+  lead_campaign: { label: 'Campaign', type: 'CAMPAIGN', requires: 'lead_source' },
+  lead_temperature: { label: 'Status Lead', type: 'LEAD_LABEL' },
+} as const satisfies Record<string, SystemDefinition>;
 
+export type SystemFieldKey = keyof typeof SYSTEM_FIELDS;
+export const SYSTEM_FIELD_KEYS = Object.keys(SYSTEM_FIELDS) as SystemFieldKey[];
 
+/** Kunci field yang tidak boleh dipakai custom field. */
+export const RESERVED_FIELD_KEYS = SYSTEM_FIELD_KEYS;
+
+const definitionOf = (key: SystemFieldKey): SystemDefinition => SYSTEM_FIELDS[key];
+
+/** Bentuk field sistem dengan pengaturan bawaan. */
+export function systemField(key: SystemFieldKey): FormField {
+  const def = definitionOf(key);
+  return {
+    key,
+    label: def.label,
+    type: def.type,
+    required: !!(def.forceRequired || def.required),
+    placeholder: null,
+    helpText: null,
+    options: def.options ? [...def.options] : null,
+    standard: true,
+  };
+}
+
+/** Field standar lama (dipertahankan untuk konsumen yang sudah ada). */
+export const STANDARD_FIELDS = {
+  name: systemField('name'),
+  phone: systemField('phone'),
+  email: systemField('email'),
+};
+
+const LEADING_KEYS: SystemFieldKey[] = ['name', 'phone', 'email'];
+const TRAILING_KEYS: SystemFieldKey[] = SYSTEM_FIELD_KEYS.filter(
+  (key) => definitionOf(key).always && !LEADING_KEYS.includes(key)
+);
+
+const isSystemKey = (key: string | null | undefined): key is SystemFieldKey =>
+  !!key && Object.prototype.hasOwnProperty.call(SYSTEM_FIELDS, key);
+
+const isRelationType = (type: string) => (RELATION_FIELD_TYPES as readonly string[]).includes(type);
+
+/** Field selain section (yang menyimpan data). */
+export const isDataField = (field: Pick<FormField, 'type'>) => field.type !== SECTION_TYPE;
 
 /** Field dari klien; `key` boleh kosong untuk field baru. */
 export type FormFieldInput = Omit<FormField, 'key'> & { key?: string };
@@ -76,58 +157,95 @@ export function fieldKeyOf(label: string) {
 
 /**
  * Menyusun daftar field yang disimpan:
- * - Field berkunci `name`/`phone`/`email` adalah field standar: posisi, label, placeholder,
- *   teks bantuan, dan wajib mengikuti klien; tipe tetap dari server. Field standar yang
- *   tidak dikirim ditaruh di awal dengan pengaturan bawaan.
+ * - Field berkunci sistem: posisi, label, placeholder, teks bantuan, dan wajib mengikuti klien;
+ *   tipe dan pilihan tetap dari server. Field yang selalu ada tetapi tidak dikirim ditambahkan
+ *   (Nama/HP/Email di awal, Sumber dan Sales di akhir).
+ * - Tipe relasi hanya untuk kunci sistemnya.
+ * - Section mendapat kunci `section_*`.
  * - Kunci custom field dari klien dipertahankan (agar field yang sama tetap terhubung
  *   antar-versi); kunci baru dibuat dari label dan dibuat unik.
  */
 export function assignFieldKeys(fields: FormFieldInput[]): FormField[] {
   const used = new Set<string>(RESERVED_FIELD_KEYS);
   const kept = fields.map((field) => field.key?.trim() || null);
-  const standardSeen = new Set<string>();
-  for (const key of kept) {
+  const systemSeen = new Set<SystemFieldKey>();
+  for (const [index, key] of kept.entries()) {
     if (!key) continue;
-    if (isStandardKey(key)) {
-      if (standardSeen.has(key)) throw new Error(`Invalid field key "${key}": it is duplicated`);
-      standardSeen.add(key);
+    if (isSystemKey(key)) {
+      if (systemSeen.has(key)) throw new Error(`Invalid field key "${key}": it is duplicated`);
+      systemSeen.add(key);
       continue;
     }
     if (used.has(key)) throw new Error(`Invalid field key "${key}": it is reserved or duplicated`);
+    if (fields[index]?.type === SECTION_TYPE && !key.startsWith('section_')) {
+      throw new Error(`Invalid field key "${key}": section keys must start with section_`);
+    }
     used.add(key);
   }
-  const result = fields.map((field, index) => {
+  for (const key of systemSeen) {
+    const requires = definitionOf(key).requires as SystemFieldKey | undefined;
+    if (requires && !systemSeen.has(requires) && !definitionOf(requires).always) {
+      throw new Error(`Invalid fields: ${key} requires ${requires}`);
+    }
+  }
+
+  const result = fields.map((field, index): FormField => {
     let key = kept[index];
-    if (isStandardKey(key)) {
-      // Label, placeholder, teks bantuan, dan wajib dapat diatur; tipe tetap. Nama selalu wajib.
-      const base = STANDARD_FIELDS[key];
+    if (isSystemKey(key)) {
+      const base = systemField(key);
       return {
         ...base,
         label: field.label || base.label,
         placeholder: field.placeholder,
         helpText: field.helpText,
-        required: key === 'name' ? true : field.required,
+        required: definitionOf(key).forceRequired ? true : field.required,
       };
     }
+    if (isRelationType(field.type)) {
+      throw new Error(`Invalid field type ${field.type}: it is only available for system fields`);
+    }
+    const isSection = field.type === SECTION_TYPE;
     if (!key) {
-      const base = fieldKeyOf(field.label);
+      const base = isSection ? `section_${fieldKeyOf(field.label)}`.slice(0, 50) : fieldKeyOf(field.label);
       key = base;
       for (let n = 2; used.has(key); n += 1) key = `${base}_${n}`;
       used.add(key);
     }
-    return { ...field, key };
+    if (isSection) {
+      return {
+        key,
+        label: field.label,
+        type: SECTION_TYPE,
+        required: false,
+        placeholder: null,
+        helpText: field.helpText,
+        options: null,
+        icon: field.icon ?? null,
+      };
+    }
+    return {
+      key,
+      label: field.label,
+      type: field.type,
+      required: field.required,
+      placeholder: field.placeholder,
+      helpText: field.helpText,
+      options: field.options,
+    };
   });
-  const missing = RESERVED_FIELD_KEYS.filter((key) => !standardSeen.has(key)).map((key) => STANDARD_FIELDS[key]);
-  return [...missing, ...result];
+  const leading = LEADING_KEYS.filter((key) => !systemSeen.has(key)).map(systemField);
+  const trailing = TRAILING_KEYS.filter((key) => !systemSeen.has(key)).map(systemField);
+  return [...leading, ...result, ...trailing];
 }
 
 const fieldsOf = (value: Prisma.JsonValue | undefined): FormField[] =>
   Array.isArray(value) ? (value as unknown as FormField[]) : [];
 
-/** Versi lama tanpa penanda field standar: field standar ditaruh di awal. */
+/** Versi lama tanpa field yang selalu ada: ditambahkan di awal (standar) atau akhir (sistem). */
 const withStandardFields = (fields: FormField[]): FormField[] => [
-  ...RESERVED_FIELD_KEYS.filter((key) => !fields.some((f) => f.key === key)).map((key) => STANDARD_FIELDS[key]),
+  ...LEADING_KEYS.filter((key) => !fields.some((f) => f.key === key)).map(systemField),
   ...fields,
+  ...TRAILING_KEYS.filter((key) => !fields.some((f) => f.key === key)).map(systemField),
 ];
 
 const isUniqueViolation = (error: unknown) =>
@@ -173,8 +291,8 @@ export class LeadFormTemplateUseCase {
         isDefault: row.isDefault,
         isActive: row.isActive,
         version: current?.version ?? 1,
-        // Termasuk field standar (Nama Lengkap, Nomor HP, Email).
-        fieldCount: current?.fields.length ?? RESERVED_FIELD_KEYS.length,
+        // Termasuk field standar/sistem; section tidak dihitung.
+        fieldCount: (current?.fields ?? withStandardFields([])).filter(isDataField).length,
         updatedAt: row.updatedAt,
         updatedBy: row.updatedBy,
       };
