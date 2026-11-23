@@ -139,12 +139,13 @@ export class LeadCampaignUseCase {
     return present(await this.prisma.leadCampaign.update({ where: { id }, data, select }));
   }
 
-  /**
-   * Hapus permanen. Setelah Lead menyimpan campaign (tahap integrasi Add Lead),
-   * campaign yang sudah dipakai ditolak dan cukup dinonaktifkan.
-   */
+  /** Campaign yang sudah dipakai Lead tidak dapat dihapus; nonaktifkan saja. */
   async remove(id: string, tenantId: string) {
     await this.find(id, tenantId);
+    const used = await this.prisma.lead.count({ where: { tenantId, campaignId: id } });
+    if (used > 0) {
+      throw new Error(`Campaign is used by ${used} leads and cannot be deleted; deactivate it instead (conflict)`);
+    }
     await this.prisma.leadCampaign.delete({ where: { id } });
   }
 }
