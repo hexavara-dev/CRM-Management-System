@@ -62,11 +62,7 @@ export function useStatuses({ additionalParams }: additionalParams = {}) {
 
   const createStatusMutation = useMutation({
     mutationFn: async (data: CreateStatusData) => {
-      const payload = {
-        ...data,
-        tenant: { connect: { id: tenantId } },
-      };
-      const response = await api.post<Status>("/api/status", payload);
+      const response = await api.post<Status>("/api/status", data);
       return response.data;
     },
     onSuccess: () => {
@@ -88,7 +84,8 @@ export function useStatuses({ additionalParams }: additionalParams = {}) {
       data: Partial<CreateStatusData>;
     }) => {
       const response = await api.put<Status>(`/api/status/${id}`, {
-        data: { ...data, type: additionalParams?.type || undefined },
+        ...data,
+        type: additionalParams?.type || undefined,
       });
       return response.data;
     },

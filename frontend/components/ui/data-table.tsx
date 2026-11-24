@@ -50,6 +50,8 @@ interface DataTableProps<TData, TValue> {
   searchKey?: string;
   isLoading?: boolean;
   serverPagination?: ServerPaginationOptions;
+  showColumnSelector?: boolean;
+  tableHeaderClassName?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -58,6 +60,8 @@ export function DataTable<TData, TValue>({
   searchKey,
   isLoading,
   serverPagination,
+  showColumnSelector = true,
+  tableHeaderClassName,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -66,12 +70,14 @@ export function DataTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+  const useServerPagination = Boolean(serverPagination?.meta);
 
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    manualPagination: useServerPagination,
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
@@ -86,60 +92,62 @@ export function DataTable<TData, TValue>({
     },
   });
 
-  const useServerPagination = Boolean(serverPagination?.meta);
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex flex-1 items-center space-x-2">
-          {searchKey && (
-            <Input
-              placeholder={`Filter ${searchKey}...`}
-              value={
-                (table.getColumn(searchKey)?.getFilterValue() as string) ?? ""
-              }
-              onChange={(event) =>
-                table.getColumn(searchKey)?.setFilterValue(event.target.value)
-              }
-              className="h-9 w-37.5 lg:w-62.5"
-            />
+      {(searchKey || showColumnSelector) && (
+        <div className="flex items-center justify-between">
+          <div className="flex flex-1 items-center space-x-2">
+            {searchKey && (
+              <Input
+                placeholder={`Filter ${searchKey}...`}
+                value={
+                  (table.getColumn(searchKey)?.getFilterValue() as string) ?? ""
+                }
+                onChange={(event) =>
+                  table.getColumn(searchKey)?.setFilterValue(event.target.value)
+                }
+                className="h-9 w-37.5 lg:w-62.5"
+              />
+            )}
+          </div>
+          {showColumnSelector && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto flex h-9">
+                <Settings2 className="mr-2 h-4 w-4" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-37.5">
+              {table
+                .getAllColumns()
+                .filter(
+                  (column) =>
+                    typeof column.accessorFn !== "undefined" &&
+                    column.getCanHide(),
+                )
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) =>
+                        column.toggleVisibility(!!value)
+                      }
+                    >
+                      {column.id}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
           )}
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="ml-auto flex h-9">
-              <Settings2 className="mr-2 h-4 w-4" />
-              View
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-37.5">
-            {table
-              .getAllColumns()
-              .filter(
-                (column) =>
-                  typeof column.accessorFn !== "undefined" &&
-                  column.getCanHide(),
-              )
-              .map((column) => {
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) =>
-                      column.toggleVisibility(!!value)
-                    }
-                  >
-                    {column.id}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      )}
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
+          <TableHeader className={tableHeaderClassName}>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
