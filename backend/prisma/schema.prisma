@@ -52,6 +52,7 @@ model Company {
   unitPriceAdjustments    UnitPriceAdjustment[]
   reservations            Reservation[]
   leadLabels              LeadLabel[]
+  leadLabelAssignments    LeadLabelAssignment[]
   leadActivityTypes       LeadActivityType[]
   leadCampaigns           LeadCampaign[]
   leadInterests           LeadInterest[]
@@ -199,6 +200,9 @@ model Lead {
   assignedUserId String?        @map("assigned_user_id") @db.VarChar(36)
   stageId        String?        @map("stage_id") @db.VarChar(36)
   statusId       String?        @map("status_id") @db.VarChar(36)
+  projectId      String?        @map("project_id") @db.VarChar(36)
+  productVariantId String?      @map("product_variant_id") @db.VarChar(36)
+  priority       LeadPriority   @default(MEDIUM)
   type           String?        @db.VarChar(50)
   isDeleted      Boolean        @default(false) @map("is_deleted")
   converted      Boolean        @default(false)
@@ -210,6 +214,8 @@ model Lead {
   sourceUser     User?          @relation("UserSourceLeads", fields: [sourceUserId], references: [id])
   stage          Stage?         @relation(fields: [stageId], references: [id])
   status         Status?        @relation(fields: [statusId], references: [id])
+  project        Product?       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
   tenant         Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   activities     LeadActivity[]
   items          LeadItem[]
@@ -225,8 +231,7 @@ model Lead {
   needsNotes            String?                  @map("needs_notes") @db.Text
   campaignId            String?                  @map("campaign_id") @db.VarChar(36)
   campaign              LeadCampaign?            @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  temperatureLabelId    String?                  @map("temperature_label_id") @db.VarChar(36)
-  temperatureLabel      LeadLabel?               @relation(fields: [temperatureLabelId], references: [id], onDelete: SetNull)
+  labelAssignments      LeadLabelAssignment[]
   /// Versi template form yang dipakai saat Lead dibuat (snapshot field).
   formTemplateVersionId String?                  @map("form_template_version_id") @db.VarChar(36)
   formTemplateVersion   LeadFormTemplateVersion? @relation(fields: [formTemplateVersionId], references: [id], onDelete: SetNull)
@@ -235,9 +240,16 @@ model Lead {
   interests             LeadInterest[]
 
   @@index([campaignId])
-  @@index([temperatureLabelId])
+  @@index([projectId])
+  @@index([productVariantId])
   @@index([formTemplateVersionId])
   @@map("lead")
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 model LeadItem {
@@ -703,6 +715,7 @@ model Product {
   attributes        ProductAttribute[]
   media             ProductMedia[]
   leadInterests     LeadInterest[]
+  leads             Lead[]
 
   @@unique([tenantId, code])
   @@index([categoryId])
@@ -723,6 +736,7 @@ model ProductVariant {
   units        ProductUnit[]
   typeVariants ProductTypeVariant[]
   leadInterests LeadInterest[]
+  leads         Lead[]
 
   @@index([productId])
   @@map("product_variants")
@@ -977,11 +991,26 @@ model LeadLabel {
   createdAt   DateTime      @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.DateTime(6)
   tenant      Company       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  leads       Lead[]
+  leadAssignments LeadLabelAssignment[]
 
   @@unique([tenantId, type, name])
   @@index([tenantId, type, sortOrder])
   @@map("lead_labels")
+}
+
+model LeadLabelAssignment {
+  id        String    @id @default(uuid()) @db.VarChar(36)
+  tenantId  String    @map("company_id") @db.VarChar(36)
+  leadId    String    @map("lead_id") @db.VarChar(36)
+  labelId   String    @map("label_id") @db.VarChar(36)
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(6)
+  tenant    Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead      Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  label     LeadLabel @relation(fields: [labelId], references: [id], onDelete: Restrict)
+
+  @@unique([leadId, labelId])
+  @@index([tenantId, labelId])
+  @@map("lead_label_assignments")
 }
 
 /// Dokumen/bukti yang wajib diunggah saat Lead/Deal dipindahkan ke sebuah tahapan pipeline.
