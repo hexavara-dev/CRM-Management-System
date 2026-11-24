@@ -15,6 +15,7 @@ export interface Viewing {
   name?: string | null;
   email?: string | null;
   scheduledAt: string;
+  durationMinutes?: number;
   notes?: string | null;
   createdAt: string;
   lead?: Lead | null;

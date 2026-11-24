@@ -4,6 +4,7 @@ import { PrismaGenericRepository } from '../src/infrastructure/repositories/Pris
 import { AuthUseCases } from '../src/usecases/auth/AuthUseCases.js';
 import { seedReservationData } from './seed/reservationSeed.js';
 import { seedAttributeCatalog } from './seed/attributeCatalog.js';
+import { seedViewingSchedule } from './seed/viewingScheduleSeed.js';
 import { seedDealsData } from './seed/dealsSeed.js';
 
 const TENANT_NAME = 'Demo Organization';
@@ -81,6 +82,7 @@ async function main() {
 
   await seedAttributeCatalog(prisma, owner!.tenantId);
   await seedReservationData(prisma, owner!.tenantId, salesUsers);
+  await seedViewingSchedule(prisma, owner!.tenantId, salesUsers);
   await seedDealsData(prisma, owner!.tenantId, salesUsers);
 }
 

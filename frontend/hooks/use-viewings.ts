@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import api from "@/lib/api";
 import { useAuth } from "@/components/auth/auth-provider";
+import type { Pagination } from "@/types/api";
 import { Viewing } from "@/types/viewing";
 
 function normalizeCollection<T>(payload: unknown): T[] {
@@ -28,6 +29,7 @@ type UpsertViewingPayload = {
   sourceId?: string;
   locationId?: string;
   scheduledAt: string;
+  durationMinutes?: number;
   name?: string;
   email?: string;
   notes?: string;
@@ -193,7 +195,9 @@ export function useViewings(options: UseViewingsOptions = {}) {
 
   return {
     viewings: normalizeCollection<Viewing>(viewingsQuery.data),
+    meta: (viewingsQuery.data as { meta?: Pagination } | undefined)?.meta,
     isLoading: viewingsQuery.isLoading || viewingsQuery.isFetching,
+    isError: viewingsQuery.isError,
     createViewing: createViewingMutation.mutateAsync,
     updateViewing: updateViewingMutation.mutateAsync,
     deleteViewing: deleteViewingMutation.mutateAsync,

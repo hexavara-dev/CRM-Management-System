@@ -1,6 +1,5 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,18 +16,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Viewing } from "@/types/viewing";
 import {
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+  formatViewingStartTime,
+  formatViewingTimeRange,
+  getViewingCustomerName,
+  getViewingProjectName,
+  getViewingSalesName,
+} from "@/lib/viewing-display";
+import type { Viewing } from "@/types/viewing";
+import { ExternalLink, MapPin, Pencil, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ViewingStatusPill, resolveStatusColor } from "./viewing-status-pill";
 
 const MAX_PREVIEW_ITEMS_PER_DAY = 3;
+const WEEKDAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 
 function toDateKey(value: Date | string) {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -55,17 +57,44 @@ function getMonthCalendarDays(monthDate: Date) {
 type ViewingsCalendarProps = {
   viewings: Viewing[];
   isLoading: boolean;
+  isError?: boolean;
   currentMonth: Date;
-  onChangeMonth: (direction: "prev" | "next") => void;
   onEdit: (viewing: Viewing) => void;
   onDelete: (viewing: Viewing) => void;
 };
 
+function VisitCard({ viewing }: { viewing: Viewing }) {
+  const color = resolveStatusColor(viewing.status);
+  return (
+    <div
+      className="rounded-md border-l-4 px-2 py-1.5 text-xs"
+      style={{ borderLeftColor: color, backgroundColor: `${color}14` }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="flex min-w-0 items-center gap-1 font-semibold text-slate-900">
+          <UserRound className="h-3 w-3 shrink-0" />
+          <span className="truncate">{getViewingCustomerName(viewing)}</span>
+        </p>
+        <span className="shrink-0 text-slate-600">
+          {formatViewingStartTime(viewing)}
+        </span>
+      </div>
+      <p className="mt-0.5 truncate text-[11px] text-slate-600">
+        Sales: {getViewingSalesName(viewing)}
+      </p>
+      <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-slate-700">
+        <MapPin className="h-3 w-3 shrink-0" />
+        <span className="truncate">{getViewingProjectName(viewing)}</span>
+      </p>
+    </div>
+  );
+}
+
 export function ViewingsCalendar({
   viewings,
   isLoading,
+  isError,
   currentMonth,
-  onChangeMonth,
   onEdit,
   onDelete,
 }: ViewingsCalendarProps) {
@@ -101,15 +130,6 @@ export function ViewingsCalendar({
     [currentMonth],
   );
 
-  const monthLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat("id-ID", {
-        month: "long",
-        year: "numeric",
-      }).format(currentMonth),
-    [currentMonth],
-  );
-
   const selectedViewings = useMemo(() => {
     if (!selectedDateKey) return [];
     return groupedViewingsByDate.get(selectedDateKey) || [];
@@ -132,43 +152,21 @@ export function ViewingsCalendar({
     setIsDialogOpen(true);
   };
 
+  const todayKey = toDateKey(new Date());
+
   return (
     <>
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-base font-semibold">Visit Calendar</h2>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => onChangeMonth("prev")}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="min-w-44 text-center text-sm font-medium capitalize">
-            {monthLabel}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => onChangeMonth("next")}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-xl border bg-white">
         <div className="min-w-225">
-          <div className="grid grid-cols-7 border-b bg-slate-50/60 text-xs font-medium uppercase tracking-wide text-slate-500">
-            {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map(
-              (dayName) => (
-                <div key={dayName} className="border-r p-3 last:border-r-0">
-                  {dayName}
-                </div>
-              ),
-            )}
+          <div className="grid grid-cols-7 border-b bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-500">
+            {WEEKDAY_LABELS.map((dayName) => (
+              <div
+                key={dayName}
+                className="border-r px-3 py-2.5 last:border-r-0"
+              >
+                {dayName}
+              </div>
+            ))}
           </div>
 
           <div className="grid grid-cols-7">
@@ -180,15 +178,15 @@ export function ViewingsCalendar({
                 MAX_PREVIEW_ITEMS_PER_DAY,
               );
               const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
-              const isToday = toDateKey(day) === toDateKey(new Date());
+              const isToday = dateKey === todayKey;
 
               if (!isCurrentMonth) {
                 return (
                   <div
                     key={dateKey}
-                    className="min-h-40 border-r border-b bg-slate-50/40 p-2 last:border-r-0"
+                    className="min-h-32 border-r border-b bg-white p-2 last:border-r-0"
                   >
-                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full text-sm text-slate-300">
+                    <span className="text-sm text-slate-300">
                       {day.getDate()}
                     </span>
                   </div>
@@ -198,7 +196,7 @@ export function ViewingsCalendar({
               return (
                 <div
                   key={dateKey}
-                  className="min-h-40 cursor-pointer border-r border-b bg-white p-2 last:border-r-0 hover:bg-slate-50/60 transition-colors"
+                  className="min-h-32 cursor-pointer border-r border-b bg-white p-2 transition-colors last:border-r-0 hover:bg-slate-50/60"
                   role="button"
                   tabIndex={0}
                   onClick={() => openDateDialog(dateKey)}
@@ -209,19 +207,14 @@ export function ViewingsCalendar({
                     }
                   }}
                 >
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-1.5">
                     <span
-                      className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm ${
-                        isToday
-                          ? "bg-blue-600 text-white"
-                          : "text-slate-800"
+                      className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-sm font-medium ${
+                        isToday ? "bg-blue-600 text-white" : "text-slate-800"
                       }`}
                     >
                       {day.getDate()}
                     </span>
-                    {dayViewings.length > 0 ? (
-                      <Badge>{dayViewings.length}</Badge>
-                    ) : null}
                   </div>
 
                   <div className="space-y-1.5">
@@ -229,7 +222,7 @@ export function ViewingsCalendar({
                       ? Array.from({
                           length: Math.min(
                             MAX_PREVIEW_ITEMS_PER_DAY,
-                            Math.max(dayViewings.length, 1),
+                            dayViewings.length,
                           ),
                         }).map((_, index) => (
                           <div
@@ -241,51 +234,7 @@ export function ViewingsCalendar({
                           </div>
                         ))
                       : previewItems.map((viewing) => (
-                          <div
-                            key={viewing.id}
-                            className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs"
-                          >
-                            <p className="line-clamp-1 font-medium text-slate-800">
-                              {viewing.name}
-                            </p>
-                            <p className="text-slate-500">
-                              {new Date(viewing.scheduledAt).toLocaleTimeString(
-                                "id-ID",
-                                {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                },
-                              )}
-                            </p>
-                            <div className="mt-1 flex justify-end gap-1">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  onEdit(viewing);
-                                }}
-                                title="Edit Visit"
-                              >
-                                <Pencil className="h-3.5 w-3.5 text-blue-500" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  onDelete(viewing);
-                                }}
-                                title="Delete Visit"
-                              >
-                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
-                              </Button>
-                            </div>
-                          </div>
+                          <VisitCard key={viewing.id} viewing={viewing} />
                         ))}
 
                     {dayViewings.length > MAX_PREVIEW_ITEMS_PER_DAY ? (
@@ -303,13 +252,20 @@ export function ViewingsCalendar({
       </div>
 
       {isLoading ? (
-        <div className="border-t p-4 text-sm text-slate-500">
-          Loading visits...
-        </div>
+        <p className="mt-3 text-sm text-slate-500">Memuat jadwal visit...</p>
+      ) : isError ? (
+        <p className="mt-3 text-sm text-red-600" role="alert">
+          Gagal memuat jadwal visit. Pastikan backend memakai versi terbaru,
+          lalu muat ulang halaman.
+        </p>
+      ) : viewings.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-500">
+          Belum ada jadwal visit pada bulan ini untuk filter yang dipilih.
+        </p>
       ) : null}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="w-full max-w-[95vw] sm:max-w-3xl lg:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="flex max-h-[90vh] w-full max-w-[95vw] flex-col overflow-hidden sm:max-w-3xl lg:max-w-5xl">
           <DialogHeader>
             <DialogTitle className="capitalize">
               Visit pada {selectedDateLabel}
@@ -321,7 +277,7 @@ export function ViewingsCalendar({
 
           {isLoading ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">
-              Loading visits...
+              Memuat jadwal visit...
             </div>
           ) : selectedViewings.length === 0 ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-slate-500">
@@ -333,11 +289,11 @@ export function ViewingsCalendar({
                 <Table>
                   <TableHeader className="bg-muted/50">
                     <TableRow>
-                      <TableHead>Lead</TableHead>
-                      <TableHead>PIC Visit</TableHead>
-                      <TableHead>Jam</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Sales</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Waktu</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Source</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
@@ -346,49 +302,64 @@ export function ViewingsCalendar({
                     {selectedViewings.map((viewing) => (
                       <TableRow key={viewing.id}>
                         <TableCell className="font-medium">
-                          {viewing.name || "-"}
+                          {getViewingCustomerName(viewing)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {viewing.actor?.name || "-"}
+                          {getViewingSalesName(viewing)}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {getViewingProjectName(viewing)}
                         </TableCell>
                         <TableCell className="text-sm whitespace-nowrap">
-                          {new Date(viewing.scheduledAt).toLocaleTimeString(
-                            "id-ID",
-                            { hour: "2-digit", minute: "2-digit" },
-                          )}
+                          {formatViewingTimeRange(viewing)}
                         </TableCell>
                         <TableCell>
-                          {viewing.status?.name ? (
-                            <Badge colorHex={viewing.status?.color}>
-                              {viewing.status?.name}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              -
-                            </span>
-                          )}
+                          <ViewingStatusPill status={viewing.status} />
                         </TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">
-                          {viewing.source?.name || "-"}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground max-w-45 truncate">
+                        <TableCell className="max-w-45 truncate text-sm text-muted-foreground">
                           {viewing.notes || "-"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            asChild
-                            size="sm"
-                            variant="outline"
-                            disabled={!viewing.leadId}
-                          >
-                            <Link
-                              href={`/leads/${viewing.leadId}?tab=visit`}
-                              className="inline-flex items-center gap-1.5"
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Edit Visit"
+                              onClick={() => {
+                                setIsDialogOpen(false);
+                                onEdit(viewing);
+                              }}
                             >
-                              <ExternalLink className="size-3.5" />
-                              Detail Lead
-                            </Link>
-                          </Button>
+                              <Pencil className="h-4 w-4 text-blue-500" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              title="Hapus Visit"
+                              onClick={() => {
+                                setIsDialogOpen(false);
+                                onDelete(viewing);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                            <Button
+                              asChild
+                              size="sm"
+                              variant="outline"
+                              disabled={!viewing.leadId}
+                            >
+                              <Link
+                                href={`/leads/${viewing.leadId}?tab=visit`}
+                                className="inline-flex items-center gap-1.5"
+                              >
+                                <ExternalLink className="size-3.5" />
+                                Detail Lead
+                              </Link>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

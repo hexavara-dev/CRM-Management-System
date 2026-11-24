@@ -2,6 +2,7 @@ import type { Viewing, Status, Prisma, Attachment, PrismaClient } from '@prisma/
 import type { PrismaGenericRepository } from '../../infrastructure/repositories/PrismaGenericRepository.js';
 import type { CreateViewingDTO, UpdateViewingDTO } from '../../presentation/dtos/ViewingDTO.js';
 import { localStorage } from '../../infrastructure/storage/localStorage.js';
+import { buildViewingListQuery, type ViewingActor } from './viewingListQuery.js';
 
 export class ViewingUseCase {
   constructor(
@@ -80,6 +81,7 @@ export class ViewingUseCase {
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.email !== undefined) data.email = dto.email;
     if (dto.notes !== undefined) data.notes = dto.notes;
+    if (dto.durationMinutes !== undefined) data.durationMinutes = dto.durationMinutes;
     if (dto.slotId) data.slot = { connect: { id: dto.slotId } };
     if (dto.leadId) data.lead = { connect: { id: dto.leadId } };
     if (dto.locationId) data.location = { connect: { id: dto.locationId } };
@@ -121,22 +123,16 @@ export class ViewingUseCase {
     return viewing;
   }
 
-  async getAllViewings(tenantId: string, page: number = 1, limit: number = 10, filters: any = {}) {
+  async getAllViewings(
+    tenantId: string,
+    page: number = 1,
+    limit: number = 10,
+    query: Record<string, unknown> = {},
+    actor?: ViewingActor
+  ) {
     const skip = (page - 1) * limit;
     const take = limit;
-
-    const { startDate, endDate, ...otherFilters } = filters;
-    const where: any = { tenantId, ...otherFilters };
-
-    if (startDate || endDate) {
-      where.scheduledAt = {};
-      if (startDate) {
-        where.scheduledAt.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.scheduledAt.lte = new Date(endDate);
-      }
-    }
+    const { where, orderBy } = buildViewingListQuery(tenantId, query, actor);
 
     const [data, total] = await Promise.all([
       this.viewingRepository.findAll({
@@ -146,7 +142,13 @@ export class ViewingUseCase {
         include: {
           status: true,
           slot: true,
-          lead: { include: { customer: true } },
+          lead: {
+            include: {
+              customer: true,
+              assignedUser: { select: { id: true, name: true } },
+              project: { select: { id: true, name: true, code: true } },
+            },
+          },
           location: true,
           source: true,
           actor: {
@@ -159,7 +161,7 @@ export class ViewingUseCase {
             },
           },
         },
-        orderBy: { scheduledAt: 'desc' },
+        orderBy,
       }),
       this.viewingRepository.count(where),
     ]);
@@ -193,6 +195,7 @@ export class ViewingUseCase {
     if (dto.email !== undefined) data.email = dto.email;
     if (dto.scheduledAt !== undefined) data.scheduledAt = dto.scheduledAt;
     if (dto.notes !== undefined) data.notes = dto.notes;
+    if (dto.durationMinutes !== undefined) data.durationMinutes = dto.durationMinutes;
 
     if (dto.slotId) data.slot = { connect: { id: dto.slotId } };
     else if (dto.slotId === null) data.slot = { disconnect: true };
