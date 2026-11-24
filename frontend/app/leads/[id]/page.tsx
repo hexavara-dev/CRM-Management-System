@@ -2,7 +2,6 @@
 
 import { AppSidebar } from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
-import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +17,7 @@ import Typography from "@/components/Typography";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useActivities } from "@/hooks/use-activities";
 import { useLeadDetail, useLeads } from "@/hooks/use-leads";
+import { type ArchiveCategory, useLeadArchive } from "@/hooks/use-lead-archive";
 import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useLocations } from "@/hooks/use-locations";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
@@ -44,7 +44,8 @@ export default function LeadDetailPage() {
   const { data: lead, isLoading } = useLeadDetail(params.id);
   const { user } = useAuth();
   const { createLeadActivity } = useActivities();
-  const { updateLead, isUpdating, convertToDeal, isConverting, deleteLead, isDeleting } = useLeads();
+  const { updateLead, isUpdating, convertToDeal, isConverting } = useLeads();
+  const { archiveLead, isMutating: isArchiving } = useLeadArchive({ page: 1, limit: 10 });
   const pipelineStages = usePipelineStages("lead");
   const { statuses } = useStatuses({
     additionalParams: {
@@ -68,6 +69,8 @@ export default function LeadDetailPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [archiveCategory, setArchiveCategory] = useState<ArchiveCategory>("NOT_RESPOND");
+  const [archiveReason, setArchiveReason] = useState("");
 
   const attachments = useMemo(() => (lead?.attachments || []).map(
       (att: AttachmentRecord) => ({
@@ -213,8 +216,9 @@ export default function LeadDetailPage() {
 
   const handleArchive = async () => {
     try {
-      await deleteLead(params.id);
-      router.push("/leads");
+      await archiveLead({ id: params.id, category: archiveCategory, reason: archiveReason });
+      setIsArchiveDialogOpen(false);
+      router.push("/leads/archive");
     } catch (error) {
       console.error("Failed to archive lead:", error);
     }
@@ -282,7 +286,21 @@ export default function LeadDetailPage() {
         </div>
       </SidebarInset>
 
-      <ConfirmModal isOpen={isArchiveDialogOpen} onClose={() => setIsArchiveDialogOpen(false)} onConfirm={handleArchive} title="Arsipkan Lead" description="Lead akan disembunyikan dari daftar aktif. Data aktivitas dan dokumen tetap tersimpan." loading={isDeleting} />
+      <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Arsipkan Lead</DialogTitle><DialogDescription>Lead akan disembunyikan dari daftar aktif. Data aktivitas dan dokumen tetap tersimpan.</DialogDescription></DialogHeader>
+          <label className="grid gap-1 text-sm font-medium">Kategori Arsip
+            <select value={archiveCategory} disabled={isArchiving} onChange={(event) => setArchiveCategory(event.target.value as ArchiveCategory)} className="h-9 rounded-md border bg-background px-2">
+              <option value="NOT_RESPOND">Not Respond</option><option value="INVALID">Invalid</option><option value="NOT_QUALIFIED">Not Qualified</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium">Alasan (opsional)
+            <textarea value={archiveReason} maxLength={500} disabled={isArchiving} onChange={(event) => setArchiveReason(event.target.value)} className="min-h-24 rounded-md border p-2 text-sm" />
+            <span className="text-right text-xs text-muted-foreground">{archiveReason.length}/500</span>
+          </label>
+          <DialogFooter><Button variant="outline" disabled={isArchiving} onClick={() => setIsArchiveDialogOpen(false)}>Batal</Button><Button variant="destructive" disabled={isArchiving} onClick={() => void handleArchive()}>{isArchiving ? "Mengarsipkan..." : "Arsipkan"}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Lead Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

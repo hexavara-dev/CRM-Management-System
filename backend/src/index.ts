@@ -7,6 +7,8 @@ import { GenericUseCases } from './usecases/GenericUseCases.js';
 import { GenericController } from './presentation/controllers/GenericController.js';
 import { LeadController } from './presentation/controllers/LeadController.js';
 import { LeadUseCases } from './usecases/lead/LeadUseCases.js';
+import { LeadArchiveController } from './presentation/controllers/LeadArchiveController.js';
+import { LeadArchiveUseCase } from './usecases/lead/LeadArchiveUseCase.js';
 import { DealController } from './presentation/controllers/DealController.js';
 import { DealUseCases } from './usecases/deal/DealUseCases.js';
 import { AuthController } from './presentation/controllers/AuthController.js';
@@ -213,6 +215,17 @@ const statisticsController = new StatisticsController(statisticsUseCases);
 app.get('/api/statistics', authMiddleware, (req, res) =>
   statisticsController.getStatistics(req, res)
 );
+
+// Archive routes are explicit: archive state is not generic Lead CRUD.
+const leadArchiveController = new LeadArchiveController(new LeadArchiveUseCase(prisma));
+app.get('/api/leads/archive', authMiddleware, leadArchiveController.list);
+app.post('/api/leads/:id/archive', authMiddleware, leadArchiveController.archiveLead);
+app.post('/api/leads/:id/reactivate', authMiddleware, leadArchiveController.reactivate);
+app.patch('/api/leads/:id/archive-category', authMiddleware, leadArchiveController.changeCategory);
+app.delete('/api/leads/:id/permanent', authMiddleware, leadArchiveController.permanentDelete);
+app.post('/api/leads/archive/bulk-reactivate', authMiddleware, leadArchiveController.bulkReactivate);
+app.patch('/api/leads/archive/bulk-category', authMiddleware, leadArchiveController.bulkChangeCategory);
+app.post('/api/leads/archive/bulk-permanent-delete', authMiddleware, leadArchiveController.bulkPermanentDelete);
 
 // Setup dynamic routes
 const modelIncludes: Record<string, any> = {

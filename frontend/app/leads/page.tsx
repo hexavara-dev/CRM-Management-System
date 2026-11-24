@@ -3,7 +3,6 @@ import { AppSidebar } from "@/components/Sidebar";
 import { LeadsPipelineTab, type LeadDateRange } from "@/app/leads/components/leads-pipeline-tab";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
@@ -59,13 +58,12 @@ import {
   Plus,
   Save,
   Search,
-  Trash2,
   Upload,
   UserRound,
   UsersRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -136,9 +134,7 @@ export default function LeadsPage() {
     isLoading,
     createLead,
     updateLead,
-    deleteLead,
     convertToDeal,
-    isDeleting,
     isConverting,
     serverPagination,
   } = useLeadsTable({
@@ -173,16 +169,10 @@ export default function LeadsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const router = useRouter();
 
-  const handleDelete = useCallback((id: string) => {
-    setLeadToDelete(id);
-    setIsDeleteDialogOpen(true);
-  }, []);
 
   const columns = useMemo<ColumnDef<Lead>[]>(
     () => [
@@ -348,23 +338,12 @@ export default function LeadsPage() {
               >
                 <Pencil className="h-4 w-4 text-[#141B34]" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(lead.id);
-                }}
-                title="Hapus Lead"
-              >
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
             </div>
           );
         },
       },
     ],
-    [router, handleDelete],
+    [router],
   );
 
   const locationOptions = useMemo(
@@ -543,18 +522,6 @@ export default function LeadsPage() {
   //   });
   //   setIsConvertDialogOpen(true);
   // };
-
-  const onConfirmDelete = async () => {
-    if (leadToDelete) {
-      try {
-        await deleteLead(leadToDelete);
-        setIsDeleteDialogOpen(false);
-        setLeadToDelete(null);
-      } catch (error) {
-        console.error("Failed to delete lead:", error);
-      }
-    }
-  };
 
   return (
     <SidebarProvider className="overflow-hidden">
@@ -971,14 +938,6 @@ export default function LeadsPage() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmModal
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={onConfirmDelete}
-        title="Delete Lead"
-        description="Are you sure you want to delete this lead? This action cannot be undone."
-        loading={isDeleting}
-      />
     </SidebarProvider>
   );
 }
