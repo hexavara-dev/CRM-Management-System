@@ -55,7 +55,7 @@ export function LabelDialog({
     });
   }, [open, label, type, form]);
 
-  const [name, color] = useWatch({ control: form.control, name: ["name", "color"] });
+  const [name, color, icon] = useWatch({ control: form.control, name: ["name", "color", "icon"] });
   const validColor = /^#[0-9A-Fa-f]{6}$/.test(color ?? "") ? color : "#3B82F6";
 
   return (
@@ -117,7 +117,7 @@ export function LabelDialog({
                           fieldState.error && "border-destructive",
                         )}
                       />
-                      {name?.trim() && <LabelBadge name={name.trim()} color={validColor} />}
+                      {name?.trim() && <LabelBadge name={name.trim()} color={validColor} icon={icon} />}
                     </div>
                     {fieldState.error && <ErrorText className="mt-2">{fieldState.error.message}</ErrorText>}
                   </>

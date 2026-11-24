@@ -18,45 +18,34 @@ import Typography from "@/components/Typography";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useActivities } from "@/hooks/use-activities";
 import { useLeadDetail, useLeads } from "@/hooks/use-leads";
+import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useLocations } from "@/hooks/use-locations";
+import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useSources } from "@/hooks/use-sources";
-import { useTasks } from "@/hooks/use-tasks";
 import { useStatuses } from "@/hooks/use-statuses";
 import { useUpload } from "@/hooks/use-upload";
 import { useUsers } from "@/hooks/use-users";
-import {
-  Activity,
-  Attachment,
-  CallLog as CallLogData,
-  Note as NoteData,
-  Task as TaskData,
-} from "@/lib/data";
-import { TaskFormData } from "@/schemas/deal.schema";
-import { LeadFormData, leadFormSchema } from "@/schemas/lead.schema";
-import {
-  AttachmentRecord,
-  CallLog,
-  LeadActivity,
-  Note,
-  Task,
-} from "@/types/activity";
+import { Attachment } from "@/lib/data";
+import { LeadFormData, LeadFormInput, leadFormSchema } from "@/schemas/lead.schema";
+import { AttachmentRecord } from "@/types/activity";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
-import { LeadDetailsSidebar } from "./components/lead-details-sidebar";
 import { LeadHeader } from "./components/lead-header";
+import { LeadSummary } from "./components/lead-summary";
 import { LeadTabs } from "./components/lead-tabs";
 import { ConvertDealFormData } from "@/schemas/convert.schema";
+import { LeadLabelMultiSelect } from "../components/lead-label-multi-select";
 
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
-  // const router = useRouter();
+  const router = useRouter();
   const { data: lead, isLoading } = useLeadDetail(params.id);
   const { user } = useAuth();
   const { createLeadActivity } = useActivities();
-  const { updateLead, isUpdating, convertToDeal, isConverting } = useLeads();
-  const { updateTask, deleteTask } = useTasks();
+  const { updateLead, isUpdating, convertToDeal, isConverting, deleteLead, isDeleting } = useLeads();
+  const pipelineStages = usePipelineStages("lead");
   const { statuses } = useStatuses({
     additionalParams: {
       type: "lead",
@@ -69,154 +58,31 @@ export default function LeadDetailPage() {
       type: "lead",
     },
   });
+  const leadLabelsQuery = useLeadLabels(undefined, 1, 100);
+  const assignedLabelIds = new Set(lead?.labels?.map((label) => label.id) ?? []);
+  const leadLabels = (leadLabelsQuery.data?.data ?? []).filter(
+    (label) => label.isActive || assignedLabelIds.has(label.id),
+  );
   const { uploadFile } = useUpload();
-
-  const [isTaskDeleteDialogOpen, setIsTaskDeleteDialogOpen] = useState(false);
-  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
 
-  const { callLogs, activities, tasks, notes, attachments } = useMemo(() => {
-    if (!lead?.activities) {
-      return {
-        callLogs: [] as CallLogData[],
-        activities: [] as Activity[],
-        tasks: [] as TaskData[],
-        notes: [] as NoteData[],
-        attachments: [] as Attachment[],
-      };
-    }
-
-    type CallLogWithActivityId = CallLog & {
-      activityId: string;
-      leadId?: string;
-    };
-    type TaskWithActivityId = Task & { activityId: string };
-    type NoteWithActivityId = Note & { activityId: string; createdAt: string };
-
-    const mappedCallLogs: CallLogData[] = lead.activities
-      .flatMap((a: LeadActivity) =>
-        (a.callLogs || []).map(
-          (c: CallLog): CallLogWithActivityId => ({ ...c, activityId: a.id }),
-        ),
-      )
-      .map(
-        (c: CallLogWithActivityId): CallLogData => ({
-          id: c.id,
-          entityType: "lead",
-          entityId: c.activityId,
-          leadId: c.activityId,
-          type: "outgoing" as const,
-          status: "completed" as const,
-          duration: c.duration ? Math.floor(c.duration / 1000) : 0,
-          notes: c.description,
-          createdAt: new Date(c.startDate || lead.createdAt),
-        }),
-      );
-
-    const mappedTasks: TaskData[] = lead.activities
-      .flatMap((a: LeadActivity) =>
-        (a.tasks || []).map(
-          (t: Task): TaskWithActivityId => ({ ...t, activityId: a.id }),
-        ),
-      )
-      .map(
-        (t: TaskWithActivityId): TaskData => ({
-          id: t.id,
-          title: t.title,
-          description: t.description,
-          dueDate: t.dueDate ? new Date(t.dueDate) : undefined,
-          status: "pending" as const,
-          entityType: "lead",
-          entityId: t.activityId,
-          priority: t.priority,
-          assignedUserId: t.assignedUserId,
-          assignedUser: t.assignedUser,
-          createdAt: new Date(t.createdAt || lead.createdAt),
-          updatedAt: new Date(t.createdAt || lead.createdAt),
-        }),
-      );
-
-    const mappedNotes: NoteData[] = lead.activities
-      .flatMap((a: LeadActivity) =>
-        (a.notes || []).map(
-          (n: Note): NoteWithActivityId => ({
-            ...n,
-            activityId: a.id,
-            createdAt: lead.createdAt,
-          }),
-        ),
-      )
-      .map(
-        (n: NoteWithActivityId): NoteData => ({
-          id: n.id,
-          content: n.content,
-          entityType: "lead",
-          entityId: n.activityId,
-          createdAt: new Date(n.createdAt),
-          updatedAt: new Date(n.createdAt),
-        }),
-      );
-
-    const mappedActivities: Activity[] = lead.activities.map(
-      (a: LeadActivity) => {
-        let description =
-          a.activityType.charAt(0).toUpperCase() + a.activityType.slice(1);
-
-        if (a.activityType === "task" && a.tasks?.[0]) {
-          description = `Task created: ${a.tasks[0].title}`;
-        } else if (a.activityType === "call" && a.callLogs?.[0]) {
-          description = `Call logged: ${a.callLogs[0].description || "No description"}`;
-        } else if (a.activityType === "note" && a.notes?.[0]) {
-          const content = a.notes[0].content || "";
-          const excerpt =
-            content.length > 60 ? `${content.substring(0, 60)}...` : content;
-          description = `Note added: ${excerpt}`;
-        } else if (a.activityType === "registration") {
-          description = "Lead registered in system";
-        }
-
-        return {
-          id: a.id,
-          type: a.activityType as Activity["type"],
-          description: description,
-          entityType: "lead" as const,
-          entityId: a.leadId,
-          createdAt: new Date(a.createdAt),
-        };
-      },
-    );
-
-    const mappedAttachments: Attachment[] = (lead.attachments || []).map(
+  const attachments = useMemo(() => (lead?.attachments || []).map(
       (att: AttachmentRecord) => ({
         id: att.id,
         entityType: "lead" as const,
-        entityId: lead.id,
+        entityId: lead?.id || "",
         name: att.fileName || att.name || "",
         fileUrl: att.fileUrl,
         fileType: att.fileType || "application/octet-stream",
         fileSize: att.fileSize || 0,
         uploadedAt: new Date(att.createdAt),
       }),
-    );
+    ), [lead]) as Attachment[];
 
-    return {
-      callLogs: mappedCallLogs,
-      activities: mappedActivities,
-      tasks: mappedTasks,
-      notes: mappedNotes,
-      attachments: mappedAttachments,
-    };
-  }, [lead]) as {
-    callLogs: CallLogData[];
-    activities: Activity[];
-    tasks: TaskData[];
-    notes: NoteData[];
-    attachments: Attachment[];
-  };
-
-  const editForm = useForm<LeadFormData>({
+  const editForm = useForm<LeadFormInput, unknown, LeadFormData>({
     resolver: zodResolver(leadFormSchema),
     defaultValues: {
       salutation: "",
@@ -232,6 +98,8 @@ export default function LeadDetailPage() {
       statusId: "",
       source: "",
       notes: "",
+      labelIds: [],
+      priority: "MEDIUM",
     },
   });
 
@@ -270,6 +138,8 @@ export default function LeadDetailPage() {
         assignedUserId: lead.assignedUser?.id || "",
         statusId: lead.status?.id || "",
         sourceId: lead.source?.id || "",
+        labelIds: lead.labels?.map((label) => label.id) ?? [],
+        priority: lead.priority ?? "MEDIUM",
       });
       setIsEditDialogOpen(true);
     }
@@ -323,102 +193,30 @@ export default function LeadDetailPage() {
     }
   };
 
-  const handleAddCallLog = async (data: {
-    duration: number;
-    notes: string;
-  }) => {
+  const handleAddActivity = async (data: { type: string; description: string }) => {
     try {
       await createLeadActivity({
         leadId: params.id,
-        activityType: "call",
-        callLogs: {
-          create: {
-            title: "Call Log",
-            description: data.notes,
-            startDate: new Date(),
-            duration: Number(data.duration),
-          },
-        },
-      });
-    } catch (error) {
-      console.error("Failed to add call log:", error);
-    }
-  };
-
-  const handleAddTask = async (data: {
-    title: string;
-    description: string;
-    dueDate: string;
-    priority: "low" | "normal" | "high" | "urgent";
-    assignedUserId?: string;
-  }) => {
-    try {
-      await createLeadActivity({
-        leadId: params.id,
-        activityType: "task",
-        tasks: {
-          create: {
-            title: data.title,
-            description: data.description,
-            dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-            priority: data.priority,
-            assignedUserId: data.assignedUserId,
-          },
-        },
-      });
-    } catch (error) {
-      console.error("Failed to add task:", error);
-    }
-  };
-
-  const handleUpdateTask = async (id: string, data: Partial<TaskFormData>) => {
-    try {
-      await updateTask({
-        id,
-        data: {
-          title: data.title,
-          description: data.description,
-          dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-          priority: data.priority,
-          assignedUserId: data.assignedUserId,
-        },
-      });
-    } catch (error) {
-      console.error("Failed to update task:", error);
-    }
-  };
-
-  const handleDeleteTask = (id: string) => {
-    setTaskToDelete(id);
-    setIsTaskDeleteDialogOpen(true);
-  };
-
-  const onConfirmDeleteTask = async () => {
-    if (taskToDelete) {
-      try {
-        await deleteTask(taskToDelete);
-        setIsTaskDeleteDialogOpen(false);
-        setTaskToDelete(null);
-      } catch (error) {
-        console.error("Failed to delete task:", error);
-      }
-    }
-  };
-
-  const handleAddNote = async (data: { content: string }) => {
-    try {
-      await createLeadActivity({
-        leadId: params.id,
-        activityType: "note",
+        activityType: data.type,
         notes: {
           create: {
-            content: data.content,
-            title: "Quick Note",
+            title: data.type,
+            content: data.description,
           },
         },
       });
     } catch (error) {
-      console.error("Failed to add note:", error);
+      console.error("Failed to add activity:", error);
+      throw error;
+    }
+  };
+
+  const handleArchive = async () => {
+    try {
+      await deleteLead(params.id);
+      router.push("/leads");
+    } catch (error) {
+      console.error("Failed to archive lead:", error);
     }
   };
 
@@ -473,35 +271,18 @@ export default function LeadDetailPage() {
             lead={lead}
             onEditClick={handleOpenEdit}
             onConvertClick={handleOpenConvert}
+            onArchiveClick={() => setIsArchiveDialogOpen(true)}
           />
-
-          <div className="flex flex-col-reverse md:flex-row flex-1 overflow-hidden">
-            <LeadTabs
-              leadId={lead.id}
-              callLogs={callLogs}
-              activities={activities}
-              tasks={tasks}
-              notes={notes}
-              attachments={attachments}
-              onAddCallLog={handleAddCallLog}
-              onAddTask={handleAddTask}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onAddNote={handleAddNote}
-              onAddAttachment={handleAddAttachment}
-            />
-            <LeadDetailsSidebar lead={lead} />
+          <div className="flex-1 overflow-y-auto bg-[#FAFBFC] p-4">
+            <div className="mx-auto max-w-[1500px] space-y-3">
+              <LeadSummary lead={lead} />
+              <LeadTabs lead={lead} stages={pipelineStages.data ?? []} attachments={attachments} onAddActivity={handleAddActivity} onAddAttachment={handleAddAttachment} />
+            </div>
           </div>
         </div>
       </SidebarInset>
 
-      <ConfirmModal
-        isOpen={isTaskDeleteDialogOpen}
-        onClose={() => setIsTaskDeleteDialogOpen(false)}
-        onConfirm={onConfirmDeleteTask}
-        title="Delete Task"
-        description="Are you sure you want to delete this task? This action cannot be undone."
-      />
+      <ConfirmModal isOpen={isArchiveDialogOpen} onClose={() => setIsArchiveDialogOpen(false)} onConfirm={handleArchive} title="Arsipkan Lead" description="Lead akan disembunyikan dari daftar aktif. Data aktivitas dan dokumen tetap tersimpan." loading={isDeleting} />
 
       {/* Edit Lead Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -650,6 +431,21 @@ export default function LeadDetailPage() {
                     label: s.name,
                   }))}
                   disabled={sources.length === 0}
+                />
+                <FormSelect
+                  name="priority"
+                  label="Prioritas"
+                  className="col-span-1"
+                  options={[
+                    { value: "LOW", label: "Rendah" },
+                    { value: "MEDIUM", label: "Sedang" },
+                    { value: "HIGH", label: "Tinggi" },
+                  ]}
+                  placeholder="Pilih prioritas"
+                />
+                <LeadLabelMultiSelect
+                  labels={leadLabels}
+                  isLoading={leadLabelsQuery.isLoading}
                 />
               </div>
               <div className="col-span-2">

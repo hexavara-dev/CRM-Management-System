@@ -163,7 +163,7 @@ export default function LeadsLabelPage() {
                     {rows.map((label) => (
                       <TableRow key={label.id}>
                         <TableCell className="max-w-56">
-                          <LabelBadge name={label.name} color={label.color} />
+                          <LabelBadge name={label.name} color={label.color} icon={label.icon} />
                         </TableCell>
                         <TableCell>
                           <span className="inline-flex items-center gap-2 font-mono text-sm">

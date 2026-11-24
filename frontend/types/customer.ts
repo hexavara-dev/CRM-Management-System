@@ -9,6 +9,7 @@ export interface Customer {
   phoneNumber?: string;
   email?: string;
   gender?: string;
+  age?: number;
   salutation?: string;
   attachedDocument?: string;
   location?: string;
