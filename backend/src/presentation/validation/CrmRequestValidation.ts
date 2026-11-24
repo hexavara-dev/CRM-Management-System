@@ -18,20 +18,27 @@ const leadCreateRules: Record<string, FieldRule> = {
   firstName: { ...text(100), required: true },
   lastName: optionalText(100),
   email: optionalText(255),
-  phone: optionalText(30),
+  phone: { ...text(30), required: true },
+  age: { type: 'number', integer: true, min: 0, max: 120 },
   company: optionalText(150),
-  statusId: id(),
-  sourceId: id(),
-  sourceUserId: id(),
+  statusId: { ...id(), required: true, allowEmpty: false },
+  sourceId: { ...id(), required: true, allowEmpty: false },
   assignedUserId: id(),
+  labelIds: { type: 'array', max: 20 },
   notes: optionalText(10000),
   type: optionalText(50),
-  gender: optionalText(20),
+  gender: { type: 'string', allowEmpty: true, values: ['male', 'female'] },
   salutation: optionalText(20),
   organizationName: optionalText(150),
   organizationLocation: optionalText(500),
   location: optionalText(500),
   locationId: id(),
+  projectId: id(),
+  productVariantId: id(),
+  campaignId: id(),
+  budget: { type: 'number', min: 0, max: 9_999_999_999_999.99 },
+  priority: { type: 'string', values: ['LOW', 'MEDIUM', 'HIGH'] },
+  createDeal: { type: 'boolean' },
   source: optionalText(50),
 };
 
@@ -39,6 +46,7 @@ const leadUpdateRules: Record<string, FieldRule> = {
   assignedUserId: id(),
   stageId: id(),
   statusId: id(),
+  labelIds: { type: 'array', max: 20 },
   locationId: id(),
   statusName: optionalText(100),
   type: optionalText(50),
@@ -48,12 +56,18 @@ const leadUpdateRules: Record<string, FieldRule> = {
   lastName: optionalText(100),
   email: optionalText(255),
   phone: optionalText(30),
-  gender: optionalText(20),
+  age: { type: 'number', integer: true, min: 0, max: 120 },
+  gender: { type: 'string', allowEmpty: true, values: ['male', 'female'] },
   salutation: optionalText(20),
   location: optionalText(500),
   sourceId: id(),
   organizationName: optionalText(150),
   organizationLocation: optionalText(500),
+  projectId: id(),
+  productVariantId: id(),
+  campaignId: id(),
+  budget: { type: 'number', min: 0, max: 9_999_999_999_999.99 },
+  priority: { type: 'string', values: ['LOW', 'MEDIUM', 'HIGH'] },
 };
 
 const dealRules: Record<string, FieldRule> = {
@@ -130,10 +144,50 @@ const accountUpdateRules: Record<string, FieldRule> = {
 
 const options = { allowUnknown: ['tenantId'] as const };
 
+const validateLeadLabelIds = (data: Record<string, unknown>) => {
+  if (data.labelIds === undefined) return data;
+  const labelIds = data.labelIds as unknown[];
+  if (labelIds.length > 20) throw new Error('labelIds must contain at most 20 items');
+  if (!labelIds.every((value) => typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value))) {
+    throw new Error('labelIds must contain valid IDs');
+  }
+  if (new Set(labelIds).size !== labelIds.length) {
+    throw new Error('labelIds must not contain duplicates');
+  }
+  return data;
+};
+
+const normalizeAndValidateLead = (data: Record<string, unknown>) => {
+  for (const field of ['firstName', 'lastName', 'email', 'phone', 'location', 'notes']) {
+    if (typeof data[field] === 'string') data[field] = data[field].trim();
+  }
+
+  const email = data.email as string | undefined;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('email must be a valid email address');
+  }
+
+  const phone = data.phone as string | undefined;
+  if (phone) {
+    if (!/^\+?[0-9\s().-]+$/.test(phone) || phone.replace(/\D/g, '').length < 7) {
+      throw new Error('phone must be a valid phone number');
+    }
+  }
+
+  if (data.productVariantId && !data.projectId) {
+    throw new Error('projectId is required when productVariantId is provided');
+  }
+  if (data.campaignId && !data.sourceId) {
+    throw new Error('sourceId is required when campaignId is provided');
+  }
+
+  return validateLeadLabelIds(data);
+};
+
 export const validateLeadCreate = (body: unknown) =>
-  validateBody(body, leadCreateRules, options);
+  normalizeAndValidateLead(validateBody(body, leadCreateRules, options));
 export const validateLeadUpdate = (body: unknown) =>
-  validateBody(body, leadUpdateRules, { ...options, partial: true });
+  normalizeAndValidateLead(validateBody(body, leadUpdateRules, { ...options, partial: true }));
 export const validateDealCreate = (body: unknown) => validateBody(body, dealRules, options);
 export const validateDealUpdate = (body: unknown) =>
   validateBody(body, dealRules, { ...options, partial: true });
@@ -168,6 +222,12 @@ export const validateLeadConversion = (body: unknown) =>
 
 export const validateRequiredName = (body: unknown, field: 'statusName' | 'stageName') =>
   validateBody(body, { [field]: { type: 'string', required: true, max: 100 } });
+
+export const validateLeadStageChange = (body: unknown) =>
+  validateBody(body, {
+    stageName: { type: 'string', required: true, max: 100 },
+    evidenceAttachmentIds: { type: 'array' },
+  }) as { stageName: string; evidenceAttachmentIds?: unknown[] };
 
 export const validateViewingFailure = (body: unknown) =>
   validateBody(body, { reason: { type: 'string', required: true, max: 1000 } });

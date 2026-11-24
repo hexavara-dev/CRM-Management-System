@@ -1,5 +1,6 @@
 import { LeadUseCases } from '../../src/usecases/lead/LeadUseCases.js';
 import type { IRepository } from '../../src/domain/repositories/IRepository.js';
+import { jest } from '@jest/globals';
 
 class MockLeadRepository implements IRepository<any> {
   private db: Record<string, any> = {};
@@ -81,5 +82,167 @@ describe('LeadUseCases', () => {
 
     const leads = await leadUseCases.getAllLeads('tenant-1');
     expect(leads.data).toHaveLength(2);
+  });
+
+  it('prevents a member from reading another sales user lead', async () => {
+    const created = await mockRepo.create({ tenantId: 'tenant-1', assignedUserId: 'sales-1' });
+    await expect(
+      leadUseCases.getLead(created.id, 'tenant-1', 'member', 'sales-2')
+    ).rejects.toThrow(/Unauthorized/);
+  });
+
+  it('requires matching tenant-owned evidence before entering a protected stage', async () => {
+    const created = await mockRepo.create({ tenantId: 'tenant-1', assignedUserId: 'sales-1' });
+    const prisma = {
+      stage: {
+        findFirst: async () => ({
+          id: 'stage-qualified',
+          name: 'Qualified',
+          evidences: [
+            { name: 'Bukti KTP', isRequired: true, fileTypes: ['PDF'] },
+          ],
+        }),
+      },
+      attachment: {
+        findMany: async () => [
+          {
+            id: '11111111-1111-1111-1111-111111111111',
+            fileType: 'application/pdf',
+          },
+        ],
+      },
+      auditLog: {
+        findMany: async () => [],
+      },
+    };
+    const useCases = new LeadUseCases(
+      mockRepo as any,
+      mockRepo as any,
+      undefined,
+      undefined,
+      mockRepo as any,
+      undefined,
+      undefined,
+      prisma as any
+    );
+
+    await expect(
+      useCases.setStage(created.id, 'Qualified', 'tenant-1', [], 'member', 'sales-1')
+    ).rejects.toThrow(/evidence is missing/i);
+
+    const updated = await useCases.setStage(
+      created.id,
+      'Qualified',
+      'tenant-1',
+      ['11111111-1111-1111-1111-111111111111'],
+      'member',
+      'sales-1'
+    );
+    expect(updated.stageId).toBe('stage-qualified');
+  });
+
+  it('creates Lead and Deal atomically with all Add Lead relations', async () => {
+    const leadCreate = jest.fn(async ({ data }) => ({ id: 'lead-1', ...data }));
+    const dealCreate = jest.fn(async ({ data }) => ({ id: 'deal-1', ...data }));
+    const tx = {
+      lead: { create: leadCreate },
+      deal: { create: dealCreate },
+    };
+    const prisma = {
+      user: { findFirst: jest.fn(async () => ({ id: 'user-1' })) },
+      stage: { findFirst: jest.fn(async () => ({ id: 'stage-1' })) },
+      status: { findFirst: jest.fn(async () => ({ id: 'status-1' })) },
+      source: { findFirst: jest.fn(async () => ({ id: 'source-1' })) },
+      location: { findFirst: jest.fn() },
+      product: { findFirst: jest.fn(async () => ({ id: 'project-1' })) },
+      productVariant: { findFirst: jest.fn(async () => ({ id: 'variant-1' })) },
+      leadCampaign: { findFirst: jest.fn(async () => ({ id: 'campaign-1' })) },
+      leadLabel: {
+        findMany: jest.fn(async () => [{ id: 'label-1', type: 'TEMPERATURE' }]),
+      },
+      $transaction: jest.fn(async (callback) => callback(tx)),
+    };
+    const useCases = new LeadUseCases(
+      mockRepo as any,
+      mockRepo as any,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      prisma as any,
+    );
+
+    const lead = await useCases.createLead({
+      tenantId: 'tenant-1',
+      firstName: 'Budi Santoso',
+      phone: '+628123456789',
+      age: 35,
+      assignedUserId: 'user-1',
+      statusId: 'status-1',
+      sourceId: 'source-1',
+      projectId: 'project-1',
+      productVariantId: 'variant-1',
+      campaignId: 'campaign-1',
+      budget: 550_000_000,
+      labelIds: ['label-1'],
+      createDeal: true,
+    });
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(leadCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        budget: 550_000_000,
+        converted: true,
+        project: { connect: { id: 'project-1' } },
+        productVariant: { connect: { id: 'variant-1' } },
+        campaign: { connect: { id: 'campaign-1' } },
+        customer: { create: expect.objectContaining({ age: 35 }) },
+      }),
+    }));
+    expect(dealCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        lead: { connect: { id: 'lead-1' } },
+        expectedAmount: 550_000_000,
+        currency: 'IDR',
+      }),
+    });
+    expect(lead).toHaveProperty('id', 'lead-1');
+  });
+
+  it('rejects a product variant or campaign outside the selected parent', async () => {
+    const prisma = {
+      user: { findFirst: jest.fn(async () => ({ id: 'user-1' })) },
+      stage: { findFirst: jest.fn(async () => ({ id: 'stage-1' })) },
+      status: { findFirst: jest.fn(async () => ({ id: 'status-1' })) },
+      source: { findFirst: jest.fn(async () => ({ id: 'source-1' })) },
+      location: { findFirst: jest.fn() },
+      product: { findFirst: jest.fn(async () => ({ id: 'project-1' })) },
+      productVariant: { findFirst: jest.fn(async () => null) },
+      leadCampaign: { findFirst: jest.fn(async () => null) },
+      leadLabel: { findMany: jest.fn(async () => []) },
+    };
+    const useCases = new LeadUseCases(
+      mockRepo as any,
+      mockRepo as any,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      prisma as any,
+    );
+
+    await expect(useCases.createLead({
+      tenantId: 'tenant-1',
+      firstName: 'Budi',
+      phone: '08123456789',
+      assignedUserId: 'user-1',
+      statusId: 'status-1',
+      sourceId: 'source-1',
+      projectId: 'project-1',
+      productVariantId: 'variant-from-another-project',
+      campaignId: 'campaign-from-another-source',
+    })).rejects.toThrow(/Product variant not found/i);
   });
 });

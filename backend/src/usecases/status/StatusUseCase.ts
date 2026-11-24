@@ -147,6 +147,21 @@ export class StatusUseCase {
     if (status.isSystemStatus) {
       throw new Error('Cannot delete a system default status');
     }
+    if (status.isDefaultStatus || status.isClosingStatus) {
+      throw new Error('Default and closing statuses cannot be deleted (conflict)');
+    }
+    if (this.prisma) {
+      const [leadCount, dealCount, viewingCount] = await Promise.all([
+        this.prisma.lead.count({ where: { tenantId, statusId: id } }),
+        this.prisma.deal.count({ where: { tenantId, statusId: id } }),
+        this.prisma.viewing.count({ where: { tenantId, statusId: id } }),
+      ]);
+      if (leadCount + dealCount + viewingCount > 0) {
+        throw new Error(
+          `Status is still used by ${leadCount} Leads, ${dealCount} Deals, and ${viewingCount} Visits; reassign them before deleting (conflict)`
+        );
+      }
+    }
     return this.statusRepository.delete(id);
   }
 }

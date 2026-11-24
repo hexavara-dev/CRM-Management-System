@@ -6,6 +6,7 @@ import { parsePagination, parseSearch } from '../../infrastructure/utils/Request
 import {
   validateLeadConversion,
   validateLeadCreate,
+  validateLeadStageChange,
   validateLeadUpdate,
   validateRequiredName,
 } from '../validation/CrmRequestValidation.js';
@@ -18,7 +19,10 @@ export class LeadController {
       const { userId: currentUserId, tenantId } = (req as any).user || {};
       if (!tenantId) return res.status(401).json({ error: 'Tenant context missing' });
       const body = validateLeadCreate(req.body);
-      const result = await this.leadUseCases.createLead({ ...body, tenantId } as any, currentUserId);
+      const result = await this.leadUseCases.createLead(
+        { ...body, tenantId, sourceUserId: currentUserId } as any,
+        currentUserId
+      );
       return res.status(201).json(result);
     } catch (error: any) {
       return respondWithError(res, error);
@@ -27,8 +31,8 @@ export class LeadController {
 
   async getById(req: Request, res: Response) {
     try {
-      const tenantId = (req as any).user?.tenantId;
-      const result = await this.leadUseCases.getLead(req.params.id as string, tenantId);
+      const { tenantId, role, userId } = (req as any).user || {};
+      const result = await this.leadUseCases.getLead(req.params.id as string, tenantId, role, userId);
       return res.status(200).json(result);
     } catch (error: any) {
       return respondWithError(res, error);
@@ -56,8 +60,8 @@ export class LeadController {
 
   async delete(req: Request, res: Response) {
     try {
-      const tenantId = (req as any).user?.tenantId;
-      const result = await this.leadUseCases.deleteLead(req.params.id as string, tenantId);
+      const { tenantId, role, userId } = (req as any).user || {};
+      const result = await this.leadUseCases.deleteLead(req.params.id as string, tenantId, role, userId);
       return res.status(200).json(result);
     } catch (error: any) {
       return respondWithError(res, error);
@@ -66,7 +70,7 @@ export class LeadController {
 
   async getAll(req: Request, res: Response) {
     try {
-      const { tenantId } = (req as any).user || {};
+      const { tenantId, role, userId } = (req as any).user || {};
       if (!tenantId) {
         return res.status(401).json({ error: 'Tenant context missing' });
       }
@@ -75,7 +79,15 @@ export class LeadController {
       const search = parseSearch(req.query as Record<string, unknown>);
       const filters = extractFilters(req.query);
 
-      const result = await this.leadUseCases.getAllLeads(tenantId, page, limit, filters, search);
+      const result = await this.leadUseCases.getAllLeads(
+        tenantId,
+        page,
+        limit,
+        filters,
+        search,
+        role,
+        userId
+      );
       return res.status(200).json(result);
     } catch (error: any) {
       return respondWithError(res, error);
@@ -84,9 +96,15 @@ export class LeadController {
 
   async convert(req: Request, res: Response) {
     try {
-      const tenantId = (req as any).user?.tenantId;
+      const { tenantId, role, userId } = (req as any).user || {};
       const body = validateLeadConversion(req.body);
-      const result = await this.leadUseCases.convertLeadToDeal(req.params.id as string, body, tenantId);
+      const result = await this.leadUseCases.convertLeadToDeal(
+        req.params.id as string,
+        body,
+        tenantId,
+        role,
+        userId
+      );
       return res.status(200).json(result);
     } catch (error: any) {
       return respondWithError(res, error);
@@ -95,7 +113,7 @@ export class LeadController {
 
   async setStatus(req: Request, res: Response) {
     try {
-      const tenantId = (req as any).user?.tenantId;
+      const { tenantId, role, userId } = (req as any).user || {};
       if (!tenantId) {
         return res.status(401).json({ error: 'Tenant context missing' });
       }
@@ -103,7 +121,9 @@ export class LeadController {
       const result = await this.leadUseCases.setStatus(
         req.params.id as string,
         body.statusName as string,
-        tenantId
+        tenantId,
+        role,
+        userId
       );
       return res.status(200).json(result);
     } catch (error: any) {
@@ -113,15 +133,26 @@ export class LeadController {
 
   async setStage(req: Request, res: Response) {
     try {
-      const tenantId = (req as any).user?.tenantId;
+      const { tenantId, role, userId } = (req as any).user || {};
       if (!tenantId) {
         return res.status(401).json({ error: 'Tenant context missing' });
       }
-      const body = validateRequiredName(req.body, 'stageName');
+      const body = validateLeadStageChange(req.body);
+      const evidenceAttachmentIds = body.evidenceAttachmentIds ?? [];
+      if (
+        !evidenceAttachmentIds.every(
+          (id): id is string => typeof id === 'string' && /^[0-9a-f-]{36}$/i.test(id)
+        )
+      ) {
+        throw new Error('evidenceAttachmentIds must contain valid IDs');
+      }
       const result = await this.leadUseCases.setStage(
         req.params.id as string,
-        body.stageName as string,
-        tenantId
+        body.stageName,
+        tenantId,
+        evidenceAttachmentIds,
+        role,
+        userId
       );
       return res.status(200).json(result);
     } catch (error: any) {
