@@ -51,7 +51,7 @@ export function DealDetailsSidebar({ deal }: DealDetailsSidebarProps) {
                     Deal Value
                   </p>
                   <p className="text-sm font-medium">
-                    {formatRupiah(Number(deal.amount) || 0)}
+                    {formatRupiah(Number(deal.amount ?? deal.expectedAmount) || 0)}
                   </p>
                 </div>
               </div>

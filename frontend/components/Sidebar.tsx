@@ -256,10 +256,6 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
           url: "/deals",
           icon: Handshake,
           visible: true,
-          children: [
-            { title: "Daftar Deals", url: "/deals", icon: DollarSign },
-            { title: "Deals Pipeline", url: "/pipeline", icon: Columns3 },
-          ],
         },
         {
           title: "CRM Configuration",

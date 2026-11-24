@@ -241,8 +241,8 @@ export async function seedReservationData(
     throw new Error('At least one sales user is required for reservation seed data.');
 
   const seededUnits: { id: string; index: number; price: bigint }[] = [];
-  const seededBlocks: { variantId: string; categoryId: string; code: string }[] = [];
-  const variantIds = new Set<string>();
+  const seededBlocks: { variantId: string; typeVariantId: string; categoryId: string; code: string }[] = [];
+  const typeVariantIds = new Set<string>();
 
   for (const [projectIndex, projectDefinition] of projectDefinitions.entries()) {
     const demoLocation = demoLocations[projectIndex];
@@ -313,26 +313,33 @@ export async function seedReservationData(
     for (const [variantIndex, definition] of projectDefinition.variants.entries()) {
       const existing = existingVariants.find((variant) => variant.name === definition.name);
       const legacyToRename = !existing && variantIndex === 0 ? legacyStandardVariant : undefined;
-      const basePrice = BigInt(definition.basePrice);
       const variant = existing
-        ? await prisma.productVariant.update({
-            where: { id: existing.id },
-            data: { basePrice, currentPrice: basePrice },
-          })
+        ? existing
         : legacyToRename
           ? await prisma.productVariant.update({
               where: { id: legacyToRename.id },
-              data: { name: definition.name, basePrice, currentPrice: basePrice },
+              data: { name: definition.name },
             })
           : await prisma.productVariant.create({
               data: {
                 tenantId,
                 productId: product.id,
                 name: definition.name,
-                basePrice,
-                currentPrice: basePrice,
               },
             });
+      const basePrice = BigInt(definition.basePrice);
+      const typeVariant = await prisma.productTypeVariant.upsert({
+        where: { productVariantId_name: { productVariantId: variant.id, name: 'Standard' } },
+        update: { basePrice, currentPrice: basePrice },
+        create: {
+          tenantId,
+          productVariantId: variant.id,
+          name: 'Standard',
+          basePrice,
+          currentPrice: basePrice,
+          stock: 0,
+        },
+      });
 
       for (const [attributeIndex, attributeDefinition] of variantAttributeDefinitions.entries()) {
         const attribute = await prisma.attribute.upsert({
@@ -384,8 +391,8 @@ export async function seedReservationData(
         }
       }
 
-      variants.push(variant);
-      variantIds.add(variant.id);
+      variants.push({ id: variant.id, typeVariantId: typeVariant.id });
+      typeVariantIds.add(typeVariant.id);
     }
 
     for (let clusterOffset = 0; clusterOffset < 2; clusterOffset += 1) {
@@ -410,7 +417,7 @@ export async function seedReservationData(
           parentId: cluster.id,
         });
         const variant = variants[blockOffset % variants.length]!;
-        seededBlocks.push({ variantId: variant.id, categoryId: blockCategory.id, code: block });
+        seededBlocks.push({ variantId: variant.id, typeVariantId: variant.typeVariantId, categoryId: blockCategory.id, code: block });
 
         for (let unitOffset = 0; unitOffset < 5; unitOffset += 1) {
           const index = seededUnits.length;
@@ -419,10 +426,11 @@ export async function seedReservationData(
           const reservationStatus = getReservationStatus(index);
           const unit = await prisma.productUnit.upsert({
             where: { tenantId_code: { tenantId, code: unitCode } },
-            update: { variantId: variant.id },
+            update: { variantId: variant.id, typeVariantId: variant.typeVariantId, categoryId: blockCategory.id },
             create: {
               tenantId,
               variantId: variant.id,
+              typeVariantId: variant.typeVariantId,
               categoryId: blockCategory.id,
               code: unitCode,
               name: `Unit ${unitCode}`,
@@ -441,10 +449,11 @@ export async function seedReservationData(
       const unitCode = `${block.code}-AV-${String(blockIndex * additionalAvailableUnitsPerBlock + offset + 1).padStart(3, '0')}`;
       const unit = await prisma.productUnit.upsert({
         where: { tenantId_code: { tenantId, code: unitCode } },
-        update: { variantId: block.variantId },
+        update: { variantId: block.variantId, typeVariantId: block.typeVariantId, categoryId: block.categoryId },
         create: {
           tenantId,
           variantId: block.variantId,
+          typeVariantId: block.typeVariantId,
           categoryId: block.categoryId,
           code: unitCode,
           name: `Unit ${unitCode}`,
@@ -455,10 +464,10 @@ export async function seedReservationData(
     }
   }
 
-  for (const variantId of variantIds) {
-    const unitCount = await prisma.productUnit.count({ where: { tenantId, variantId } });
-    await prisma.productVariant.updateMany({
-      where: { id: variantId, tenantId },
+  for (const typeVariantId of typeVariantIds) {
+    const unitCount = await prisma.productUnit.count({ where: { tenantId, typeVariantId } });
+    await prisma.productTypeVariant.update({
+      where: { id: typeVariantId },
       data: { stock: unitCount },
     });
   }

@@ -70,6 +70,9 @@ const dealRules: Record<string, FieldRule> = {
   closingDate: { type: 'date', nullable: true },
   lostReason: optionalText(500, true),
   lostNotes: optionalText(10000, true),
+  unitId: id(true),
+  paymentMethod: { type: 'string', values: ['CASH', 'KPR', 'KPR_SHARIA'] },
+  bankName: optionalText(150, true),
 };
 
 const viewingRules: Record<string, FieldRule> = {

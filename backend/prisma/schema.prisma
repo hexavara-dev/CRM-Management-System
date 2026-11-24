@@ -272,6 +272,9 @@ model Deal {
   closingDate         DateTime?      @map("closing_date") @db.Date
   lostReason          String?        @map("lost_reason")
   lostNotes           String?        @map("lost_notes")
+  unitId              String?        @map("unit_id") @db.VarChar(36)
+  paymentMethod       DealPaymentMethod @default(CASH) @map("payment_method")
+  bankName            String?        @map("bank_name") @db.VarChar(150)
   createdAt           DateTime       @default(now()) @map("created_at") @db.DateTime(6)
   confirmedAt         DateTime?      @map("confirmed_at") @db.DateTime(6)
   assignedUser        User?          @relation("UserAssignedDeals", fields: [assignedUserId], references: [id])
@@ -284,8 +287,15 @@ model Deal {
   attachments         Attachment[]
   source              Source?        @relation(fields: [sourceId], references: [id])
   sourceId            String?        @db.VarChar(36)
+  unit                ProductUnit?   @relation(fields: [unitId], references: [id], onDelete: Restrict)
 
   @@map("deal")
+}
+
+enum DealPaymentMethod {
+  CASH
+  KPR
+  KPR_SHARIA
 }
 
 model LeadActivity {
@@ -858,6 +868,7 @@ model ProductUnit {
   media            ProductMedia[]
   priceAdjustments UnitPriceAdjustment[]
   reservations     Reservation[]
+  deals            Deal[]
 
   @@unique([tenantId, code])
   @@index([variantId])
