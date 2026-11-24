@@ -12,6 +12,8 @@ export interface CreateDealDTO {
   unitId?: string;
   paymentMethod?: 'CASH' | 'KPR' | 'KPR_SHARIA';
   bankName?: string | null;
+  notes?: string | null;
+  financingBankId?: string | null;
 }
 
 export interface UpdateDealDTO {
@@ -30,4 +32,6 @@ export interface UpdateDealDTO {
   unitId?: string | null;
   paymentMethod?: 'CASH' | 'KPR' | 'KPR_SHARIA';
   bankName?: string | null;
+  notes?: string | null;
+  financingBankId?: string | null;
 }

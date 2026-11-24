@@ -1,6 +1,13 @@
 "use client";
+import { LabelBadge } from "@/app/crm-configuration/leads-label/label-icons";
+import { LeadLabelMultiSelect } from "@/app/leads/components/lead-label-multi-select";
+import {
+  type LeadDateRange,
+  LeadsPipelineTab,
+} from "@/app/leads/components/leads-pipeline-tab";
 import { AppSidebar } from "@/components/Sidebar";
-import { LeadsPipelineTab, type LeadDateRange } from "@/app/leads/components/leads-pipeline-tab";
+import { useAuth } from "@/components/auth/auth-provider";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
@@ -30,14 +37,22 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useLeadsTable } from "@/hooks/use-leads-table";
-import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useLeadCampaigns } from "@/hooks/use-lead-campaigns";
+import { useLeadLabels } from "@/hooks/use-lead-labels";
+import { useLeadsTable } from "@/hooks/use-leads-table";
 import { useLocations } from "@/hooks/use-locations";
-import { useProject, useProjects } from "@/hooks/use-projects";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
-import { ConvertDealFormData } from "@/schemas/convert.schema";
-import { LeadCreateFormData, LeadCreateFormInput, LeadFormData, LeadFormInput, leadCreateFormSchema, leadFormSchema } from "@/schemas/lead.schema";
+import { useProject, useProjects } from "@/hooks/use-projects";
+import { useSources } from "@/hooks/use-sources";
+import { useUsers } from "@/hooks/use-users";
+import {
+  LeadCreateFormData,
+  LeadCreateFormInput,
+  LeadFormData,
+  LeadFormInput,
+  leadCreateFormSchema,
+  leadFormSchema,
+} from "@/schemas/lead.schema";
 import { Lead } from "@/types/lead";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -45,11 +60,10 @@ import {
   ArrowUpDown,
   CalendarDays,
   CircleDollarSign,
-  Columns3,
   Clock3,
+  Columns3,
   Crosshair,
   Home,
-  Info,
   List,
   Mail,
   MapPin,
@@ -65,12 +79,6 @@ import {
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
-import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/components/auth/auth-provider";
-import { useUsers } from "@/hooks/use-users";
-import { useSources } from "@/hooks/use-sources";
-import { LabelBadge } from "@/app/crm-configuration/leads-label/label-icons";
-import { LeadLabelMultiSelect } from "@/app/leads/components/lead-label-multi-select";
 
 const formatLeadDate = (value?: string) =>
   value
@@ -96,8 +104,7 @@ const getDaysSince = (value: string) =>
   Math.max(
     0,
     Math.floor(
-      (new Date().setHours(0, 0, 0, 0) -
-        new Date(value).setHours(0, 0, 0, 0)) /
+      (new Date().setHours(0, 0, 0, 0) - new Date(value).setHours(0, 0, 0, 0)) /
         86_400_000,
     ),
   );
@@ -118,39 +125,35 @@ export default function LeadsPage() {
   const [salesFilter, setSalesFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [prospectFilter, setProspectFilter] = useState("all");
-  const [pipelineDateRange, setPipelineDateRange] = useState<LeadDateRange>(() => {
-    const now = new Date();
-    const formatDate = (date: Date) =>
-      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    return {
-      from: formatDate(new Date(now.getFullYear(), now.getMonth(), 1)),
-      to: formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-    };
-  });
+  const [pipelineDateRange, setPipelineDateRange] = useState<LeadDateRange>(
+    () => {
+      const now = new Date();
+      const formatDate = (date: Date) =>
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      return {
+        from: formatDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+        to: formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+      };
+    },
+  );
   const deferredSearch = useDeferredValue(search.trim());
 
-  const {
-    leads,
-    isLoading,
-    createLead,
-    updateLead,
-    convertToDeal,
-    isConverting,
-    serverPagination,
-  } = useLeadsTable({
-    filters: {
-      search: deferredSearch || undefined,
-      stageId: stageFilter === "all" ? undefined : stageFilter,
-      assignedUserId: salesFilter === "all" ? undefined : salesFilter,
-      sourceId: sourceFilter === "all" ? undefined : sourceFilter,
-      labelId:
-        prospectFilter === "all" ? undefined : prospectFilter,
-    },
-  });
+  const { leads, isLoading, createLead, updateLead, serverPagination } =
+    useLeadsTable({
+      filters: {
+        search: deferredSearch || undefined,
+        stageId: stageFilter === "all" ? undefined : stageFilter,
+        assignedUserId: salesFilter === "all" ? undefined : salesFilter,
+        sourceId: sourceFilter === "all" ? undefined : sourceFilter,
+        labelId: prospectFilter === "all" ? undefined : prospectFilter,
+      },
+    });
   const { user } = useAuth();
 
   const pipelineStagesQuery = usePipelineStages("lead");
-  const stages = (pipelineStagesQuery.data ?? []).filter((stage) => stage.isActive);
+  const stages = (pipelineStagesQuery.data ?? []).filter(
+    (stage) => stage.isActive,
+  );
   const { locations } = useLocations();
   const { users } = useUsers();
   const { sources } = useSources({
@@ -165,11 +168,9 @@ export default function LeadsPage() {
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
 
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const router = useRouter();
-
 
   const columns = useMemo<ColumnDef<Lead>[]>(
     () => [
@@ -220,7 +221,8 @@ export default function LeadsPage() {
       {
         id: "prospect",
         header: "Prospek",
-        accessorFn: (row) => row.labels?.map((label) => label.name).join(", ") || "-",
+        accessorFn: (row) =>
+          row.labels?.map((label) => label.name).join(", ") || "-",
         cell: ({ row }) =>
           row.original.labels?.length ? (
             <div className="flex min-w-52 flex-wrap gap-1.5">
@@ -296,7 +298,9 @@ export default function LeadsPage() {
                 ? "bg-[#FFF3E0] text-[#C66A00]"
                 : "bg-[#FFE7E7] text-[#D92D20]";
           return (
-            <span className={`whitespace-nowrap rounded-md px-2 py-1 text-xs ${tone}`}>
+            <span
+              className={`whitespace-nowrap rounded-md px-2 py-1 text-xs ${tone}`}
+            >
               {days} hari
             </span>
           );
@@ -376,7 +380,6 @@ export default function LeadsPage() {
       productVariantId: "",
       campaignId: "",
       budget: undefined,
-      createDeal: false,
       assignedUserId: "",
       sourceId: "",
       labelIds: [],
@@ -385,19 +388,22 @@ export default function LeadsPage() {
   });
   const selectedLeadSourceId = addForm.watch("sourceId");
   const selectedProjectId = addForm.watch("projectId");
-  const createDeal = addForm.watch("createDeal") ?? false;
   const projectsQuery = useProjects({ page: 1, limit: 100, isActive: true });
   const selectedProjectQuery = useProject(selectedProjectId || undefined);
   const campaignsQuery = useLeadCampaigns(selectedLeadSourceId || undefined);
-  const campaigns = (campaignsQuery.data ?? []).filter((campaign) => campaign.isActive);
+  const campaigns = (campaignsQuery.data ?? []).filter(
+    (campaign) => campaign.isActive,
+  );
   const projectOptions = (projectsQuery.data?.data ?? []).map((project) => ({
     value: project.id,
     label: project.name,
   }));
-  const productVariantOptions = (selectedProjectQuery.data?.variants ?? []).map((variant) => ({
-    value: variant.id,
-    label: variant.name,
-  }));
+  const productVariantOptions = (selectedProjectQuery.data?.variants ?? []).map(
+    (variant) => ({
+      value: variant.id,
+      label: variant.name,
+    }),
+  );
 
   useEffect(() => {
     addForm.setValue("productVariantId", "");
@@ -433,21 +439,12 @@ export default function LeadsPage() {
     },
   });
 
-  const convertForm = useForm({
-    defaultValues: {
-      expectedAmount: 0,
-      currency: "IDR",
-    },
-  });
-
   const onSubmitAdd = async (data: LeadCreateFormData) => {
     try {
       await createLead({
         ...data,
         assignedUserId:
-          user?.role === "owner"
-            ? data.assignedUserId || user.id
-            : user?.id,
+          user?.role === "owner" ? data.assignedUserId || user.id : user?.id,
       });
       addForm.reset();
       setIsAddDialogOpen(false);
@@ -471,21 +468,6 @@ export default function LeadsPage() {
         setSelectedLead(null);
       } catch (error) {
         console.error("Failed to update lead:", error);
-      }
-    }
-  };
-
-  const onSubmitConvert = async (data: ConvertDealFormData) => {
-    if (selectedLead) {
-      try {
-        await convertToDeal({
-          id: selectedLead.id,
-          dealData: { ...data, currency: "IDR" },
-        });
-        setIsConvertDialogOpen(false);
-        setSelectedLead(null);
-      } catch (error) {
-        console.error("Failed to convert lead:", error);
       }
     }
   };
@@ -539,90 +521,275 @@ export default function LeadsPage() {
                 Import Leads
               </Button>
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => {
-                  addForm.reset();
-                  if (user?.id) addForm.setValue("assignedUserId", user.id);
-                }}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Lead
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="grid h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-h-[860px] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-2xl border border-[#D6E4FF] bg-[#FBFCFF] p-0 shadow-2xl sm:w-[calc(100vw-4rem)] sm:max-w-[1280px]">
-                <DialogHeader className="border-b border-[#DCE7F8] bg-[linear-gradient(110deg,#F7FAFF_0%,#FFFFFF_72%)] px-6 py-5 pr-14">
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF2FF] text-[#0B63F6] shadow-sm">
-                      <UserRound className="size-5" />
-                    </span>
-                    <div>
-                      <DialogTitle className="text-xl font-bold tracking-tight text-[#121B41]">Add New Lead</DialogTitle>
-                      <DialogDescription className="mt-1 text-xs text-[#667085]">
-                        Tambah data prospek baru ke dalam sistem CRM.
-                      </DialogDescription>
-                    </div>
-                  </div>
-                </DialogHeader>
-                <FormProvider {...addForm}>
-                  <form
-                    onSubmit={addForm.handleSubmit(onSubmitAdd)}
-                    className="flex h-full min-h-0 flex-col overflow-hidden"
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      addForm.reset();
+                      if (user?.id) addForm.setValue("assignedUserId", user.id);
+                    }}
                   >
-                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 sm:px-6">
-                      <div className="grid gap-3 lg:grid-cols-2">
-                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><UserRound className="size-4 text-[#0B63F6]" />Informasi Personal</h3>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="relative sm:col-span-2"><UserRound className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="firstName" label="Nama Lengkap *" placeholder="Masukkan nama lengkap..." className="border-[#C9D9F3] pl-9" /></div>
-                            <FormSelect name="gender" label="Jenis Kelamin" options={[{ value: "male", label: "Laki-laki" }, { value: "female", label: "Perempuan" }]} placeholder="Pilih jenis kelamin" className="border-[#C9D9F3]" />
-                            <FormInput name="age" label="Umur" type="number" min={0} max={120} placeholder="Contoh: 30" className="border-[#C9D9F3]" />
-                          </div>
-                        </section>
-                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><Phone className="size-4 text-[#0B63F6]" />Informasi Kontak</h3>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="relative"><Phone className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="phone" label="Nomor Handphone *" placeholder="Contoh: 812 3456 7890" className="border-[#C9D9F3] pl-9" /></div>
-                            <div className="relative"><Mail className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="email" label="Email" type="email" placeholder="Masukkan email..." className="border-[#C9D9F3] pl-9" /></div>
-                            <div className="relative sm:col-span-2"><MapPin className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="location" label="Alamat" placeholder="Masukkan alamat lengkap..." className="border-[#C9D9F3] pl-9" /></div>
-                          </div>
-                        </section>
-                      </div>
-
-                      <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><Home className="size-4 text-[#0B63F6]" />Minat &amp; Kebutuhan</h3>
-                        <div className="grid gap-3 md:grid-cols-3">
-                          <FormSelect name="projectId" label="Project Diminati" placeholder="Pilih project" options={projectOptions} isLoading={projectsQuery.isLoading} disabled={projectOptions.length === 0} className="border-[#C9D9F3]" />
-                          <FormSelect name="productVariantId" label="Tipe Rumah" placeholder={selectedProjectId ? "Pilih tipe rumah" : "Pilih project dahulu"} options={productVariantOptions} isLoading={selectedProjectQuery.isLoading} disabled={!selectedProjectId || productVariantOptions.length === 0} className="border-[#C9D9F3]" />
-                          <div className="relative"><CircleDollarSign className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="budget" label="Budget Pembelian" currency placeholder="Contoh: Rp 550.000.000" className="border-[#C9D9F3] pl-9" /></div>
-                          <div className="md:col-span-3"><FormTextarea name="notes" label="Catatan Kebutuhan / Preferensi" placeholder="Contoh: Tertarik dengan rumah 1 lantai, area dekat fasilitas umum, dan sedang menyiapkan KPR..." rows={2} className="border-[#C9D9F3]" /></div>
-                        </div>
-                      </section>
-
-                      <div className="grid gap-3 lg:grid-cols-2">
-                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><Crosshair className="size-4 text-[#0B63F6]" />Sumber Lead</h3>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <FormSelect name="sourceId" label="Sumber Lead *" placeholder="Pilih sumber lead" options={sources.map((source) => ({ value: source.id, label: source.name }))} disabled={sources.length === 0} className="border-[#C9D9F3]" />
-                            <FormSelect name="campaignId" label="Campaign (opsional)" placeholder={selectedLeadSourceId ? "Pilih campaign" : "Pilih sumber dahulu"} options={campaigns.map((campaign) => ({ value: campaign.id, label: campaign.name || "Campaign tanpa nama" }))} isLoading={campaignsQuery.isLoading} disabled={!selectedLeadSourceId || campaigns.length === 0} className="border-[#C9D9F3]" />
-                          </div>
-                        </section>
-                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><UsersRound className="size-4 text-[#0B63F6]" />Penugasan &amp; Pipeline</h3>
-                          <div className="grid gap-3 lg:grid-cols-3">
-                            <FormSelect name="assignedUserId" label="Assigned Sales *" placeholder="Pilih sales" options={(user?.role === "owner" ? users : user ? [user] : []).map((sales) => ({ value: sales.id, label: sales.name || sales.email || "User" }))} disabled={user?.role !== "owner" || users.length === 0} className="border-[#C9D9F3]" />
-                            <FormSelect name="stageId" label="Tahapan Pipeline *" placeholder="Pilih tahapan pipeline" options={stages.map((stage) => ({ value: stage.id, label: stage.name }))} disabled={stages.length === 0} className="border-[#C9D9F3]" />
-                            <LeadLabelMultiSelect label="Status Qualified" className="col-span-1" labels={leadLabels} isLoading={leadLabelsQuery.isLoading} />
-                          </div>
-                        </section>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Lead
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="grid h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-h-[860px] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-2xl border border-[#D6E4FF] bg-[#FBFCFF] p-0 shadow-2xl sm:w-[calc(100vw-4rem)] sm:max-w-[1280px]">
+                  <DialogHeader className="border-b border-[#DCE7F8] bg-[linear-gradient(110deg,#F7FAFF_0%,#FFFFFF_72%)] px-6 py-5 pr-14">
+                    <div className="flex items-start gap-3">
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF2FF] text-[#0B63F6] shadow-sm">
+                        <UserRound className="size-5" />
+                      </span>
+                      <div>
+                        <DialogTitle className="text-xl font-bold tracking-tight text-[#121B41]">
+                          Add New Lead
+                        </DialogTitle>
+                        <DialogDescription className="mt-1 text-xs text-[#667085]">
+                          Tambah data prospek baru ke dalam sistem CRM.
+                        </DialogDescription>
                       </div>
                     </div>
-                    <DialogFooter className="mt-auto shrink-0 -mx-0 -mb-0 rounded-none border-[#DCE7F8] bg-white px-5 py-3 sm:px-6">
-                      <label className="mr-auto flex cursor-pointer items-start gap-2 text-left"><input type="checkbox" checked={createDeal} onChange={(event) => addForm.setValue("createDeal", event.target.checked, { shouldDirty: true })} className="mt-0.5 size-4 rounded border-[#AFC4E7] text-[#0B63F6]" /><span><span className="flex items-center gap-1 text-xs font-semibold text-[#243B6B]">Buat Deal Sekaligus <Info className="size-3 text-[#6C83AD]" /></span><span className="block text-[10px] text-[#667085]">Lead dan Deal dibuat dalam satu transaksi.</span></span></label>
-                      <Button type="button" variant="outline" className="border-[#C9D9F3]" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-                      <Button type="submit" className="bg-[#0B63F6] px-5 hover:bg-[#0755D6]"><Save className="size-4" />Save Lead</Button>
-                    </DialogFooter>
-                  </form>
-                </FormProvider>
-              </DialogContent>
+                  </DialogHeader>
+                  <FormProvider {...addForm}>
+                    <form
+                      onSubmit={addForm.handleSubmit(onSubmitAdd)}
+                      className="flex h-full min-h-0 flex-col overflow-hidden"
+                    >
+                      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 sm:px-6">
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
+                              <UserRound className="size-4 text-[#0B63F6]" />
+                              Informasi Personal
+                            </h3>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="relative sm:col-span-2">
+                                <UserRound className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
+                                <FormInput
+                                  name="firstName"
+                                  label="Nama Lengkap *"
+                                  placeholder="Masukkan nama lengkap..."
+                                  className="border-[#C9D9F3] pl-9"
+                                />
+                              </div>
+                              <FormSelect
+                                name="gender"
+                                label="Jenis Kelamin"
+                                options={[
+                                  { value: "male", label: "Laki-laki" },
+                                  { value: "female", label: "Perempuan" },
+                                ]}
+                                placeholder="Pilih jenis kelamin"
+                                className="border-[#C9D9F3]"
+                              />
+                              <FormInput
+                                name="age"
+                                label="Umur"
+                                type="number"
+                                min={0}
+                                max={120}
+                                placeholder="Contoh: 30"
+                                className="border-[#C9D9F3]"
+                              />
+                            </div>
+                          </section>
+                          <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
+                              <Phone className="size-4 text-[#0B63F6]" />
+                              Informasi Kontak
+                            </h3>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div className="relative">
+                                <Phone className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
+                                <FormInput
+                                  name="phone"
+                                  label="Nomor Handphone *"
+                                  placeholder="Contoh: 812 3456 7890"
+                                  className="border-[#C9D9F3] pl-9"
+                                />
+                              </div>
+                              <div className="relative">
+                                <Mail className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
+                                <FormInput
+                                  name="email"
+                                  label="Email"
+                                  type="email"
+                                  placeholder="Masukkan email..."
+                                  className="border-[#C9D9F3] pl-9"
+                                />
+                              </div>
+                              <div className="relative sm:col-span-2">
+                                <MapPin className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
+                                <FormInput
+                                  name="location"
+                                  label="Alamat"
+                                  placeholder="Masukkan alamat lengkap..."
+                                  className="border-[#C9D9F3] pl-9"
+                                />
+                              </div>
+                            </div>
+                          </section>
+                        </div>
+
+                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
+                            <Home className="size-4 text-[#0B63F6]" />
+                            Minat &amp; Kebutuhan
+                          </h3>
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <FormSelect
+                              name="projectId"
+                              label="Project Diminati"
+                              placeholder="Pilih project"
+                              options={projectOptions}
+                              isLoading={projectsQuery.isLoading}
+                              disabled={projectOptions.length === 0}
+                              className="border-[#C9D9F3]"
+                            />
+                            <FormSelect
+                              name="productVariantId"
+                              label="Tipe Rumah"
+                              placeholder={
+                                selectedProjectId
+                                  ? "Pilih tipe rumah"
+                                  : "Pilih project dahulu"
+                              }
+                              options={productVariantOptions}
+                              isLoading={selectedProjectQuery.isLoading}
+                              disabled={
+                                !selectedProjectId ||
+                                productVariantOptions.length === 0
+                              }
+                              className="border-[#C9D9F3]"
+                            />
+                            <div className="relative">
+                              <CircleDollarSign className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
+                              <FormInput
+                                name="budget"
+                                label="Budget Pembelian"
+                                currency
+                                placeholder="Contoh: Rp 550.000.000"
+                                className="border-[#C9D9F3] pl-9"
+                              />
+                            </div>
+                            <div className="md:col-span-3">
+                              <FormTextarea
+                                name="notes"
+                                label="Catatan Kebutuhan / Preferensi"
+                                placeholder="Contoh: Tertarik dengan rumah 1 lantai, area dekat fasilitas umum, dan sedang menyiapkan KPR..."
+                                rows={2}
+                                className="border-[#C9D9F3]"
+                              />
+                            </div>
+                          </div>
+                        </section>
+
+                        <div className="grid gap-3 lg:grid-cols-2">
+                          <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
+                              <Crosshair className="size-4 text-[#0B63F6]" />
+                              Sumber Lead
+                            </h3>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <FormSelect
+                                name="sourceId"
+                                label="Sumber Lead *"
+                                placeholder="Pilih sumber lead"
+                                options={sources.map((source) => ({
+                                  value: source.id,
+                                  label: source.name,
+                                }))}
+                                disabled={sources.length === 0}
+                                className="border-[#C9D9F3]"
+                              />
+                              <FormSelect
+                                name="campaignId"
+                                label="Campaign (opsional)"
+                                placeholder={
+                                  selectedLeadSourceId
+                                    ? "Pilih campaign"
+                                    : "Pilih sumber dahulu"
+                                }
+                                options={campaigns.map((campaign) => ({
+                                  value: campaign.id,
+                                  label: campaign.name || "Campaign tanpa nama",
+                                }))}
+                                isLoading={campaignsQuery.isLoading}
+                                disabled={
+                                  !selectedLeadSourceId ||
+                                  campaigns.length === 0
+                                }
+                                className="border-[#C9D9F3]"
+                              />
+                            </div>
+                          </section>
+                          <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
+                              <UsersRound className="size-4 text-[#0B63F6]" />
+                              Penugasan &amp; Pipeline
+                            </h3>
+                            <div className="grid gap-3 lg:grid-cols-3">
+                              <FormSelect
+                                name="assignedUserId"
+                                label="Assigned Sales *"
+                                placeholder="Pilih sales"
+                                options={(user?.role === "owner"
+                                  ? users
+                                  : user
+                                    ? [user]
+                                    : []
+                                ).map((sales) => ({
+                                  value: sales.id,
+                                  label: sales.name || sales.email || "User",
+                                }))}
+                                disabled={
+                                  user?.role !== "owner" || users.length === 0
+                                }
+                                className="border-[#C9D9F3]"
+                              />
+                              <FormSelect
+                                name="stageId"
+                                label="Tahapan Pipeline *"
+                                placeholder="Pilih tahapan pipeline"
+                                options={stages.map((stage) => ({
+                                  value: stage.id,
+                                  label: stage.name,
+                                }))}
+                                disabled={stages.length === 0}
+                                className="border-[#C9D9F3]"
+                              />
+                              <LeadLabelMultiSelect
+                                label="Status Qualified"
+                                className="col-span-1"
+                                labels={leadLabels}
+                                isLoading={leadLabelsQuery.isLoading}
+                              />
+                            </div>
+                          </section>
+                        </div>
+                      </div>
+                      <DialogFooter className="mt-auto shrink-0 -mx-0 -mb-0 rounded-none border-[#DCE7F8] bg-white px-5 py-3 sm:px-6">
+                        <p className="mr-auto text-xs text-[#667085]">
+                          Deal dapat dibuat setelah Lead tersimpan melalui
+                          halaman Detail Lead.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-[#C9D9F3]"
+                          onClick={() => setIsAddDialogOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="bg-[#0B63F6] px-5 hover:bg-[#0755D6]"
+                        >
+                          <Save className="size-4" />
+                          Save Lead
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </FormProvider>
+                </DialogContent>
               </Dialog>
             </div>
           </div>
@@ -650,12 +817,17 @@ export default function LeadsPage() {
             <TabsContent value="list" className="mt-0">
               <Card className="gap-0 rounded-xl py-0 shadow-none">
                 <CardHeader className="px-4 pt-4 pb-3">
-                  <CardTitle className="text-xl font-semibold pb-2">Leads Management</CardTitle>
+                  <CardTitle className="text-xl font-semibold pb-2">
+                    Leads Management
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 px-4 pb-4">
                   <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(230px,1.4fr)_repeat(5,minmax(140px,1fr))]">
                     <label className="space-y-1">
-                      <span aria-hidden="true" className="invisible block text-xs font-medium">
+                      <span
+                        aria-hidden="true"
+                        className="invisible block text-xs font-medium"
+                      >
                         Pencarian
                       </span>
                       <span className="relative block">
@@ -681,8 +853,13 @@ export default function LeadsPage() {
                       </Select>
                     </label>
                     <label className="space-y-1">
-                      <span className="block text-xs font-medium">Tahapan Pipeline</span>
-                      <Select value={stageFilter} onValueChange={setStageFilter}>
+                      <span className="block text-xs font-medium">
+                        Tahapan Pipeline
+                      </span>
+                      <Select
+                        value={stageFilter}
+                        onValueChange={setStageFilter}
+                      >
                         <SelectTrigger aria-label="Filter tahapan pipeline">
                           <SelectValue placeholder="Semua Tahapan" />
                         </SelectTrigger>
@@ -698,7 +875,10 @@ export default function LeadsPage() {
                     </label>
                     <label className="space-y-1">
                       <span className="block text-xs font-medium">Prospek</span>
-                      <Select value={prospectFilter} onValueChange={setProspectFilter}>
+                      <Select
+                        value={prospectFilter}
+                        onValueChange={setProspectFilter}
+                      >
                         <SelectTrigger aria-label="Filter prospek">
                           <SelectValue placeholder="Semua Prospek" />
                         </SelectTrigger>
@@ -707,7 +887,11 @@ export default function LeadsPage() {
                           {leadLabels.map((label) => (
                             <SelectItem key={label.id} value={label.id}>
                               <span className="inline-flex items-center gap-2">
-                                <LabelBadge name={label.name} color={label.color} icon={label.icon} />
+                                <LabelBadge
+                                  name={label.name}
+                                  color={label.color}
+                                  icon={label.icon}
+                                />
                               </span>
                             </SelectItem>
                           ))}
@@ -715,8 +899,14 @@ export default function LeadsPage() {
                       </Select>
                     </label>
                     <label className="space-y-1">
-                      <span className="block text-xs font-medium">Assigned Sales</span>
-                      <Select value={salesFilter} onValueChange={setSalesFilter} disabled={user?.role !== "owner"}>
+                      <span className="block text-xs font-medium">
+                        Assigned Sales
+                      </span>
+                      <Select
+                        value={salesFilter}
+                        onValueChange={setSalesFilter}
+                        disabled={user?.role !== "owner"}
+                      >
                         <SelectTrigger aria-label="Filter assigned sales">
                           <SelectValue placeholder="Semua Sales" />
                         </SelectTrigger>
@@ -731,8 +921,13 @@ export default function LeadsPage() {
                       </Select>
                     </label>
                     <label className="space-y-1">
-                      <span className="block text-xs font-medium">Asal Leads</span>
-                      <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                      <span className="block text-xs font-medium">
+                        Asal Leads
+                      </span>
+                      <Select
+                        value={sourceFilter}
+                        onValueChange={setSourceFilter}
+                      >
                         <SelectTrigger aria-label="Filter asal Leads">
                           <SelectValue placeholder="Semua Sumber" />
                         </SelectTrigger>
@@ -762,14 +957,23 @@ export default function LeadsPage() {
             <TabsContent value="pipeline">
               <Card className="gap-0 rounded-xl py-0 shadow-none">
                 <CardHeader className="flex flex-row items-end justify-between gap-4 px-4 pt-4 pb-3">
-                  <CardTitle className="pb-2 text-xl font-semibold">Leads Pipeline</CardTitle>
+                  <CardTitle className="pb-2 text-xl font-semibold">
+                    Leads Pipeline
+                  </CardTitle>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium whitespace-nowrap">Periode Leads</span>
+                    <span className="text-xs font-medium whitespace-nowrap">
+                      Periode Leads
+                    </span>
                     <Input
                       type="date"
                       aria-label="Tanggal mulai periode Leads"
                       value={pipelineDateRange.from}
-                      onChange={(event) => setPipelineDateRange((current) => ({ ...current, from: event.target.value }))}
+                      onChange={(event) =>
+                        setPipelineDateRange((current) => ({
+                          ...current,
+                          from: event.target.value,
+                        }))
+                      }
                       className="w-40"
                     />
                     <span className="text-sm text-muted-foreground">s/d</span>
@@ -778,14 +982,19 @@ export default function LeadsPage() {
                       aria-label="Tanggal akhir periode Leads"
                       value={pipelineDateRange.to}
                       min={pipelineDateRange.from || undefined}
-                      onChange={(event) => setPipelineDateRange((current) => ({ ...current, to: event.target.value }))}
+                      onChange={(event) =>
+                        setPipelineDateRange((current) => ({
+                          ...current,
+                          to: event.target.value,
+                        }))
+                      }
                       className="w-40"
                     />
                   </div>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
                   <LeadsPipelineTab dateRange={pipelineDateRange} />
-                  </CardContent>
+                </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
@@ -898,43 +1107,6 @@ export default function LeadsPage() {
           </FormProvider>
         </DialogContent>
       </Dialog>
-
-      {/* Convert Dialog */}
-      <Dialog open={isConvertDialogOpen} onOpenChange={setIsConvertDialogOpen}>
-        <DialogContent className="min-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Convert to Deal</DialogTitle>
-            <DialogDescription>
-              Convert this lead into an active deal.
-            </DialogDescription>
-          </DialogHeader>
-          <FormProvider {...convertForm}>
-            <form
-              onSubmit={convertForm.handleSubmit(onSubmitConvert)}
-              className="grid gap-4 py-4"
-            >
-              <FormInput
-                name="expectedAmount"
-                label="Expected Amount"
-                currency
-              />
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsConvertDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isConverting}>
-                  {isConverting ? "Converting..." : "Convert to Deal"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </FormProvider>
-        </DialogContent>
-      </Dialog>
-
     </SidebarProvider>
   );
 }

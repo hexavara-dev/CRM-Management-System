@@ -11,7 +11,7 @@ class MockRepository implements IRepository<any> {
   get delegate() {
     return {
       findUnique: async (args: any) => this.findById(args.where.id),
-      findMany: async (args: any) => this.findAll(),
+      findMany: async (_args: any) => this.findAll(),
       create: async (args: any) => this.create(args.data),
       update: async (args: any) => this.update(args.where.id, args.data),
       delete: async (args: any) => this.delete(args.where.id),
@@ -56,7 +56,7 @@ class MockRepository implements IRepository<any> {
     return item;
   }
 
-  async findAll(include?: any, where?: any) {
+  async findAll(_include?: any, _where?: any) {
     return this.items;
   }
 }
@@ -117,6 +117,8 @@ describe('CRM Main Business Flow Integration Test (Mocked Persistence)', () => {
       {
         expectedAmount: 50000,
         currency: 'USD',
+        unitId: 'unit-1',
+        paymentMethod: 'CASH',
       },
       tenantId
     );

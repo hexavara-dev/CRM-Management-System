@@ -123,6 +123,9 @@ export function mapHttpError(error: unknown): MappedHttpError {
   if (/unauthorized|only owners|insufficient permissions/i.test(message)) {
     return { status: 403, message };
   }
+  if (/cannot be reviewed by its requester/i.test(message)) {
+    return { status: 403, message };
+  }
   if (/not supported for this resource|cannot (update|delete|manually set)/i.test(message)) {
     return { status: 403, message };
   }

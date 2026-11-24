@@ -103,10 +103,12 @@ describe('DealUseCases.createDeal', () => {
       refCode: 'DEAL-001',
     });
     const activityCreate = jest.fn().mockResolvedValue({ id: 'activity-1' });
+    const auditCreate = jest.fn().mockResolvedValue({ id: 'audit-1' });
     const transaction = jest.fn(async (callback: (tx: any) => Promise<any>) =>
       callback({
         deal: { create: dealCreate },
         dealActivity: { create: activityCreate },
+        auditLog: { create: auditCreate },
       })
     );
     const useCases = new DealUseCases(
@@ -129,6 +131,9 @@ describe('DealUseCases.createDeal', () => {
     expect(dealCreate).toHaveBeenCalledTimes(1);
     expect(activityCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ activityType: 'deal_created' }),
+    });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'deal_created' }),
     });
     expect(result.id).toBe('deal-1');
     expect(dealRepo.items).toHaveLength(0);
@@ -162,5 +167,51 @@ describe('DealUseCases.deleteDeal', () => {
     const repository = new MockRepository([{ id: 'deal-1', tenantId: 'tenant-a' }]);
     const useCases = new DealUseCases(repository);
     await expect(useCases.deleteDeal('deal-1', 'tenant-b')).rejects.toThrow('Deal not found');
+  });
+
+  it('removes tenant-owned child data while preserving inventory history', async () => {
+    const recordUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const attachmentDeleteMany = jest.fn().mockResolvedValue({ count: 2 });
+    const dealDeleteMany = jest.fn().mockResolvedValue({ count: 1 });
+    const transaction = jest.fn(async (callback: (tx: any) => Promise<any>) =>
+      callback({
+        record: { updateMany: recordUpdateMany },
+        attachment: { deleteMany: attachmentDeleteMany },
+        deal: { deleteMany: dealDeleteMany },
+      })
+    );
+    const prisma = {
+      deal: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'deal-1',
+          tenantId: 'tenant-1',
+          payments: [],
+        }),
+      },
+      $transaction: transaction,
+    } as any;
+    const useCases = new DealUseCases(
+      new MockRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      prisma
+    );
+
+    const result = await useCases.deleteDeal('deal-1', 'tenant-1');
+
+    expect(recordUpdateMany).toHaveBeenCalledWith({
+      where: { dealId: 'deal-1', deal: { tenantId: 'tenant-1' } },
+      data: { dealId: null },
+    });
+    expect(attachmentDeleteMany).toHaveBeenCalledWith({
+      where: { dealId: 'deal-1', tenantId: 'tenant-1' },
+    });
+    expect(dealDeleteMany).toHaveBeenCalledWith({
+      where: { id: 'deal-1', tenantId: 'tenant-1' },
+    });
+    expect(result.id).toBe('deal-1');
   });
 });

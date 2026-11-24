@@ -2,167 +2,85 @@
 
 import { ActivityTimelineTab } from "@/app/leads/[id]/components/tabs/activity-timeline-tab";
 import { AttachmentsTab } from "@/app/leads/[id]/components/tabs/attachments-tab";
-import { CallLogsTab } from "@/app/leads/[id]/components/tabs/call-logs-tab";
 import { NotesTab } from "@/app/leads/[id]/components/tabs/notes-tab";
-import { TasksTab } from "@/app/leads/[id]/components/tabs/tasks-tab";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Activity, Attachment, CallLog, Note, Task } from "@/lib/data";
-import {
-  CallLogFormData,
-  NoteFormData,
-  TaskFormData,
-} from "@/schemas/deal.schema";
-import { CheckCircle, Clock, FileText, Paperclip, Phone } from "lucide-react";
+import type { Activity, Attachment, Note } from "@/lib/data";
+import type { DealHistory } from "@/types/deal";
+import { DealHistoryTab } from "./deal-history";
 
-type AttachmentFormData = {
-  name: string;
-  file: FileList;
-};
-
-interface DealTabsProps {
-  callLogs: CallLog[];
-  activities: Activity[];
-  tasks: Task[];
-  notes: Note[];
-  attachments: Attachment[];
-  onAddCallLog: (data: CallLogFormData) => Promise<void>;
-  onAddTask: (data: TaskFormData) => Promise<void>;
-  onUpdateTask: (id: string, data: Partial<TaskFormData>) => Promise<void>;
-  onDeleteTask: (id: string) => void;
-  onAddNote: (data: NoteFormData) => Promise<void>;
-  onAddAttachment: (data: AttachmentFormData) => void;
-}
+type AttachmentFormData = { name: string; file: FileList };
 
 export function DealTabs({
-  callLogs,
+  overview,
   activities,
-  tasks,
-  notes,
   attachments,
-  onAddCallLog,
-  onAddTask,
-  onUpdateTask,
-  onDeleteTask,
+  notes,
+  history,
   onAddNote,
   onAddAttachment,
-}: DealTabsProps) {
+}: {
+  overview: React.ReactNode;
+  activities: Activity[];
+  attachments: Attachment[];
+  notes: Note[];
+  history: DealHistory[];
+  onAddNote: (data: { content: string }) => Promise<void>;
+  onAddAttachment: (data: AttachmentFormData) => void;
+}) {
   return (
-    <div className="flex-1 min-w-0 flex flex-col bg-background">
-      <Tabs defaultValue="calls" className="flex-1 flex flex-col">
-        <div className="border-b overflow-x-auto">
-          <div className="p-4 md:p-6">
-            <TabsList
-              variant="line"
-              className="h-12 gap-4 md:gap-6 w-max md:w-auto"
-            >
-              <TabsTrigger value="calls" className="px-0">
-                <Phone className="size-4" />
-                <span className="hidden sm:inline">Calls</span>
-                {callLogs.length > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-1.5 h-5 px-1 min-w-[1.125rem] rounded-full text-[10px] flex items-center justify-center"
-                  >
-                    {callLogs.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="activity" className="px-0">
-                <Clock className="size-4" />
-                <span className="hidden sm:inline">Timeline</span>
-                {activities.length > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-1.5 h-5 px-1 min-w-[1.125rem] rounded-full text-[10px] flex items-center justify-center"
-                  >
-                    {activities.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="tasks" className="px-0">
-                <CheckCircle className="size-4" />
-                <span className="hidden sm:inline">Tasks</span>
-                {tasks.length > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-1.5 h-5 px-1 min-w-[1.125rem] rounded-full text-[10px] flex items-center justify-center"
-                  >
-                    {tasks.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="notes" className="px-0">
-                <FileText className="size-4" />
-                <span className="hidden sm:inline">Notes</span>
-                {notes.length > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-1.5 h-5 px-1 min-w-[1.125rem] rounded-full text-[10px] flex items-center justify-center"
-                  >
-                    {notes.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="attachments" className="px-0">
-                <Paperclip className="size-4" />
-                <span className="hidden sm:inline">Files</span>
-                {attachments.length > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="ml-1.5 h-5 px-1 min-w-[1.125rem] rounded-full text-[10px] flex items-center justify-center"
-                  >
-                    {attachments.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
-          </div>
-        </div>
-
-        <ScrollArea className="flex-1">
-          <div className="p-6">
-            <TabsContent value="calls" className="mt-0">
-              <CallLogsTab
-                callLogs={callLogs}
-                onAddCallLog={onAddCallLog}
-                entityLabel="deal"
-              />
-            </TabsContent>
-
-            <TabsContent value="activity" className="mt-0">
-              <ActivityTimelineTab activities={activities} entityLabel="deal" />
-            </TabsContent>
-
-            <TabsContent value="tasks" className="mt-0">
-              <TasksTab
-                tasks={tasks}
-                onAddTask={onAddTask}
-                onUpdateTask={onUpdateTask}
-                onDeleteTask={onDeleteTask}
-                entityLabel="deal"
-              />
-            </TabsContent>
-
-            <TabsContent value="notes" className="mt-0">
-              <NotesTab
-                notes={notes}
-                onAddNote={onAddNote}
-                entityLabel="deal"
-              />
-            </TabsContent>
-
-            <TabsContent value="attachments" className="mt-0">
-              <AttachmentsTab
-                attachments={attachments}
-                onAddAttachment={onAddAttachment}
-                entityLabel="deal"
-              />
-            </TabsContent>
-          </div>
-        </ScrollArea>
-      </Tabs>
-    </div>
+    <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-[#EAECF0] bg-white px-4">
+        <TabsList
+          variant="line"
+          className="h-12 justify-start gap-7 bg-transparent"
+        >
+          <TabsTrigger value="overview" className="px-0">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="activities" className="px-0">
+            Activities
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="px-0">
+            Documents
+            {attachments.length > 0 && (
+              <Badge
+                variant="secondary"
+                className="ml-1.5 h-5 rounded-full px-1.5 text-[10px]"
+              >
+                {attachments.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="notes" className="px-0">
+            Notes
+          </TabsTrigger>
+          <TabsTrigger value="history" className="px-0">
+            History
+          </TabsTrigger>
+        </TabsList>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-[#F9FAFB]">
+        <TabsContent value="overview" className="m-0">
+          {overview}
+        </TabsContent>
+        <TabsContent value="activities" className="m-0 p-6">
+          <ActivityTimelineTab activities={activities} entityLabel="deal" />
+        </TabsContent>
+        <TabsContent value="documents" className="m-0 p-6">
+          <AttachmentsTab
+            attachments={attachments}
+            onAddAttachment={onAddAttachment}
+            entityLabel="deal"
+          />
+        </TabsContent>
+        <TabsContent value="notes" className="m-0 p-6">
+          <NotesTab notes={notes} onAddNote={onAddNote} entityLabel="deal" />
+        </TabsContent>
+        <TabsContent value="history" className="m-0 p-6">
+          <DealHistoryTab history={history} />
+        </TabsContent>
+      </div>
+    </Tabs>
   );
 }

@@ -6,4 +6,7 @@ export type Stage = {
   entityType: string;
   isTerminal: boolean;
   color: string;
+  description?: string | null;
+  probability?: number;
+  isActive?: boolean;
 };

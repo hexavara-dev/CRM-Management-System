@@ -1,6 +1,8 @@
 "use client";
 
 import { AppSidebar } from "@/components/Sidebar";
+import Typography from "@/components/Typography";
+import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,29 +15,36 @@ import {
 import { FormInput } from "@/components/ui/form-input";
 import FormSelect from "@/components/ui/form-select";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import Typography from "@/components/Typography";
-import { useAuth } from "@/components/auth/auth-provider";
 import { useActivities } from "@/hooks/use-activities";
-import { useLeadDetail, useLeads } from "@/hooks/use-leads";
+import { useDealUnits } from "@/hooks/use-deals";
+import { useFinancingBanks } from "@/hooks/use-financing-banks";
 import { type ArchiveCategory, useLeadArchive } from "@/hooks/use-lead-archive";
 import { useLeadLabels } from "@/hooks/use-lead-labels";
+import { useLeadDetail, useLeads } from "@/hooks/use-leads";
 import { useLocations } from "@/hooks/use-locations";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useSources } from "@/hooks/use-sources";
 import { useUpload } from "@/hooks/use-upload";
 import { useUsers } from "@/hooks/use-users";
 import { Attachment } from "@/lib/data";
-import { LeadFormData, LeadFormInput, leadFormSchema } from "@/schemas/lead.schema";
+import {
+  ConvertDealFormData,
+  convertDealSchema,
+} from "@/schemas/convert.schema";
+import {
+  LeadFormData,
+  LeadFormInput,
+  leadFormSchema,
+} from "@/schemas/lead.schema";
 import { AttachmentRecord } from "@/types/activity";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import { LeadLabelMultiSelect } from "../components/lead-label-multi-select";
 import { LeadHeader } from "./components/lead-header";
 import { LeadSummary } from "./components/lead-summary";
 import { LeadTabs } from "./components/lead-tabs";
-import { ConvertDealFormData } from "@/schemas/convert.schema";
-import { LeadLabelMultiSelect } from "../components/lead-label-multi-select";
 
 export default function LeadDetailPage() {
   const params = useParams<{ id: string }>();
@@ -44,7 +53,10 @@ export default function LeadDetailPage() {
   const { user } = useAuth();
   const { createLeadActivity } = useActivities();
   const { updateLead, isUpdating, convertToDeal, isConverting } = useLeads();
-  const { archiveLead, isMutating: isArchiving } = useLeadArchive({ page: 1, limit: 10 });
+  const { archiveLead, isMutating: isArchiving } = useLeadArchive({
+    page: 1,
+    limit: 10,
+  });
   const pipelineStages = usePipelineStages("lead");
   const stages = (pipelineStages.data ?? []).filter((stage) => stage.isActive);
   const { locations } = useLocations();
@@ -55,20 +67,26 @@ export default function LeadDetailPage() {
     },
   });
   const leadLabelsQuery = useLeadLabels(undefined, 1, 100);
-  const assignedLabelIds = new Set(lead?.labels?.map((label) => label.id) ?? []);
+  const assignedLabelIds = new Set(
+    lead?.labels?.map((label) => label.id) ?? [],
+  );
   const leadLabels = (leadLabelsQuery.data?.data ?? []).filter(
     (label) => label.isActive || assignedLabelIds.has(label.id),
   );
   const { uploadFile } = useUpload();
+  const dealUnitsQuery = useDealUnits(lead?.projectId);
+  const { data: financingBanks = [] } = useFinancingBanks(true);
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isConvertDialogOpen, setIsConvertDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
-  const [archiveCategory, setArchiveCategory] = useState<ArchiveCategory>("NOT_RESPOND");
+  const [archiveCategory, setArchiveCategory] =
+    useState<ArchiveCategory>("NOT_RESPOND");
   const [archiveReason, setArchiveReason] = useState("");
 
-  const attachments = useMemo(() => (lead?.attachments || []).map(
-      (att: AttachmentRecord) => ({
+  const attachments = useMemo(
+    () =>
+      (lead?.attachments || []).map((att: AttachmentRecord) => ({
         id: att.id,
         entityType: "lead" as const,
         entityId: lead?.id || "",
@@ -77,8 +95,9 @@ export default function LeadDetailPage() {
         fileType: att.fileType || "application/octet-stream",
         fileSize: att.fileSize || 0,
         uploadedAt: new Date(att.createdAt),
-      }),
-    ), [lead]) as Attachment[];
+      })),
+    [lead],
+  ) as Attachment[];
 
   const editForm = useForm<LeadFormInput, unknown, LeadFormData>({
     resolver: zodResolver(leadFormSchema),
@@ -102,10 +121,16 @@ export default function LeadDetailPage() {
   });
 
   const convertForm = useForm<ConvertDealFormData>({
+    resolver: zodResolver(convertDealSchema),
     defaultValues: {
       expectedAmount: 0,
+      unitId: "",
+      paymentMethod: "CASH",
+      financingBankId: "",
+      notes: "",
     },
   });
+  const convertPaymentMethod = convertForm.watch("paymentMethod");
 
   const locationOptions = useMemo(
     () =>
@@ -147,6 +172,10 @@ export default function LeadDetailPage() {
     if (lead) {
       convertForm.reset({
         expectedAmount: 0,
+        unitId: "",
+        paymentMethod: "CASH",
+        financingBankId: "",
+        notes: "",
       });
       setIsConvertDialogOpen(true);
     }
@@ -166,6 +195,11 @@ export default function LeadDetailPage() {
         dealData: {
           expectedAmount: parsedAmount,
           currency: "IDR",
+          unitId: data.unitId,
+          paymentMethod: data.paymentMethod,
+          financingBankId:
+            data.paymentMethod === "CASH" ? undefined : data.financingBankId,
+          notes: data.notes,
         },
       });
       setIsConvertDialogOpen(false);
@@ -191,7 +225,10 @@ export default function LeadDetailPage() {
     }
   };
 
-  const handleAddActivity = async (data: { type: string; description: string }) => {
+  const handleAddActivity = async (data: {
+    type: string;
+    description: string;
+  }) => {
     try {
       await createLeadActivity({
         leadId: params.id,
@@ -211,7 +248,11 @@ export default function LeadDetailPage() {
 
   const handleArchive = async () => {
     try {
-      await archiveLead({ id: params.id, category: archiveCategory, reason: archiveReason });
+      await archiveLead({
+        id: params.id,
+        category: archiveCategory,
+        reason: archiveReason,
+      });
       setIsArchiveDialogOpen(false);
       router.push("/leads/archive");
     } catch (error) {
@@ -275,7 +316,13 @@ export default function LeadDetailPage() {
           <div className="flex-1 overflow-y-auto bg-[#FAFBFC] p-4">
             <div className="mx-auto max-w-[1500px] space-y-3">
               <LeadSummary lead={lead} />
-              <LeadTabs lead={lead} stages={pipelineStages.data ?? []} attachments={attachments} onAddActivity={handleAddActivity} onAddAttachment={handleAddAttachment} />
+              <LeadTabs
+                lead={lead}
+                stages={pipelineStages.data ?? []}
+                attachments={attachments}
+                onAddActivity={handleAddActivity}
+                onAddAttachment={handleAddAttachment}
+              />
             </div>
           </div>
         </div>
@@ -283,17 +330,57 @@ export default function LeadDetailPage() {
 
       <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Arsipkan Lead</DialogTitle><DialogDescription>Lead akan disembunyikan dari daftar aktif. Data aktivitas dan dokumen tetap tersimpan.</DialogDescription></DialogHeader>
-          <label className="grid gap-1 text-sm font-medium">Kategori Arsip
-            <select value={archiveCategory} disabled={isArchiving} onChange={(event) => setArchiveCategory(event.target.value as ArchiveCategory)} className="h-9 rounded-md border bg-background px-2">
-              <option value="NOT_RESPOND">Not Respond</option><option value="INVALID">Invalid</option><option value="NOT_QUALIFIED">Not Qualified</option>
+          <DialogHeader>
+            <DialogTitle>Arsipkan Lead</DialogTitle>
+            <DialogDescription>
+              Lead akan disembunyikan dari daftar aktif. Data aktivitas dan
+              dokumen tetap tersimpan.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="grid gap-1 text-sm font-medium">
+            Kategori Arsip
+            <select
+              value={archiveCategory}
+              disabled={isArchiving}
+              onChange={(event) =>
+                setArchiveCategory(event.target.value as ArchiveCategory)
+              }
+              className="h-9 rounded-md border bg-background px-2"
+            >
+              <option value="NOT_RESPOND">Not Respond</option>
+              <option value="INVALID">Invalid</option>
+              <option value="NOT_QUALIFIED">Not Qualified</option>
             </select>
           </label>
-          <label className="grid gap-1 text-sm font-medium">Alasan (opsional)
-            <textarea value={archiveReason} maxLength={500} disabled={isArchiving} onChange={(event) => setArchiveReason(event.target.value)} className="min-h-24 rounded-md border p-2 text-sm" />
-            <span className="text-right text-xs text-muted-foreground">{archiveReason.length}/500</span>
+          <label className="grid gap-1 text-sm font-medium">
+            Alasan (opsional)
+            <textarea
+              value={archiveReason}
+              maxLength={500}
+              disabled={isArchiving}
+              onChange={(event) => setArchiveReason(event.target.value)}
+              className="min-h-24 rounded-md border p-2 text-sm"
+            />
+            <span className="text-right text-xs text-muted-foreground">
+              {archiveReason.length}/500
+            </span>
           </label>
-          <DialogFooter><Button variant="outline" disabled={isArchiving} onClick={() => setIsArchiveDialogOpen(false)}>Batal</Button><Button variant="destructive" disabled={isArchiving} onClick={() => void handleArchive()}>{isArchiving ? "Mengarsipkan..." : "Arsipkan"}</Button></DialogFooter>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={isArchiving}
+              onClick={() => setIsArchiveDialogOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isArchiving}
+              onClick={() => void handleArchive()}
+            >
+              {isArchiving ? "Mengarsipkan..." : "Arsipkan"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -503,6 +590,48 @@ export default function LeadDetailPage() {
                   className="col-span-1"
                 />
                 <p>IDR</p>
+              </div>
+              <FormSelect
+                name="unitId"
+                label="Project / Unit"
+                placeholder={
+                  lead?.projectId ? "Pilih unit" : "Lead belum memiliki project"
+                }
+                options={(dealUnitsQuery.data ?? []).map((unit) => ({
+                  value: unit.id,
+                  label: `${unit.code} - ${unit.variant.name} (${unit.status})`,
+                }))}
+                isLoading={dealUnitsQuery.isLoading}
+                disabled={!lead?.projectId || dealUnitsQuery.isLoading}
+              />
+              <FormSelect
+                name="paymentMethod"
+                label="Jenis Pembayaran"
+                placeholder="Pilih jenis pembayaran"
+                options={[
+                  { value: "CASH", label: "Tunai" },
+                  { value: "KPR", label: "KPR" },
+                  { value: "KPR_SHARIA", label: "KPR Syariah" },
+                ]}
+              />
+              {convertPaymentMethod !== "CASH" && (
+                <FormSelect
+                  name="financingBankId"
+                  label="Bank Pembiayaan"
+                  placeholder="Pilih bank"
+                  options={financingBanks.map((bank) => ({
+                    value: bank.id,
+                    label: bank.name,
+                  }))}
+                  disabled={financingBanks.length === 0}
+                />
+              )}
+              <div className="col-span-2">
+                <FormInput
+                  name="notes"
+                  label="Catatan Deal"
+                  placeholder="Catatan awal Deal (opsional)"
+                />
               </div>
               <div className="col-span-2">
                 <DialogFooter>
