@@ -239,14 +239,13 @@ export class LeadFormSubmissionUseCase {
           sourceId: source.id,
           stageId: defaultStage?.id ?? null,
           campaignId: campaign?.id ?? null,
-          labelAssignments: temperature
+          ...(temperature
             ? {
-                create: {
-                  tenantId,
-                  labelId: temperature.id,
+                labelAssignments: {
+                  create: { tenantId, labelId: temperature.id },
                 },
               }
-            : undefined,
+            : {}),
           budget: budget === null ? null : BigInt(budget),
           needsNotes: needsNotes || null,
           formTemplateVersionId: form.versionId,
