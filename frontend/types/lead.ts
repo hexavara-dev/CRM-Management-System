@@ -35,6 +35,10 @@ export interface Lead {
   campaign?: { id: string; name: string };
   budget?: string | number;
   priority: "LOW" | "MEDIUM" | "HIGH";
+  archiveCategory?: "NOT_RESPOND" | "INVALID" | "NOT_QUALIFIED" | null;
+  archiveReason?: string | null;
+  archivedAt?: string | null;
+  archivedBy?: User | null;
   type?: string;
   converted: boolean;
   convertedDate?: string;
@@ -54,3 +58,9 @@ export interface Lead {
     actor?: User | null;
   }[];
 }
+
+export type ArchivedLead = Pick<Lead, "id" | "archiveCategory" | "archiveReason" | "archivedAt" | "project" | "source" | "stage" | "assignedUser" | "archivedBy"> & {
+  name: string;
+  hasDeals: boolean;
+  customer: Pick<Customer, "firstName" | "lastName" | "phoneNumber">;
+};

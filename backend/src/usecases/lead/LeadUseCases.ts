@@ -518,6 +518,7 @@ export class LeadUseCases {
       ...directFilters,
       tenantId,
       isDeleted: false,
+      archivedAt: null,
       ...(labelId
         ? {
             labelAssignments: {

@@ -87,6 +87,7 @@ model User {
   reviewedPriceAdjustments  UnitPriceAdjustment[] @relation("PriceAdjustmentReviewer")
   updatedFormTemplates      LeadFormTemplate[]        @relation("FormTemplateUpdater")
   createdFormVersions       LeadFormTemplateVersion[] @relation("FormVersionCreator")
+  archivedLeads             Lead[]                    @relation("UserArchivedLeads")
 
   @@map("user")
 }
@@ -203,6 +204,10 @@ model Lead {
   projectId      String?        @map("project_id") @db.VarChar(36)
   productVariantId String?      @map("product_variant_id") @db.VarChar(36)
   priority       LeadPriority   @default(MEDIUM)
+  archiveCategory LeadArchiveCategory? @map("archive_category")
+  archiveReason   String?       @map("archive_reason") @db.VarChar(500)
+  archivedAt      DateTime?     @map("archived_at") @db.DateTime(6)
+  archivedById    String?       @map("archived_by_id") @db.VarChar(36)
   type           String?        @db.VarChar(50)
   isDeleted      Boolean        @default(false) @map("is_deleted")
   converted      Boolean        @default(false)
@@ -216,6 +221,7 @@ model Lead {
   status         Status?        @relation(fields: [statusId], references: [id])
   project        Product?       @relation(fields: [projectId], references: [id], onDelete: Restrict)
   productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+  archivedBy      User?          @relation("UserArchivedLeads", fields: [archivedById], references: [id], onDelete: SetNull)
   tenant         Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   activities     LeadActivity[]
   items          LeadItem[]
@@ -242,6 +248,8 @@ model Lead {
   @@index([campaignId])
   @@index([projectId])
   @@index([productVariantId])
+  @@index([tenantId, archivedAt])
+  @@index([tenantId, archiveCategory, archivedAt])
   @@index([formTemplateVersionId])
   @@map("lead")
 }
@@ -250,6 +258,12 @@ enum LeadPriority {
   LOW
   MEDIUM
   HIGH
+}
+
+enum LeadArchiveCategory {
+  NOT_RESPOND
+  INVALID
+  NOT_QUALIFIED
 }
 
 model LeadItem {
