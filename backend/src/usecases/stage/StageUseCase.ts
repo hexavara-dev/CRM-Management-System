@@ -186,7 +186,21 @@ export class StageUseCase {
   }
 
   async deleteStage(id: string, tenantId: string) {
-    await this.getStage(id, tenantId);
+    const stage = await this.getStage(id, tenantId);
+    if (stage.isDefaultStage || stage.isTerminalStage || stage.isWonStage) {
+      throw new Error('Default, final, and won stages cannot be deleted (conflict)');
+    }
+    const usage = await (this.stageRepository.delegate as any).findFirst({
+      where: { id, tenantId },
+      select: { _count: { select: { leads: true, deals: true } } },
+    });
+    const leadCount = usage?._count?.leads ?? 0;
+    const dealCount = usage?._count?.deals ?? 0;
+    if (leadCount + dealCount > 0) {
+      throw new Error(
+        `Pipeline stage is still used by ${leadCount} Leads and ${dealCount} Deals; move them before deleting (conflict)`
+      );
+    }
     return this.stageRepository.delete(id);
   }
 }

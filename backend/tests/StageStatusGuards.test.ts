@@ -54,4 +54,21 @@ describe('Stage and status uniqueness guards', () => {
       data: expect.objectContaining({ defaultGuard: null, closingGuard: 'deal' }),
     });
   });
+
+  it('does not delete a status that is still used by Leads', async () => {
+    const repository = {
+      delegate: {},
+      findOne: jest.fn().mockResolvedValue({ id: 'status-1', isSystemStatus: false, isDefaultStatus: false, isClosingStatus: false }),
+      delete: jest.fn(),
+    };
+    const prisma = {
+      lead: { count: jest.fn().mockResolvedValue(2) },
+      deal: { count: jest.fn().mockResolvedValue(0) },
+      viewing: { count: jest.fn().mockResolvedValue(0) },
+    };
+    const useCase = new StatusUseCase(repository as never, prisma as never);
+
+    await expect(useCase.deleteStatus('status-1', 'tenant-1')).rejects.toThrow(/still used by 2 Leads/);
+    expect(repository.delete).not.toHaveBeenCalled();
+  });
 });
