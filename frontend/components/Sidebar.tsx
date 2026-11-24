@@ -54,7 +54,6 @@ import {
   LogOut,
   MapPinned,
   Search,
-  Settings,
   Target,
   TextAlignStart,
   User2,
@@ -282,12 +281,6 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
       visible: admin,
       items: [
         { title: "Team", url: "/team", icon: UserPlus, visible: admin },
-        {
-          title: "Settings",
-          url: "/settings",
-          icon: Settings,
-          visible: admin,
-        },
       ],
     },
   ];
@@ -459,12 +452,6 @@ export function AppSidebar({
                     <Link href="/profile" className="cursor-pointer">
                       <User2 className="size-4" />
                       Profile
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings" className="cursor-pointer">
-                      <Settings className="size-4" />
-                      Settings
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>

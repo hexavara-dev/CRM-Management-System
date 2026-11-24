@@ -22,7 +22,6 @@ import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useLocations } from "@/hooks/use-locations";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useSources } from "@/hooks/use-sources";
-import { useStatuses } from "@/hooks/use-statuses";
 import { useUpload } from "@/hooks/use-upload";
 import { useUsers } from "@/hooks/use-users";
 import { Attachment } from "@/lib/data";
@@ -46,11 +45,7 @@ export default function LeadDetailPage() {
   const { createLeadActivity } = useActivities();
   const { updateLead, isUpdating, convertToDeal, isConverting, deleteLead, isDeleting } = useLeads();
   const pipelineStages = usePipelineStages("lead");
-  const { statuses } = useStatuses({
-    additionalParams: {
-      type: "lead",
-    },
-  });
+  const stages = (pipelineStages.data ?? []).filter((stage) => stage.isActive);
   const { locations } = useLocations();
   const { users } = useUsers();
   const { sources } = useSources({
@@ -95,7 +90,7 @@ export default function LeadDetailPage() {
       organizationLocation: "",
       location: "",
       company: "",
-      statusId: "",
+      stageId: "",
       source: "",
       notes: "",
       labelIds: [],
@@ -136,7 +131,7 @@ export default function LeadDetailPage() {
         organizationLocation: lead.customer.organization?.location || "",
         locationId: lead.locationId || "",
         assignedUserId: lead.assignedUser?.id || "",
-        statusId: lead.status?.id || "",
+        stageId: lead.stageId || "",
         sourceId: lead.source?.id || "",
         labelIds: lead.labels?.map((label) => label.id) ?? [],
         priority: lead.priority ?? "MEDIUM",
@@ -411,15 +406,15 @@ export default function LeadDetailPage() {
                 )}
 
                 <FormSelect
-                  name="statusId"
-                  label="Status"
+                  name="stageId"
+                  label="Tahapan Pipeline"
                   className="col-span-1"
-                  options={statuses.map((s) => ({
-                    value: s.id,
-                    label: s.name,
+                  options={stages.map((stage) => ({
+                    value: stage.id,
+                    label: stage.name,
                   }))}
-                  placeholder="Select status"
-                  disabled={statuses.length === 0}
+                  placeholder="Pilih tahapan pipeline"
+                  disabled={stages.length === 0}
                 />
                 <FormSelect
                   name="sourceId"

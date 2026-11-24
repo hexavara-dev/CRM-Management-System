@@ -8,7 +8,7 @@ const validPayload = () => ({
   phone: '+62 812-3456-7890',
   email: '  budi@example.com  ',
   age: 35,
-  statusId: ID,
+  stageId: ID,
   sourceId: SECOND_ID,
   assignedUserId: ID,
   projectId: ID,
@@ -56,7 +56,7 @@ describe('Lead create request validation', () => {
     expect(() => validateLeadCreate(payload)).toThrow(message as RegExp);
   });
 
-  it.each(['phone', 'statusId', 'sourceId'] as const)(
+  it.each(['phone', 'stageId', 'sourceId'] as const)(
     'rejects a payload without required field %s',
     (field) => {
       const payload = validPayload();

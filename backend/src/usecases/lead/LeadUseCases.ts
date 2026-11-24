@@ -196,7 +196,11 @@ export class LeadUseCases {
             })),
           }
         : undefined,
-      stage: defaultStage ? { connect: { id: defaultStage.id } } : undefined,
+      stage: dto.stageId
+        ? { connect: { id: dto.stageId } }
+        : defaultStage
+          ? { connect: { id: defaultStage.id } }
+          : undefined,
       customer: {
         create: {
           tenant: { connect: { id: dto.tenantId } },

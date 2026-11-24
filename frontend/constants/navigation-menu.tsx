@@ -7,7 +7,6 @@ import {
   DollarSign,
   FileText,
   LayoutDashboard,
-  Settings,
   Target,
   UserPlus,
 } from "lucide-react";
@@ -36,7 +35,6 @@ export const navigationMenus: MenuSection[] = [
     label: "Settings",
     items: [
       { title: "Team", url: "/team", icon: UserPlus },
-      { title: "Settings", url: "/settings", icon: Settings },
     ],
   },
 ];
