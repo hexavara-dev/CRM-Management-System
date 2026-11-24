@@ -110,7 +110,7 @@ describe('LeadFormSubmissionUseCase', () => {
           sourceId: 'src-1',
           stageId: 'stage-new',
           campaignId: 'cmp-1',
-          temperatureLabelId: 'hot',
+          labelAssignments: { create: { tenantId: 't-1', labelId: 'hot' } },
           budget: BigInt(550_000_000),
           formTemplateVersionId: 'v-1',
           customValues: { rencana_bayar: 'KPR' },

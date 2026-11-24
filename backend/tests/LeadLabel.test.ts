@@ -14,6 +14,7 @@ const hot = { id: 'l-1', tenantId: 't-1', type: 'TEMPERATURE', name: 'Hot', sort
 
 function prisma(over: { found?: unknown; last?: unknown; createError?: unknown; usageCount?: number } = {}) {
   return {
+    leadLabelAssignment: { count: fn(over.used ?? 0) },
     leadLabel: {
       findMany: fn([hot]),
       count: fn(1),
@@ -88,9 +89,10 @@ describe('LeadLabelUseCase', () => {
     expect(db.leadLabel.delete).toHaveBeenCalledWith({ where: { id: 'l-1' } });
   });
 
-  it('does not delete a label that is assigned to a Lead', async () => {
-    const db = prisma({ usageCount: 2 });
-    await expect(new LeadLabelUseCase(db as never).remove('l-1', 't-1')).rejects.toThrow(/still used/);
+  it('rejects deleting a label that is used by leads', async () => {
+    const db = prisma({ used: 2 });
+    await expect(new LeadLabelUseCase(db as never).remove('l-1', 't-1')).rejects.toThrow(/used by 2 leads/);
+    expect(db.leadLabelAssignment.count).toHaveBeenCalledWith({ where: { tenantId: 't-1', labelId: 'l-1' } });
     expect(db.leadLabel.delete).not.toHaveBeenCalled();
   });
 });
