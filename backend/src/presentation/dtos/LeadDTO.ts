@@ -6,6 +6,7 @@ export interface CreateLeadDTO {
   phone?: string;
   age?: number;
   company?: string;
+  stageId?: string;
   statusId?: string;
   sourceId?: string;
   sourceUserId?: string;

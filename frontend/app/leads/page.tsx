@@ -36,7 +36,7 @@ import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useLeadCampaigns } from "@/hooks/use-lead-campaigns";
 import { useLocations } from "@/hooks/use-locations";
 import { useProject, useProjects } from "@/hooks/use-projects";
-import { useStatuses } from "@/hooks/use-statuses";
+import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { ConvertDealFormData } from "@/schemas/convert.schema";
 import { LeadCreateFormData, LeadCreateFormInput, LeadFormData, LeadFormInput, leadCreateFormSchema, leadFormSchema } from "@/schemas/lead.schema";
 import { Lead } from "@/types/lead";
@@ -116,7 +116,7 @@ const getNextFollowUp = (lead: Lead) => {
 
 export default function LeadsPage() {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [stageFilter, setStageFilter] = useState("all");
   const [salesFilter, setSalesFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [prospectFilter, setProspectFilter] = useState("all");
@@ -144,7 +144,7 @@ export default function LeadsPage() {
   } = useLeadsTable({
     filters: {
       search: deferredSearch || undefined,
-      statusId: statusFilter === "all" ? undefined : statusFilter,
+      stageId: stageFilter === "all" ? undefined : stageFilter,
       assignedUserId: salesFilter === "all" ? undefined : salesFilter,
       sourceId: sourceFilter === "all" ? undefined : sourceFilter,
       labelId:
@@ -153,11 +153,8 @@ export default function LeadsPage() {
   });
   const { user } = useAuth();
 
-  const { statuses } = useStatuses({
-    additionalParams: {
-      type: "lead",
-    },
-  });
+  const pipelineStagesQuery = usePipelineStages("lead");
+  const stages = (pipelineStagesQuery.data ?? []).filter((stage) => stage.isActive);
   const { locations } = useLocations();
   const { users } = useUsers();
   const { sources } = useSources({
@@ -388,7 +385,7 @@ export default function LeadsPage() {
       lastName: "",
       email: "",
       phone: "",
-      statusId: "",
+      stageId: "",
       source: "",
       gender: "",
       salutation: "",
@@ -444,7 +441,7 @@ export default function LeadsPage() {
       lastName: "",
       email: "",
       phone: "",
-      statusId: "",
+      stageId: "",
       source: "",
       gender: "",
       salutation: "",
@@ -642,10 +639,10 @@ export default function LeadsPage() {
                           </div>
                         </section>
                         <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><UsersRound className="size-4 text-[#0B63F6]" />Penugasan &amp; Status</h3>
+                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><UsersRound className="size-4 text-[#0B63F6]" />Penugasan &amp; Pipeline</h3>
                           <div className="grid gap-3 lg:grid-cols-3">
                             <FormSelect name="assignedUserId" label="Assigned Sales *" placeholder="Pilih sales" options={(user?.role === "owner" ? users : user ? [user] : []).map((sales) => ({ value: sales.id, label: sales.name || sales.email || "User" }))} disabled={user?.role !== "owner" || users.length === 0} className="border-[#C9D9F3]" />
-                            <FormSelect name="statusId" label="Status Lead *" placeholder="Pilih status lead" options={statuses.map((status) => ({ value: status.id, label: status.name }))} disabled={statuses.length === 0} className="border-[#C9D9F3]" />
+                            <FormSelect name="stageId" label="Tahapan Pipeline *" placeholder="Pilih tahapan pipeline" options={stages.map((stage) => ({ value: stage.id, label: stage.name }))} disabled={stages.length === 0} className="border-[#C9D9F3]" />
                             <LeadLabelMultiSelect label="Status Qualified" className="col-span-1" labels={leadLabels} isLoading={leadLabelsQuery.isLoading} />
                           </div>
                         </section>
@@ -717,16 +714,16 @@ export default function LeadsPage() {
                       </Select>
                     </label>
                     <label className="space-y-1">
-                      <span className="block text-xs font-medium">Status Lead</span>
-                      <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger aria-label="Filter status Lead">
-                          <SelectValue placeholder="Semua Status" />
+                      <span className="block text-xs font-medium">Tahapan Pipeline</span>
+                      <Select value={stageFilter} onValueChange={setStageFilter}>
+                        <SelectTrigger aria-label="Filter tahapan pipeline">
+                          <SelectValue placeholder="Semua Tahapan" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">Semua Status</SelectItem>
-                          {statuses.map((status) => (
-                            <SelectItem key={status.id} value={status.id}>
-                              {status.name}
+                          <SelectItem value="all">Semua Tahapan</SelectItem>
+                          {stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -905,14 +902,14 @@ export default function LeadsPage() {
                 className="col-span-1"
               />
               <FormSelect
-                name="statusName"
-                label="Status"
+                name="stageId"
+                label="Tahapan Pipeline"
                 className="col-span-1"
-                options={statuses.map((s) => ({
-                  value: s.name,
-                  label: s.name,
+                options={stages.map((stage) => ({
+                  value: stage.id,
+                  label: stage.name,
                 }))}
-                placeholder="Select status"
+                placeholder="Pilih tahapan pipeline"
               />
               <FormInput name="source" label="Source" className="col-span-1" />
               <div className="col-span-2">

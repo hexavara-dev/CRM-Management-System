@@ -8,7 +8,7 @@ type UseLeadsTableOptions = {
   initialLimit?: number;
   filters?: {
     search?: string;
-    statusId?: string;
+    stageId?: string;
     assignedUserId?: string;
     sourceId?: string;
     labelId?: string;
@@ -27,7 +27,7 @@ export function useLeadsTable(options: UseLeadsTableOptions = {}) {
     useServerPagination: true,
     additionalParams: {
       search: filters.search || undefined,
-      statusId: filters.statusId || undefined,
+      stageId: filters.stageId || undefined,
       assignedUserId:
         user?.role === "owner" ? filters.assignedUserId || undefined : user?.id,
       sourceId: filters.sourceId || undefined,
@@ -41,7 +41,7 @@ export function useLeadsTable(options: UseLeadsTableOptions = {}) {
     setCurrentPage(1);
   }, [
     filters.search,
-    filters.statusId,
+    filters.stageId,
     filters.assignedUserId,
     filters.sourceId,
     filters.labelId,

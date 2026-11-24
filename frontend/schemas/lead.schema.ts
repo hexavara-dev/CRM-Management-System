@@ -12,7 +12,8 @@ export const leadFormSchema = z.object({
     z.number().int("Umur harus berupa bilangan bulat").min(0, "Umur tidak boleh negatif").max(120, "Umur maksimal 120 tahun").optional(),
   ),
   company: z.string().optional(),
-  statusId: z.string(),
+  stageId: z.string().optional(),
+  statusId: z.string().optional(),
   source: z.string().optional(),
   notes: z.string().optional(),
   assignedUserId: z.string().optional(),
@@ -38,7 +39,7 @@ export const leadFormSchema = z.object({
 
 export const leadCreateFormSchema = leadFormSchema.extend({
   phone: requiredPhoneSchema,
-  statusId: z.string().min(1, "Status Lead wajib dipilih"),
+  stageId: z.string().min(1, "Tahapan pipeline wajib dipilih"),
   sourceId: z.string().min(1, "Sumber Lead wajib dipilih"),
   assignedUserId: z.string().min(1, "Assigned Sales wajib dipilih"),
 });
