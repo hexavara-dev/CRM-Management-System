@@ -1,93 +1,47 @@
+"use client";
+
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import type { Lead } from "@/types/lead";
-import { ArrowLeft, Edit, TrendingUp } from "lucide-react";
+import { Archive, ArrowLeft, CalendarDays, Edit, MoreVertical, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { LabelBadge } from "@/app/crm-configuration/leads-label/label-icons";
 
 interface LeadHeaderProps {
   lead: Lead;
   onEditClick?: () => void;
   onConvertClick?: () => void;
+  onArchiveClick?: () => void;
 }
 
-export function LeadHeader({
-  lead,
-  onEditClick,
-  onConvertClick,
-}: LeadHeaderProps) {
+export function LeadHeader({ lead, onEditClick, onConvertClick, onArchiveClick }: LeadHeaderProps) {
   const router = useRouter();
+  const fullName = `${lead.customer.firstName} ${lead.customer.lastName || ""}`.trim();
+  const initials = `${lead.customer.firstName.charAt(0)}${lead.customer.lastName?.charAt(0) || ""}`.toUpperCase();
+  const createdAt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(lead.createdAt));
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-2 md:px-4 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 sticky top-0 z-10">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-1 md:mr-2 h-4" />
-      <div className="flex flex-1 items-center justify-between gap-2 min-w-0">
-        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
-          <Button
-            onClick={() => router.back()}
-            variant="ghost"
-            size="icon"
-            className="size-8 hidden sm:inline-flex"
-          >
-            <ArrowLeft />
-          </Button>
-          <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-            <Avatar className="h-8 w-8 md:h-10 md:w-10 border shrink-0">
-              <AvatarFallback className="bg-linear-to-br from-primary/80 to-primary text-primary-foreground font-semibold text-sm md:text-base">
-                {lead.customer.firstName.charAt(0).toUpperCase() +
-                  lead.customer?.lastName?.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-sm md:text-base font-semibold leading-none mb-1 truncate">
-                {lead.customer.firstName} {lead.customer.lastName}
-              </h1>
-              <p className="text-xs text-muted-foreground truncate">
-                {lead.customer.organization?.name || "-"}
-              </p>
-            </div>
+    <header className="shrink-0 border-b bg-white px-4 py-3">
+      <div className="mb-3 flex items-center gap-2 text-xs text-[#475467]">
+        <SidebarTrigger className="-ml-1" />
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="Kembali" onClick={() => router.back()}><ArrowLeft className="size-4" /></Button>
+        <button type="button" onClick={() => router.push("/leads")} className="font-medium hover:text-[#0B63F6]">Leads</button>
+        <span>›</span><span className="font-semibold text-[#101828]">Detail Lead</span>
+      </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar className="size-11 border border-[#D0D5DD]"><AvatarFallback className="bg-[#EFF6FF] font-semibold text-[#0B63F6]">{initials}</AvatarFallback></Avatar>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2"><h1 className="truncate text-lg font-bold text-[#101828]">{fullName}</h1>{lead.labels?.map((label) => <LabelBadge key={label.id} name={label.name} color={label.color} icon={label.icon} />)}{lead.converted && <span className="rounded bg-[#E8F7EC] px-2 py-0.5 text-xs font-semibold text-[#16803A]">Converted</span>}</div>
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-[#475467]"><CalendarDays className="size-3.5" /> Dibuat: {createdAt}</p>
           </div>
-          <Badge variant="outline" colorHex={lead.status?.color}>
-            <span className="hidden md:inline">{lead.status?.name}</span>
-            <span className="md:hidden">{lead?.status?.name}</span>
-          </Badge>
         </div>
-        <div className="flex items-center gap-1 md:gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden md:flex"
-            onClick={onEditClick}
-          >
-            Edit Lead
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="md:hidden size-8"
-            onClick={onEditClick}
-          >
-            <Edit className="size-4" />
-          </Button>
-          <Button
-            size="sm"
-            className="hidden md:flex"
-            onClick={onConvertClick}
-            disabled={lead.converted}
-          >
-            Convert to Deal
-          </Button>
-          <Button
-            size="icon"
-            className="md:hidden size-8"
-            onClick={onConvertClick}
-            disabled={lead.converted}
-          >
-            <TrendingUp className="size-4" />
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" className="bg-[#119447] hover:bg-[#0d7c3b]" onClick={onConvertClick} disabled={lead.converted}><TrendingUp className="size-4" />{lead.converted ? "Sudah menjadi Deal" : "Convert to Deals"}</Button>
+          <Button type="button" variant="outline" className="border-[#F04438] text-[#D92D20] hover:bg-[#FFF1F0] hover:text-[#D92D20]" onClick={onArchiveClick}><Archive className="size-4" /> Arsipkan Leads</Button>
+          <Button type="button" variant="outline" size="icon" aria-label="Edit Lead" onClick={onEditClick}><Edit className="size-4" /></Button>
+          <Button type="button" variant="outline" size="icon" disabled aria-label="Menu lainnya"><MoreVertical className="size-4" /></Button>
         </div>
       </div>
     </header>

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import type { Attachment } from "@/lib/data";
 import { formatDate } from "@/lib/helper";
-import { Download, FileText, Paperclip, Upload } from "lucide-react";
+import { Download, Eye, FileText, Paperclip, Upload } from "lucide-react";
 import { useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
@@ -63,28 +63,22 @@ export function AttachmentsTab({
     setIsDialogOpen(false);
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">
-            Documents & Files
+            Dokumen & Evidence
           </h2>
           <p className="text-sm text-muted-foreground">
-            Manage proposals, contracts, and other files.
+            Kelola dokumen, proposal, dan evidence yang berkaitan dengan Lead.
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="h-8">
               <Upload className="size-3.5 mr-1.5" />
-              Upload File
+              Upload Dokumen
             </Button>
           </DialogTrigger>
           <DialogContent className="min-w-2xl">
@@ -161,11 +155,12 @@ export function AttachmentsTab({
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="w-[45%]">Name</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Uploaded</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableHead className="w-[35%]">Nama Dokumen</TableHead>
+                <TableHead>Kategori</TableHead>
+                <TableHead>Tipe</TableHead>
+                <TableHead>Tanggal Upload</TableHead>
+                <TableHead>Pengunggah</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -181,6 +176,7 @@ export function AttachmentsTab({
                       </span>
                     </div>
                   </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">Dokumen Lead</TableCell>
                   <TableCell>
                     <Badge
                       variant="secondary"
@@ -190,27 +186,14 @@ export function AttachmentsTab({
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {formatFileSize(attachment.fileSize)}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
                     {formatDate(attachment.uploadedAt)}
                   </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">-</TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <a
-                        href={attachment.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Download ${attachment.name}`}
-                      >
-                        <Download className="size-3.5" />
-                      </a>
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button asChild variant="ghost" size="icon" className="size-8"><a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer" aria-label={`Preview ${attachment.name}`}><Eye className="size-3.5" /></a></Button>
+                      <Button asChild variant="ghost" size="icon" className="size-8"><a href={attachment.fileUrl} download={attachment.name} aria-label={`Download ${attachment.name}`}><Download className="size-3.5" /></a></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

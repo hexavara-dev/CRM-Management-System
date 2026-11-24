@@ -4,11 +4,13 @@ export interface CreateLeadDTO {
   lastName?: string;
   email?: string;
   phone?: string;
+  age?: number;
   company?: string;
   statusId?: string;
   sourceId?: string;
   sourceUserId?: string;
   assignedUserId?: string;
+  labelIds?: string[];
   notes?: string;
   type?: string;
   gender?: string;
@@ -17,12 +19,19 @@ export interface CreateLeadDTO {
   organizationLocation?: string;
   location?: string;
   locationId?: string;
+  projectId?: string;
+  productVariantId?: string;
+  campaignId?: string;
+  budget?: number;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  createDeal?: boolean;
 }
 
 export interface UpdateLeadDTO {
   assignedUserId?: string;
   stageId?: string;
   statusId?: string;
+  labelIds?: string[];
   locationId?: string;
   statusName?: string;
   type?: string;
@@ -32,10 +41,16 @@ export interface UpdateLeadDTO {
   lastName?: string;
   email?: string;
   phone?: string;
+  age?: number;
   gender?: string;
   salutation?: string;
   location?: string;
   sourceId?: string;
   organizationName?: string;
   organizationLocation?: string;
+  projectId?: string;
+  productVariantId?: string;
+  campaignId?: string;
+  budget?: number;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
 }

@@ -1,6 +1,6 @@
 "use client";
 import { AppSidebar } from "@/components/Sidebar";
-import { LeadsPipelineTab } from "@/app/leads/components/leads-pipeline-tab";
+import { LeadsPipelineTab, type LeadDateRange } from "@/app/leads/components/leads-pipeline-tab";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -17,6 +17,14 @@ import {
 import { FormInput } from "@/components/ui/form-input";
 import FormSelect from "@/components/ui/form-select";
 import { FormTextarea } from "@/components/ui/form-textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   SidebarInset,
   SidebarProvider,
@@ -24,24 +32,105 @@ import {
 } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLeadsTable } from "@/hooks/use-leads-table";
+import { useLeadLabels } from "@/hooks/use-lead-labels";
+import { useLeadCampaigns } from "@/hooks/use-lead-campaigns";
 import { useLocations } from "@/hooks/use-locations";
+import { useProject, useProjects } from "@/hooks/use-projects";
 import { useStatuses } from "@/hooks/use-statuses";
 import { ConvertDealFormData } from "@/schemas/convert.schema";
-import { LeadFormData, leadFormSchema } from "@/schemas/lead.schema";
+import { LeadCreateFormData, LeadCreateFormInput, LeadFormData, LeadFormInput, leadCreateFormSchema, leadFormSchema } from "@/schemas/lead.schema";
 import { Lead } from "@/types/lead";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  ArrowUpDown,
+  CalendarDays,
+  CircleDollarSign,
+  Columns3,
+  Clock3,
+  Crosshair,
+  Home,
+  Info,
+  List,
+  Mail,
+  MapPin,
+  Pencil,
+  Phone,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  Upload,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/components/auth/auth-provider";
-import Typography from "@/components/Typography";
 import { useUsers } from "@/hooks/use-users";
 import { useSources } from "@/hooks/use-sources";
+import { LabelBadge } from "@/app/crm-configuration/leads-label/label-icons";
+import { LeadLabelMultiSelect } from "@/app/leads/components/lead-label-multi-select";
+
+const formatLeadDate = (value?: string) =>
+  value
+    ? new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      }).format(new Date(value))
+    : "-";
+
+const getLastUpdate = (lead: Lead) => {
+  const latestActivity = lead.activities?.reduce<string | undefined>(
+    (latest, activity) =>
+      !latest || new Date(activity.createdAt) > new Date(latest)
+        ? activity.createdAt
+        : latest,
+    undefined,
+  );
+  return latestActivity || lead.createdAt;
+};
+
+const getDaysSince = (value: string) =>
+  Math.max(
+    0,
+    Math.floor(
+      (new Date().setHours(0, 0, 0, 0) -
+        new Date(value).setHours(0, 0, 0, 0)) /
+        86_400_000,
+    ),
+  );
+
+const getNextFollowUp = (lead: Lead) => {
+  const dates =
+    lead.activities?.flatMap((activity) =>
+      (activity.tasks ?? [])
+        .map((task) => task.dueDate)
+        .filter((date): date is string => Boolean(date)),
+    ) ?? [];
+  return dates.sort((a, b) => +new Date(a) - +new Date(b))[0];
+};
 
 export default function LeadsPage() {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [salesFilter, setSalesFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [prospectFilter, setProspectFilter] = useState("all");
+  const [pipelineDateRange, setPipelineDateRange] = useState<LeadDateRange>(() => {
+    const now = new Date();
+    const formatDate = (date: Date) =>
+      `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    return {
+      from: formatDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+      to: formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    };
+  });
+  const deferredSearch = useDeferredValue(search.trim());
+
   const {
     leads,
     isLoading,
@@ -52,7 +141,16 @@ export default function LeadsPage() {
     isDeleting,
     isConverting,
     serverPagination,
-  } = useLeadsTable();
+  } = useLeadsTable({
+    filters: {
+      search: deferredSearch || undefined,
+      statusId: statusFilter === "all" ? undefined : statusFilter,
+      assignedUserId: salesFilter === "all" ? undefined : salesFilter,
+      sourceId: sourceFilter === "all" ? undefined : sourceFilter,
+      labelId:
+        prospectFilter === "all" ? undefined : prospectFilter,
+    },
+  });
   const { user } = useAuth();
 
   const { statuses } = useStatuses({
@@ -67,6 +165,10 @@ export default function LeadsPage() {
       type: "lead",
     },
   });
+  const leadLabelsQuery = useLeadLabels(undefined, 1, 100);
+  const leadLabels = (leadLabelsQuery.data?.data ?? []).filter(
+    (label) => label.isActive,
+  );
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -75,7 +177,6 @@ export default function LeadsPage() {
 
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-
   const router = useRouter();
 
   const handleDelete = useCallback((id: string) => {
@@ -87,65 +188,147 @@ export default function LeadsPage() {
     () => [
       {
         id: "name",
-        header: "Name",
+        header: "Lead",
         accessorFn: (row) =>
           `${row.customer.firstName} ${row.customer.lastName || ""}`.trim(),
         cell: ({ row }) => {
           const lead = row.original;
           const name = row.getValue("name") as string;
           return (
-            <div
-              className="flex cursor-pointer flex-col gap-1 hover:underline"
+            <button
+              type="button"
+              className="min-w-36 cursor-pointer text-left"
               onClick={() => router.push(`/leads/${lead.id}`)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  router.push(`/leads/${lead.id}`);
-                }
-              }}
             >
-              <span className="font-medium text-blue-400">{name}</span>
-              <span className="text-xs text-muted-foreground">
-                {lead.customer.email}
+              <span className="font-semibold text-[#141B34] hover:text-[#0B63F6]">
+                {name}
               </span>
-            </div>
-          );
-        },
-      },
-      {
-        id: "company",
-        header: "Company",
-        accessorFn: (row) => row.customer.organization?.name || "-",
-      },
-      {
-        accessorKey: "location.name",
-        header: "Unit",
-        accessorFn: (row) => row.location?.name || "-",
-      },
-      {
-        accessorKey: "status",
-        header: "Status",
-        cell: ({ row }) => {
-          return (
-            <Badge colorHex={row.original.status?.color || "#E0E0E0"}>
-              {row.original.status?.name || "-"}
-            </Badge>
-          );
-        },
-      },
-      {
-        header: "Sales",
-        cell: ({ row }) => {
-          return (
-            <Typography color="black">
-              {row.original.assignedUser?.name || "-"}
-            </Typography>
+            </button>
           );
         },
       },
       {
         id: "phone",
-        header: "Phone",
+        header: "No. HP",
         accessorFn: (row) => row.customer.phoneNumber || "-",
+      },
+      {
+        id: "project",
+        header: "Project Diminati",
+        accessorFn: (row) => row.project?.name || row.location?.name || "-",
+        cell: ({ row }) =>
+          row.original.project?.name || row.original.location?.name ? (
+            <span className="whitespace-nowrap rounded-md bg-[#E7F0FF] px-2 py-1 text-xs font-medium text-[#0B63F6]">
+              {row.original.project?.name || row.original.location?.name}
+            </span>
+          ) : (
+            "-"
+          ),
+      },
+      {
+        id: "source",
+        header: "Asal Leads",
+        accessorFn: (row) => row.source?.name || "-",
+      },
+      {
+        id: "prospect",
+        header: "Prospek",
+        accessorFn: (row) => row.labels?.map((label) => label.name).join(", ") || "-",
+        cell: ({ row }) =>
+          row.original.labels?.length ? (
+            <div className="flex min-w-52 flex-wrap gap-1.5">
+              {row.original.labels.map((label) => (
+                <LabelBadge
+                  key={label.id}
+                  name={label.name}
+                  color={label.color}
+                  icon={label.icon}
+                />
+              ))}
+            </div>
+          ) : (
+            "-"
+          ),
+      },
+      {
+        id: "createdAt",
+        header: () => (
+          <span className="inline-flex items-center gap-1 whitespace-nowrap">
+            Tanggal Leads <ArrowUpDown className="size-3" />
+          </span>
+        ),
+        accessorFn: (row) => row.createdAt,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {formatLeadDate(row.original.createdAt)}
+          </span>
+        ),
+      },
+      {
+        id: "stage",
+        header: "Fase Leads",
+        accessorFn: (row) => row.stage?.name || "-",
+        cell: ({ row }) =>
+          row.original.stage ? (
+            <Badge colorHex={row.original.stage.color || "#E8EDF5"}>
+              {row.original.stage.name}
+            </Badge>
+          ) : (
+            "-"
+          ),
+      },
+      {
+        id: "assignedSales",
+        header: "Assigned Sales",
+        accessorFn: (row) => row.assignedUser?.name || "-",
+      },
+      {
+        id: "lastUpdate",
+        header: "Last Update",
+        accessorFn: (row) => getLastUpdate(row),
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {formatLeadDate(getLastUpdate(row.original))}
+          </span>
+        ),
+      },
+      {
+        id: "days",
+        header: () => (
+          <span className="inline-flex items-center gap-1">
+            <Clock3 className="size-3.5" /> Hari
+          </span>
+        ),
+        accessorFn: (row) => getDaysSince(getLastUpdate(row)),
+        cell: ({ row }) => {
+          const days = getDaysSince(getLastUpdate(row.original));
+          const tone =
+            days <= 1
+              ? "bg-[#E8F7EC] text-[#16803A]"
+              : days <= 3
+                ? "bg-[#FFF3E0] text-[#C66A00]"
+                : "bg-[#FFE7E7] text-[#D92D20]";
+          return (
+            <span className={`whitespace-nowrap rounded-md px-2 py-1 text-xs ${tone}`}>
+              {days} hari
+            </span>
+          );
+        },
+      },
+      {
+        id: "nextFollowUp",
+        header: "Next Follow-up",
+        accessorFn: (row) => getNextFollowUp(row) || "",
+        cell: ({ row }) => {
+          const next = getNextFollowUp(row.original);
+          return next ? (
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <CalendarDays className="size-3.5" /> {formatLeadDate(next)}
+            </span>
+          ) : (
+            "-"
+          );
+        },
       },
       {
         id: "actions",
@@ -154,30 +337,17 @@ export default function LeadsPage() {
           const lead = row.original;
           return (
             <div className="flex items-center justify-end gap-1">
-              {/* {!lead.converted && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenConvert(lead);
-                  }}
-                  title="Convert to Deal"
-                >
-                  <ArrowRight className="h-4 w-4 text-green-500" />
-                </Button>
-              )} */}
-              {/* <Button
+              <Button
                 variant="ghost"
                 size="icon"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleEdit(lead);
+                  router.push(`/leads/${lead.id}`);
                 }}
-                title="Edit Lead"
+                title="Lihat atau ubah Lead"
               >
-                <Pencil className="h-4 w-4 text-blue-500" />
-              </Button> */}
+                <Pencil className="h-4 w-4 text-[#141B34]" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -185,7 +355,7 @@ export default function LeadsPage() {
                   e.stopPropagation();
                   handleDelete(lead.id);
                 }}
-                title="Delete Lead"
+                title="Hapus Lead"
               >
                 <Trash2 className="h-4 w-4 text-red-500" />
               </Button>
@@ -211,8 +381,8 @@ export default function LeadsPage() {
     return locations.find((location) => location.id === locationId)?.name || "";
   };
 
-  const addForm = useForm<LeadFormData>({
-    resolver: zodResolver(leadFormSchema),
+  const addForm = useForm<LeadCreateFormInput, unknown, LeadCreateFormData>({
+    resolver: zodResolver(leadCreateFormSchema),
     defaultValues: {
       firstName: "",
       lastName: "",
@@ -225,12 +395,49 @@ export default function LeadsPage() {
       organizationName: "",
       organizationLocation: "",
       locationId: "",
+      age: undefined,
+      projectId: "",
+      productVariantId: "",
+      campaignId: "",
+      budget: undefined,
+      createDeal: false,
       assignedUserId: "",
       sourceId: "",
+      labelIds: [],
+      priority: "MEDIUM",
     },
   });
+  const selectedLeadSourceId = addForm.watch("sourceId");
+  const selectedProjectId = addForm.watch("projectId");
+  const createDeal = addForm.watch("createDeal") ?? false;
+  const projectsQuery = useProjects({ page: 1, limit: 100, isActive: true });
+  const selectedProjectQuery = useProject(selectedProjectId || undefined);
+  const campaignsQuery = useLeadCampaigns(selectedLeadSourceId || undefined);
+  const campaigns = (campaignsQuery.data ?? []).filter((campaign) => campaign.isActive);
+  const projectOptions = (projectsQuery.data?.data ?? []).map((project) => ({
+    value: project.id,
+    label: project.name,
+  }));
+  const productVariantOptions = (selectedProjectQuery.data?.variants ?? []).map((variant) => ({
+    value: variant.id,
+    label: variant.name,
+  }));
 
-  const editForm = useForm<LeadFormData>({
+  useEffect(() => {
+    addForm.setValue("productVariantId", "");
+  }, [addForm, selectedProjectId]);
+
+  useEffect(() => {
+    addForm.setValue("campaignId", "");
+  }, [addForm, selectedLeadSourceId]);
+
+  useEffect(() => {
+    if (user?.id && !addForm.getValues("assignedUserId")) {
+      addForm.setValue("assignedUserId", user.id);
+    }
+  }, [addForm, user?.id]);
+
+  const editForm = useForm<LeadFormInput, unknown, LeadFormData>({
     resolver: zodResolver(leadFormSchema),
     defaultValues: {
       firstName: "",
@@ -245,6 +452,8 @@ export default function LeadsPage() {
       organizationLocation: "",
       locationId: "",
       sourceId: "",
+      labelIds: [],
+      priority: "MEDIUM",
     },
   });
 
@@ -255,12 +464,10 @@ export default function LeadsPage() {
     },
   });
 
-  const onSubmitAdd = async (data: LeadFormData) => {
+  const onSubmitAdd = async (data: LeadCreateFormData) => {
     try {
       await createLead({
         ...data,
-        sourceUserId: user?.id,
-        location: getLocationNameById(data.locationId),
         assignedUserId:
           user?.role === "owner"
             ? data.assignedUserId || user.id
@@ -357,222 +564,264 @@ export default function LeadsPage() {
           <SidebarTrigger className="-ml-1" />
           <div className="flex flex-1 items-center justify-between">
             <h1 className="text-lg font-semibold">Leads</h1>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled
+                title="Import akan diaktifkan setelah kontrak data Lead lengkap."
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Import Leads
+              </Button>
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={() => addForm.reset()}>
+                <Button onClick={() => {
+                  addForm.reset();
+                  if (user?.id) addForm.setValue("assignedUserId", user.id);
+                }}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Lead
                 </Button>
               </DialogTrigger>
-              <DialogContent className="min-w-5xl">
-                <DialogHeader>
-                  <DialogTitle>Add New Lead</DialogTitle>
-                  <DialogDescription>
-                    Enter the lead information below.
-                  </DialogDescription>
+              <DialogContent className="grid h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-h-[860px] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-2xl border border-[#D6E4FF] bg-[#FBFCFF] p-0 shadow-2xl sm:w-[calc(100vw-4rem)] sm:max-w-[1280px]">
+                <DialogHeader className="border-b border-[#DCE7F8] bg-[linear-gradient(110deg,#F7FAFF_0%,#FFFFFF_72%)] px-6 py-5 pr-14">
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF2FF] text-[#0B63F6] shadow-sm">
+                      <UserRound className="size-5" />
+                    </span>
+                    <div>
+                      <DialogTitle className="text-xl font-bold tracking-tight text-[#121B41]">Add New Lead</DialogTitle>
+                      <DialogDescription className="mt-1 text-xs text-[#667085]">
+                        Tambah data prospek baru ke dalam sistem CRM.
+                      </DialogDescription>
+                    </div>
+                  </div>
                 </DialogHeader>
                 <FormProvider {...addForm}>
                   <form
                     onSubmit={addForm.handleSubmit(onSubmitAdd)}
-                    className="grid grid-cols-2 gap-4"
+                    className="flex h-full min-h-0 flex-col overflow-hidden"
                   >
-                    <div className="grid grid-cols-2 gap-4 h-max">
-                      <div className="border-b pb-1.5 col-span-2">
-                        <Typography as="h3" weight="medium" color="black">
-                          Biodata
-                        </Typography>
+                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 sm:px-6">
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><UserRound className="size-4 text-[#0B63F6]" />Informasi Personal</h3>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="relative sm:col-span-2"><UserRound className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="firstName" label="Nama Lengkap *" placeholder="Masukkan nama lengkap..." className="border-[#C9D9F3] pl-9" /></div>
+                            <FormSelect name="gender" label="Jenis Kelamin" options={[{ value: "male", label: "Laki-laki" }, { value: "female", label: "Perempuan" }]} placeholder="Pilih jenis kelamin" className="border-[#C9D9F3]" />
+                            <FormInput name="age" label="Umur" type="number" min={0} max={120} placeholder="Contoh: 30" className="border-[#C9D9F3]" />
+                          </div>
+                        </section>
+                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><Phone className="size-4 text-[#0B63F6]" />Informasi Kontak</h3>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="relative"><Phone className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="phone" label="Nomor Handphone *" placeholder="Contoh: 812 3456 7890" className="border-[#C9D9F3] pl-9" /></div>
+                            <div className="relative"><Mail className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="email" label="Email" type="email" placeholder="Masukkan email..." className="border-[#C9D9F3] pl-9" /></div>
+                            <div className="relative sm:col-span-2"><MapPin className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="location" label="Alamat" placeholder="Masukkan alamat lengkap..." className="border-[#C9D9F3] pl-9" /></div>
+                          </div>
+                        </section>
                       </div>
-                      <FormSelect
-                        name="salutation"
-                        label="Salutation"
-                        options={[
-                          { value: "Mr", label: "Mr" },
-                          { value: "Mrs", label: "Mrs" },
-                          { value: "Ms", label: "Ms" },
-                          { value: "Dr", label: "Dr" },
-                        ]}
-                        placeholder="Select"
-                        className="col-span-1"
-                      />
-                      <FormSelect
-                        name="gender"
-                        label="Gender"
-                        options={[
-                          { value: "male", label: "Male" },
-                          { value: "female", label: "Female" },
-                        ]}
-                        placeholder="Select"
-                        className="col-span-1"
-                      />
-                      <FormInput
-                        name="firstName"
-                        label="First Name"
-                        placeholder="First Name"
-                        className="col-span-1"
-                      />
-                      <FormInput
-                        name="lastName"
-                        label="Last Name"
-                        placeholder="Last Name"
-                        className="col-span-1"
-                      />
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-4 h-max">
-                      <div className="border-b pb-1.5 col-span-2">
-                        <Typography as="h3" weight="medium" color="black">
-                          Contacts
-                        </Typography>
+                      <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><Home className="size-4 text-[#0B63F6]" />Minat &amp; Kebutuhan</h3>
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <FormSelect name="projectId" label="Project Diminati" placeholder="Pilih project" options={projectOptions} isLoading={projectsQuery.isLoading} disabled={projectOptions.length === 0} className="border-[#C9D9F3]" />
+                          <FormSelect name="productVariantId" label="Tipe Rumah" placeholder={selectedProjectId ? "Pilih tipe rumah" : "Pilih project dahulu"} options={productVariantOptions} isLoading={selectedProjectQuery.isLoading} disabled={!selectedProjectId || productVariantOptions.length === 0} className="border-[#C9D9F3]" />
+                          <div className="relative"><CircleDollarSign className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" /><FormInput name="budget" label="Budget Pembelian" currency placeholder="Contoh: Rp 550.000.000" className="border-[#C9D9F3] pl-9" /></div>
+                          <div className="md:col-span-3"><FormTextarea name="notes" label="Catatan Kebutuhan / Preferensi" placeholder="Contoh: Tertarik dengan rumah 1 lantai, area dekat fasilitas umum, dan sedang menyiapkan KPR..." rows={2} className="border-[#C9D9F3]" /></div>
+                        </div>
+                      </section>
+
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><Crosshair className="size-4 text-[#0B63F6]" />Sumber Lead</h3>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <FormSelect name="sourceId" label="Sumber Lead *" placeholder="Pilih sumber lead" options={sources.map((source) => ({ value: source.id, label: source.name }))} disabled={sources.length === 0} className="border-[#C9D9F3]" />
+                            <FormSelect name="campaignId" label="Campaign (opsional)" placeholder={selectedLeadSourceId ? "Pilih campaign" : "Pilih sumber dahulu"} options={campaigns.map((campaign) => ({ value: campaign.id, label: campaign.name || "Campaign tanpa nama" }))} isLoading={campaignsQuery.isLoading} disabled={!selectedLeadSourceId || campaigns.length === 0} className="border-[#C9D9F3]" />
+                          </div>
+                        </section>
+                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
+                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]"><UsersRound className="size-4 text-[#0B63F6]" />Penugasan &amp; Status</h3>
+                          <div className="grid gap-3 lg:grid-cols-3">
+                            <FormSelect name="assignedUserId" label="Assigned Sales *" placeholder="Pilih sales" options={(user?.role === "owner" ? users : user ? [user] : []).map((sales) => ({ value: sales.id, label: sales.name || sales.email || "User" }))} disabled={user?.role !== "owner" || users.length === 0} className="border-[#C9D9F3]" />
+                            <FormSelect name="statusId" label="Status Lead *" placeholder="Pilih status lead" options={statuses.map((status) => ({ value: status.id, label: status.name }))} disabled={statuses.length === 0} className="border-[#C9D9F3]" />
+                            <LeadLabelMultiSelect label="Status Qualified" className="col-span-1" labels={leadLabels} isLoading={leadLabelsQuery.isLoading} />
+                          </div>
+                        </section>
                       </div>
-                      <FormInput
-                        name="email"
-                        label="Email"
-                        type="email"
-                        placeholder="email@example.com"
-                        className="col-span-1"
-                      />
-                      <FormInput
-                        name="phone"
-                        label="Phone"
-                        placeholder="+62 xxx xxxx xxxx"
-                        className="col-span-1"
-                      />
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4 h-max">
-                      <div className="border-b pb-1.5 col-span-2">
-                        <Typography as="h3" weight="medium" color="black">
-                          Organizations (Optional)
-                        </Typography>
-                      </div>
-                      <FormInput
-                        name="organizationName"
-                        label="Organization Name"
-                        placeholder="Company Name"
-                        className="col-span-1"
-                      />
-                      <FormInput
-                        name="organizationLocation"
-                        label="Organization Location"
-                        placeholder="Input Adress"
-                        className="col-span-1"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 h-max">
-                      <div className="border-b pb-1.5 col-span-2">
-                        <Typography as="h3" weight="medium" color="black">
-                          Additional Info
-                        </Typography>
-                      </div>
-                      <FormSelect
-                        name="locationId"
-                        label="Unit"
-                        placeholder="Select location"
-                        className="col-span-1"
-                        options={locationOptions}
-                        disabled={locationOptions.length === 0}
-                      />
-
-                      {user?.role === "owner" && (
-                        <FormSelect
-                          name="assignedUserId"
-                          label="Assigned Sales"
-                          placeholder="Select sales"
-                          className="col-span-1"
-                          options={users.map((u) => ({
-                            value: u.id,
-                            label: u.name,
-                          }))}
-                          disabled={users.length === 0}
-                        />
-                      )}
-
-                      <FormSelect
-                        name="statusId"
-                        label="Status"
-                        className="col-span-1"
-                        options={statuses.map((s) => ({
-                          value: s.id,
-                          label: s.name,
-                        }))}
-                        placeholder="Select status"
-                        disabled={statuses.length === 0}
-                      />
-                      <FormSelect
-                        name="sourceId"
-                        label="Source"
-                        placeholder="Select source"
-                        className="col-span-1"
-                        options={sources.map((s) => ({
-                          value: s.id,
-                          label: s.name,
-                        }))}
-                        disabled={sources.length === 0}
-                      />
-                      {/* <div className="col-span-2">
-                        <FormTextarea
-                          name="notes"
-                          label="Notes"
-                          placeholder="Additional notes..."
-                          rows={3}
-                        />
-                      </div> */}
-                    </div>
-                    <div className="col-span-2">
-                      <DialogFooter>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setIsAddDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button type="submit">Save Lead</Button>
-                      </DialogFooter>
-                    </div>
+                    <DialogFooter className="mt-auto shrink-0 -mx-0 -mb-0 rounded-none border-[#DCE7F8] bg-white px-5 py-3 sm:px-6">
+                      <label className="mr-auto flex cursor-pointer items-start gap-2 text-left"><input type="checkbox" checked={createDeal} onChange={(event) => addForm.setValue("createDeal", event.target.checked, { shouldDirty: true })} className="mt-0.5 size-4 rounded border-[#AFC4E7] text-[#0B63F6]" /><span><span className="flex items-center gap-1 text-xs font-semibold text-[#243B6B]">Buat Deal Sekaligus <Info className="size-3 text-[#6C83AD]" /></span><span className="block text-[10px] text-[#667085]">Lead dan Deal dibuat dalam satu transaksi.</span></span></label>
+                      <Button type="button" variant="outline" className="border-[#C9D9F3]" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+                      <Button type="submit" className="bg-[#0B63F6] px-5 hover:bg-[#0755D6]"><Save className="size-4" />Save Lead</Button>
+                    </DialogFooter>
                   </form>
                 </FormProvider>
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            </div>
           </div>
         </header>
 
-        <div className="p-4">
+        <div className="min-w-0 bg-[#FAFBFC] p-4">
           <Tabs defaultValue="list" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="list">List Leads</TabsTrigger>
-              <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+            <TabsList className="h-11 w-fit overflow-hidden rounded-xl border border-[#E4E7EC] bg-[#F3F5F8] p-1 shadow-sm">
+              <TabsTrigger
+                value="list"
+                className="h-9 gap-2 rounded-lg px-5 text-base font-medium text-[#667085] transition-all data-[state=active]:bg-white data-[state=active]:text-[#0B63F6] data-[state=active]:shadow-sm"
+              >
+                <List className="size-4" />
+                List Leads
+              </TabsTrigger>
+              <TabsTrigger
+                value="pipeline"
+                className="h-9 gap-2 rounded-lg px-5 text-base font-medium text-[#667085] transition-all data-[state=active]:bg-white data-[state=active]:text-[#0B63F6] data-[state=active]:shadow-sm"
+              >
+                <Columns3 className="size-4" />
+                Pipeline
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="list" className="mt-0">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Leads Management</CardTitle>
+              <Card className="gap-0 rounded-xl py-0 shadow-none">
+                <CardHeader className="px-4 pt-4 pb-3">
+                  <CardTitle className="text-xl font-semibold pb-2">Leads Management</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div>Loading leads...</div>
-                  ) : (
-                    <DataTable
-                      columns={columns}
-                      data={leads}
-                      searchKey="name"
-                      serverPagination={serverPagination}
-                    />
-                  )}
+                <CardContent className="space-y-3 px-4 pb-4">
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(230px,1.4fr)_repeat(5,minmax(140px,1fr))]">
+                    <label className="space-y-1">
+                      <span aria-hidden="true" className="invisible block text-xs font-medium">
+                        Pencarian
+                      </span>
+                      <span className="relative block">
+                        <span className="sr-only">Cari nama atau nomor HP</span>
+                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={search}
+                          onChange={(event) => setSearch(event.target.value)}
+                          placeholder="Cari nama atau nomor HP..."
+                          className="pl-9"
+                        />
+                      </span>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-xs font-medium">Project</span>
+                      <Select disabled value="all">
+                        <SelectTrigger aria-label="Filter project">
+                          <SelectValue placeholder="Semua Project" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Project</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-xs font-medium">Status Lead</span>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger aria-label="Filter status Lead">
+                          <SelectValue placeholder="Semua Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Status</SelectItem>
+                          {statuses.map((status) => (
+                            <SelectItem key={status.id} value={status.id}>
+                              {status.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-xs font-medium">Prospek</span>
+                      <Select value={prospectFilter} onValueChange={setProspectFilter}>
+                        <SelectTrigger aria-label="Filter prospek">
+                          <SelectValue placeholder="Semua Prospek" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Prospek</SelectItem>
+                          {leadLabels.map((label) => (
+                            <SelectItem key={label.id} value={label.id}>
+                              <span className="inline-flex items-center gap-2">
+                                <LabelBadge name={label.name} color={label.color} icon={label.icon} />
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-xs font-medium">Assigned Sales</span>
+                      <Select value={salesFilter} onValueChange={setSalesFilter} disabled={user?.role !== "owner"}>
+                        <SelectTrigger aria-label="Filter assigned sales">
+                          <SelectValue placeholder="Semua Sales" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Sales</SelectItem>
+                          {users.map((sales) => (
+                            <SelectItem key={sales.id} value={sales.id}>
+                              {sales.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="block text-xs font-medium">Asal Leads</span>
+                      <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                        <SelectTrigger aria-label="Filter asal Leads">
+                          <SelectValue placeholder="Semua Sumber" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Sumber</SelectItem>
+                          {sources.map((source) => (
+                            <SelectItem key={source.id} value={source.id}>
+                              {source.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                  </div>
+                  <DataTable
+                    columns={columns}
+                    data={leads}
+                    isLoading={isLoading}
+                    serverPagination={serverPagination}
+                    showColumnSelector={false}
+                    tableHeaderClassName="bg-slate-200 text-slate-700"
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
 
             <TabsContent value="pipeline">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Leads Pipeline</CardTitle>
+              <Card className="gap-0 rounded-xl py-0 shadow-none">
+                <CardHeader className="flex flex-row items-end justify-between gap-4 px-4 pt-4 pb-3">
+                  <CardTitle className="pb-2 text-xl font-semibold">Leads Pipeline</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium whitespace-nowrap">Periode Leads</span>
+                    <Input
+                      type="date"
+                      aria-label="Tanggal mulai periode Leads"
+                      value={pipelineDateRange.from}
+                      onChange={(event) => setPipelineDateRange((current) => ({ ...current, from: event.target.value }))}
+                      className="w-40"
+                    />
+                    <span className="text-sm text-muted-foreground">s/d</span>
+                    <Input
+                      type="date"
+                      aria-label="Tanggal akhir periode Leads"
+                      value={pipelineDateRange.to}
+                      min={pipelineDateRange.from || undefined}
+                      onChange={(event) => setPipelineDateRange((current) => ({ ...current, to: event.target.value }))}
+                      className="w-40"
+                    />
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <LeadsPipelineTab />
-                </CardContent>
+                <CardContent className="px-4 pb-4">
+                  <LeadsPipelineTab dateRange={pipelineDateRange} />
+                  </CardContent>
               </Card>
             </TabsContent>
           </Tabs>

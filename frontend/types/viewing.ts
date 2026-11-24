@@ -2,6 +2,7 @@ import { Lead } from "@/types/lead";
 import { Source } from "@/types/source";
 import { Status } from "@/types/status";
 import { User } from "@/types/user";
+import type { AttachmentRecord } from "@/types/activity";
 
 export interface Viewing {
   id: string;
@@ -21,4 +22,7 @@ export interface Viewing {
   source?: Source | null;
   Status?: Status | null;
   status?: Status | null;
+  location?: { id: string; name: string } | null;
+  slot?: { id: string; label: string } | null;
+  attachments?: AttachmentRecord[];
 }
