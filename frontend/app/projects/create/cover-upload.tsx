@@ -21,6 +21,9 @@ type DeleteTarget =
 
 const MAX_PROJECT_COVERS = 5;
 
+/** Ukuran kotak thumbnail sampul, mengikuti mockup. */
+const TILE = "relative h-[180px] w-[135px] shrink-0 overflow-hidden rounded-lg";
+
 export function CoverGuide() {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -186,11 +189,11 @@ export function CoverUpload({
           onCancel={cancelCrop}
         />
       )}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="flex flex-wrap gap-3">
         {existing.slice(0, MAX_PROJECT_COVERS).map((item) => (
           <div
             key={item.id}
-            className="relative h-40 overflow-hidden rounded-lg border border-[#E4E4E7] bg-[#F6F7F9]"
+            className={cn(TILE, "bg-[#F6F7F9]")}
           >
             <Image
               src={item.fileUrl}
@@ -221,7 +224,7 @@ export function CoverUpload({
                 onClick={() =>
                   setDeleteTarget({ kind: "existing", id: item.id })
                 }
-                className="absolute right-1.5 top-1.5 grid size-6 cursor-pointer place-items-center rounded-full bg-white/95 text-[#1f1f1f] hover:text-[#D64545]"
+                className="absolute right-1.5 top-1.5 grid size-6 cursor-pointer place-items-center rounded-full border border-[#E4E4E7] bg-white text-[#475467] shadow-sm hover:text-[#D64545]"
               >
                 <X className="size-3.5" />
               </button>
@@ -231,7 +234,7 @@ export function CoverUpload({
         {items.slice(0, remainingSlots + items.length).map((item, idx) => (
           <div
             key={item.id}
-            className="relative h-40 overflow-hidden rounded-lg border border-[#E4E4E7] bg-[#F6F7F9]"
+            className={cn(TILE, "bg-[#F6F7F9]")}
           >
             <Image
               src={item.url}
@@ -276,7 +279,7 @@ export function CoverUpload({
                   name: item.file.name,
                 })
               }
-              className="absolute right-1.5 top-1.5 grid size-6 cursor-pointer place-items-center rounded-full bg-white/95 text-[#1f1f1f] shadow-sm hover:text-[#D64545]"
+              className="absolute right-1.5 top-1.5 grid size-6 cursor-pointer place-items-center rounded-full border border-[#E4E4E7] bg-white text-[#475467] shadow-sm hover:text-[#D64545]"
             >
               <X className="size-3.5" />
             </button>
@@ -287,13 +290,12 @@ export function CoverUpload({
           type="button"
           onClick={() => inputRef.current?.click()}
           className={cn(
-            "flex h-40 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#1980C0]/50 bg-[#F6FAFD] text-[11px] font-medium text-[#1980C0] hover:bg-[#E5F1FA]",
+            TILE,
+            "flex cursor-pointer flex-col items-center justify-center gap-3 border border-dashed border-[#9ca3af] bg-white text-xs text-[#6b6b6b] hover:border-[#1980C0] hover:text-[#1980C0]",
           )}
         >
-          <ImagePlus className="size-5" />
-          {items.length === 0 && existing.length === 0
-            ? "Pilih gambar"
-            : "Tambah"}
+          <ImagePlus className="size-12 text-[#D0D5DD]" strokeWidth={1.5} />
+          Tambah Baru
         </button>}
       </div>
 

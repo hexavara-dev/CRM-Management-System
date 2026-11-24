@@ -18,11 +18,21 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { errorMessage, useProjects } from "@/hooks/use-projects";
 import { cn } from "@/lib/utils";
-import { StatCard } from "@/components/projects/stat-card";
+import { pageItems } from "@/lib/pagination";
 import { ProjectCard } from "./project-card";
 
 const FILTERS = ["All", "Active", "Inactive"] as const;
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 9;
+
+/** Kartu ringkasan: label di kiri, angka besar di kanan (mockup). */
+function SummaryCard({ label, value, color }: { label: string; value: React.ReactNode; color: string }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[#E4E4E7] bg-white px-4 py-3.5">
+      <p className={cn("truncate text-sm font-medium", color)}>{label}</p>
+      <p className="text-3xl font-semibold leading-none text-[#101828]">{value}</p>
+    </div>
+  );
+}
 
 export default function ProjectsPage() {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
@@ -54,7 +64,7 @@ export default function ProjectsPage() {
             actions={
               <Button
                 asChild
-                className="h-9 rounded-lg bg-[#1980C0] px-4 text-white hover:bg-[#166ea6]"
+                className="h-10 rounded-xl bg-[#1980C0] px-4 text-sm text-white hover:bg-[#166ea6]"
               >
                 <Link href="/projects/create">
                   <Plus className="size-4" />
@@ -66,18 +76,18 @@ export default function ProjectsPage() {
 
           <hr className="border-[#EDEDED]" />
 
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard
+          <div className="grid gap-3 sm:grid-cols-3">
+            <SummaryCard
               label="Total Project"
               value={data?.summary.total ?? "—"}
-              color="text-[#1f1f1f]"
+              color="text-[#1E9E55]"
             />
-            <StatCard
+            <SummaryCard
               label="Active"
               value={data?.summary.active ?? "—"}
               color="text-[#1E9E55]"
             />
-            <StatCard
+            <SummaryCard
               label="In Active"
               value={data?.summary.inactive ?? "—"}
               color="text-[#D64545]"
@@ -97,7 +107,7 @@ export default function ProjectsPage() {
                     setPage(1);
                   }}
                   className={cn(
-                    "h-8 rounded-lg px-3 text-xs",
+                    "h-10 rounded-xl px-5 text-sm",
                     filter === f &&
                       "border-[#1980C0] bg-[#E5F1FA] text-[#1980C0]",
                   )}
@@ -107,7 +117,7 @@ export default function ProjectsPage() {
               ))}
             </div>
             <div className="relative w-full sm:w-auto">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#6b6b6b]" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#6b6b6b]" />
               <Input
                 type="search"
                 value={query}
@@ -116,7 +126,7 @@ export default function ProjectsPage() {
                   setPage(1);
                 }}
                 placeholder="Search"
-                className="h-8 w-full pl-8 sm:w-56"
+                className="h-10 w-full rounded-xl pl-9 text-sm sm:w-72 md:text-sm"
               />
             </div>
           </div>
@@ -164,7 +174,7 @@ export default function ProjectsPage() {
                 : "Tidak ada proyek yang cocok dengan pencarian atau filter."}
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {projects.map((p) => (
                 <ProjectCard key={p.id} project={p} />
               ))}
@@ -172,7 +182,7 @@ export default function ProjectsPage() {
           )}
 
           {data && !isError && total > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#6b6b6b]">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[#475467]">
               <p>
                 Showing {start + 1} - {start + projects.length} of {total}{" "}
                 properties.
@@ -188,8 +198,13 @@ export default function ProjectsPage() {
                 >
                   <ChevronLeft className="size-3.5" />
                 </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (n) => (
+                {pageItems(page, totalPages).map(
+                  (n, gapIndex) =>
+                    n === "gap" ? (
+                      <span key={`gap-${gapIndex}`} className="px-1 text-xs text-muted-foreground" aria-hidden="true">
+                        …
+                      </span>
+                    ) : (
                     <Button
                       key={n}
                       type="button"

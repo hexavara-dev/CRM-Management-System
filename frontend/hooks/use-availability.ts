@@ -35,6 +35,10 @@ export interface ClusterAvailabilityResponse {
   cluster: { id: string; code: string; name: string; level: string };
   summary: Omit<AvailabilitySummary, "blocked">;
   blocks: string[];
+  /** Lokasi induk (null bila langsung di bawah proyek). */
+  parent: { code: string; name: string } | null;
+  /** Lokasi setingkat, termasuk lokasi ini sendiri. */
+  siblings: { code: string; name: string }[];
   children: ClusterAvailability[];
   units: ClusterUnit[];
   integrity?: AvailabilityIntegrity;

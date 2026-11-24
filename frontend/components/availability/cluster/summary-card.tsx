@@ -35,15 +35,15 @@ export function ClusterSummaryCard({
 
   return (
     <div
-      className={`flex min-h-[66px] items-center gap-3 rounded-xl px-4 py-1.5 ${style.card}`}
+      className={`flex min-h-20 min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl px-3 py-3 ${style.card}`}
     >
-      <div className={`shrink-0 ${style.icon}`}>{icon}</div>
-      <div>
-        <p className="text-[10px] font-medium text-[#475467]">{title}</p>
-        <p className={`mt-1 text-[24px] font-bold leading-none ${style.value}`}>
-          {value}
-        </p>
+      <div className="flex min-w-0 max-w-full items-center gap-1.5">
+        <span className={`shrink-0 ${style.icon}`}>{icon}</span>
+        <p className={`truncate text-xs font-semibold ${style.icon}`} title={title}>{title}</p>
       </div>
+      <p className={`text-2xl font-bold leading-none ${style.value}`}>
+        {value.toLocaleString("id-ID")}
+      </p>
     </div>
   );
 }

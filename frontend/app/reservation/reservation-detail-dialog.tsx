@@ -17,13 +17,7 @@ import { ErrorText } from "@/components/ui/error-text";
 import { FormInput } from "@/components/ui/form-input";
 import FormSelect from "@/components/ui/form-select";
 import { LabelText } from "@/components/ui/label-text";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import type {
   AvailableReservationUnit,
@@ -317,33 +311,29 @@ export function ReservationDetailDialog({
                     name="projectId"
                     render={({ field, fieldState }) => (
                       <>
-                        <Select
-                          value={field.value}
-                          onValueChange={(value) =>
-                            handleProjectChange(value, field.onChange)
+                        <SearchableSelect
+                          id="edit-reservation-project"
+                          value={field.value || undefined}
+                          onChange={(value) =>
+                            value && handleProjectChange(value, field.onChange)
                           }
+                          clearable={false}
+                          invalid={!!fieldState.error}
+                          placeholder="Pilih project"
+                          searchPlaceholder="Cari project..."
+                          loading={projectsQuery.isLoading}
+                          options={[
+                            ...(!hasCurrentProject
+                              ? [{ value: reservation.projectId, label: reservation.project }]
+                              : []),
+                            ...projectOptions.map((project) => ({
+                              value: project.id,
+                              label: project.name,
+                            })),
+                          ]}
                           disabled={!canChangeUnit || projectsQuery.isLoading}
-                        >
-                          <SelectTrigger
-                            id="edit-reservation-project"
-                            className="w-full"
-                            aria-invalid={!!fieldState.error}
-                          >
-                            <SelectValue placeholder="Pilih project" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {!hasCurrentProject && (
-                              <SelectItem value={reservation.projectId}>
-                                {reservation.project}
-                              </SelectItem>
-                            )}
-                            {projectOptions.map((project) => (
-                              <SelectItem key={project.id} value={project.id}>
-                                {project.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          triggerClassName="h-9 text-sm"
+                        />
                         {fieldState.error && (
                           <ErrorText>{fieldState.error.message}</ErrorText>
                         )}
@@ -365,9 +355,11 @@ export function ReservationDetailDialog({
                     name="unitId"
                     render={({ field, fieldState }) => (
                       <>
-                        <Select
-                          value={field.value}
-                          onValueChange={(unitId) => {
+                        <SearchableSelect
+                          id="edit-reservation-unit"
+                          value={field.value || undefined}
+                          onChange={(unitId) => {
+                            if (!unitId) return;
                             field.onChange(unitId);
                             form.clearErrors("unitId");
                             void form.trigger("unitId");
@@ -382,36 +374,29 @@ export function ReservationDetailDialog({
                               );
                             }
                           }}
+                          clearable={false}
+                          invalid={!!fieldState.error}
+                          placeholder={
+                            !projectId
+                              ? "Pilih project dahulu"
+                              : unitsQuery.isLoading
+                                ? "Memuat unit..."
+                                : "Pilih unit"
+                          }
+                          searchPlaceholder="Cari kode unit atau tipe..."
+                          loading={unitsQuery.isLoading}
+                          options={unitOptions.map((unit) => ({
+                            value: unit.id,
+                            label: `${unit.code} · ${unit.category.name}`,
+                          }))}
                           disabled={
                             !canChangeUnit ||
                             !projectId ||
                             unitsQuery.isLoading ||
                             unitsQuery.isError
                           }
-                        >
-                          <SelectTrigger
-                            id="edit-reservation-unit"
-                            className="w-full"
-                            aria-invalid={!!fieldState.error}
-                          >
-                            <SelectValue
-                              placeholder={
-                                !projectId
-                                  ? "Pilih project dahulu"
-                                  : unitsQuery.isLoading
-                                    ? "Memuat unit..."
-                                    : "Pilih unit"
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {unitOptions.map((unit) => (
-                              <SelectItem key={unit.id} value={unit.id}>
-                                {unit.code} · {unit.category.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          triggerClassName="h-9 text-sm"
+                        />
                         {fieldState.error && (
                           <ErrorText>{fieldState.error.message}</ErrorText>
                         )}
@@ -480,32 +465,25 @@ export function ReservationDetailDialog({
                       <LabelText htmlFor="edit-reservation-status">
                         Status
                       </LabelText>
-                      <Select
+                      <SearchableSelect
+                        id="edit-reservation-status"
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onChange={(value) => value && field.onChange(value)}
+                        clearable={false}
+                        invalid={!!fieldState.error}
+                        placeholder="Pilih status"
+                        searchPlaceholder="Cari status..."
+                        options={statuses
+                          .filter(
+                            (status) =>
+                              reservation.statusCode === "ACTIVE" ||
+                              reservation.statusCode === "PAYMENT_PENDING" ||
+                              status !== "COMPLETED",
+                          )
+                          .map((status) => ({ value: status, label: statusLabels[status] }))}
                         disabled={reservation.statusCode === "COMPLETED"}
-                      >
-                        <SelectTrigger
-                          id="edit-reservation-status"
-                          className="w-full"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statuses
-                            .filter(
-                              (status) =>
-                                reservation.statusCode === "ACTIVE" ||
-                                reservation.statusCode === "PAYMENT_PENDING" ||
-                                status !== "COMPLETED",
-                            )
-                            .map((status) => (
-                              <SelectItem key={status} value={status}>
-                                {statusLabels[status]}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                        triggerClassName="h-9 text-sm"
+                      />
                       {fieldState.error && (
                         <ErrorText>{fieldState.error.message}</ErrorText>
                       )}

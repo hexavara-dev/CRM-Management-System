@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Boxes,
   Building2,
@@ -85,6 +85,19 @@ export function PreviewStep({
       facilityAttributeIds.includes(item.id),
     ) ?? [];
   const [expanded, setExpanded] = useState(false);
+  // Tombol Read More hanya muncul jika deskripsi benar-benar terpotong 2 baris.
+  const descriptionRef = useRef<HTMLDivElement>(null);
+  const [truncated, setTruncated] = useState(false);
+  useEffect(() => {
+    const element = descriptionRef.current?.firstElementChild as HTMLElement | null | undefined;
+    if (!element || expanded) return;
+    const measure = () => setTruncated(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [info.description, expanded]);
+  const [hoveredType, setHoveredType] = useState<string | null>(null);
 
   const childrenOf = (id: string) => nodes.filter((n) => n.parentId === id);
   const depthOf = (n: LocationNode) => {
@@ -146,15 +159,12 @@ export function PreviewStep({
     .filter((t) => t.count > 0);
   const totalUnits = typeStats.reduce((total, type) => total + type.count, 0);
   let acc = 0;
-  const donut = typeStats.length
-    ? `conic-gradient(${typeStats
-        .map((t) => {
-          const from = (acc / totalUnits) * 100;
-          acc += t.count;
-          return `${t.color} ${from}% ${(acc / totalUnits) * 100}%`;
-        })
-        .join(", ")})`
-    : "conic-gradient(#E4E4E7 0 100%)";
+  const segments = typeStats.map((t) => {
+    const start = acc / totalUnits;
+    acc += t.count;
+    return { ...t, start, share: t.count / totalUnits };
+  });
+  const hovered = segments.find((t) => t.name === hoveredType) ?? null;
 
   const location =
     [info.subdistrict, info.city].filter(Boolean).join(", ") ||
@@ -171,7 +181,7 @@ export function PreviewStep({
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-4 md:flex-row">
-        <div className="relative h-24 w-full shrink-0 overflow-hidden rounded-lg bg-[#F6F7F9] md:w-44">
+        <div className="relative h-28 w-full shrink-0 overflow-hidden rounded-lg bg-[#F6F7F9] md:w-52">
           {coverUrls[0] ? (
             // eslint-disable-next-line @next/next/no-img-element -- object URL lokal, tidak bisa dioptimasi next/image
             <img
@@ -185,7 +195,7 @@ export function PreviewStep({
             </div>
           )}
           {coverUrls.length > 1 && (
-            <span className="absolute inset-x-0 bottom-0 bg-black/50 py-1 text-center text-[11px] font-medium text-white">
+            <span className="absolute inset-x-0 bottom-0 bg-black/50 py-1 text-center text-xs font-medium text-white">
               +{coverUrls.length - 1} Lainnya
             </span>
           )}
@@ -193,15 +203,15 @@ export function PreviewStep({
 
         <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 md:flex-row md:items-start">
           <div className="min-w-0">
-            <div className="text-[11px] text-[#6b6b6b]">{info.code || "-"}</div>
+            <div className="text-xs text-[#6b6b6b]">{info.code || "-"}</div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-semibold text-[#1f1f1f]">
+              <h3 className="text-xl font-semibold text-[#1f1f1f]">
                 {info.name || "-"}
               </h3>
               {info.status && (
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    "rounded-full px-2.5 py-0.5 text-xs font-medium",
                     STATUS_STYLE[info.status] ?? STATUS_STYLE.Inactive,
                   )}
                 >
@@ -210,8 +220,8 @@ export function PreviewStep({
               )}
             </div>
             {location && (
-              <div className="mt-1 flex items-center gap-1 text-xs text-[#6b6b6b]">
-                <MapPin className="size-3.5" />
+              <div className="mt-1 flex items-center gap-1 text-sm text-[#6b6b6b]">
+                <MapPin className="size-4" />
                 <span className="underline">{location}</span>
               </div>
             )}
@@ -247,15 +257,15 @@ export function PreviewStep({
       </div>
 
       {info.description && (
-        <div className="text-xs leading-relaxed text-[#1f1f1f]">
+        <div ref={descriptionRef} className="text-sm leading-relaxed text-[#1f1f1f]">
           <RichTextContent value={info.description} className={cn(!expanded && "line-clamp-2")} />
-          <button
+          {(truncated || expanded) && <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
             className="mt-0.5 cursor-pointer font-medium text-[#1980C0]"
           >
             {expanded ? "Show Less" : "Read More"}
-          </button>
+          </button>}
         </div>
       )}
 
@@ -265,14 +275,14 @@ export function PreviewStep({
             facilities.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center gap-2 py-1 text-xs"
+                className="flex items-center gap-2 py-1 text-sm"
               >
-                <FacilityIcon iconKey={item.iconKey} className="size-4" />
+                <FacilityIcon iconKey={item.iconKey} className="size-[18px]" />
                 {item.name}
               </div>
             ))
           ) : (
-            <p className="text-xs text-[#9CA3AF]">
+            <p className="text-sm text-[#9CA3AF]">
               Belum ada fasilitas dipilih.
             </p>
           )}
@@ -280,33 +290,57 @@ export function PreviewStep({
 
         <SectionCard title="Unit distribution by house type">
           {typeStats.length === 0 ? (
-            <p className="text-xs text-[#9CA3AF]">
+            <p className="text-sm text-[#9CA3AF]">
               Belum ada slot unit yang ditentukan.
             </p>
           ) : (
             <div className="flex items-center gap-4">
-              <div
-                className="relative size-24 shrink-0 rounded-full"
-                style={{ background: donut }}
-              >
-                <div className="absolute inset-[14px] grid place-items-center rounded-full bg-white text-center">
-                  <div>
-                    <div className="text-sm font-semibold leading-none text-[#1f1f1f]">
-                      {totalUnits}
+              <div className="relative size-32 shrink-0">
+                <svg viewBox="0 0 36 36" className="size-full -rotate-90" role="img" aria-label="Distribusi unit per tipe">
+                  {segments.map((t) => (
+                    <circle
+                      key={t.name}
+                      cx="18"
+                      cy="18"
+                      r="15.9155"
+                      fill="none"
+                      stroke={t.color}
+                      strokeWidth={hoveredType === t.name ? 5 : 4}
+                      pathLength={100}
+                      strokeDasharray={`${t.share * 100} ${100 - t.share * 100}`}
+                      strokeDashoffset={-t.start * 100}
+                      className={cn("cursor-pointer transition-all", hoveredType && hoveredType !== t.name && "opacity-40")}
+                      onMouseEnter={() => setHoveredType(t.name)}
+                      onMouseLeave={() => setHoveredType(null)}
+                    >
+                      <title>{`${t.name}: ${t.count} Unit (${(t.share * 100).toFixed(1)}%)`}</title>
+                    </circle>
+                  ))}
+                </svg>
+                <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+                  <div className="max-w-20">
+                    <div className="text-lg font-semibold leading-none text-[#1f1f1f]">
+                      {hovered ? hovered.count : totalUnits}
                     </div>
-                    <div className="text-[10px] text-[#6b6b6b]">Unit</div>
+                    <div className="mt-0.5 truncate text-xs text-[#6b6b6b]">{hovered ? hovered.name : "Unit"}</div>
                   </div>
                 </div>
               </div>
-              <ul className="min-w-0 flex-1 space-y-1.5 text-[11px]">
+              <ul className="min-w-0 flex-1 space-y-1.5 text-sm">
                 {typeStats.map((t) => (
                   <li
                     key={t.name}
-                    className="flex items-center justify-between gap-2"
+                    onMouseEnter={() => setHoveredType(t.name)}
+                    onMouseLeave={() => setHoveredType(null)}
+                    className={cn(
+                      "-mx-1.5 flex cursor-default items-center justify-between gap-2 rounded px-1.5 py-1 transition",
+                      hoveredType === t.name && "bg-[#F1F5F9]",
+                      hoveredType && hoveredType !== t.name && "opacity-50",
+                    )}
                   >
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span
-                        className="size-1.5 shrink-0 rounded-full"
+                        className="size-2.5 shrink-0 rounded-full"
                         style={{ background: t.color }}
                       />
                       <span className="truncate text-[#6b6b6b]">{t.name}</span>
@@ -324,18 +358,19 @@ export function PreviewStep({
 
         <div className="lg:col-span-2">
         <SectionCard title="Unit distribution by blok">
-          <table className="w-full text-[11px]">
-            <thead>
-              <tr className="border-b border-[#E4E4E7] text-left text-[#1f1f1f]">
-                <th className="py-1.5 font-medium">Cluster</th>
-                <th className="py-1.5 font-medium">Blok</th>
-                <th className="py-1.5 text-right font-medium">Unit Dibuat</th>
+          <div className="max-h-72 overflow-auto rounded-lg border border-[#E4E4E7]">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-[#F8FAFC]">
+              <tr className="border-b border-[#E4E4E7] text-left text-[#475467]">
+                <th className="px-4 py-2.5 font-medium">Cluster</th>
+                <th className="px-4 py-2.5 font-medium">Blok</th>
+                <th className="px-4 py-2.5 text-right font-medium">Unit Dibuat</th>
               </tr>
             </thead>
             <tbody>
               {blokRows.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="py-3 text-center text-[#9CA3AF]">
+                  <td colSpan={3} className="px-4 py-4 text-center text-[#9CA3AF]">
                     Belum ada struktur lokasi.
                   </td>
                 </tr>
@@ -343,28 +378,34 @@ export function PreviewStep({
                 blokRows.map((r, i) => (
                   <tr
                     key={i}
-                    className="border-b border-[#F1F1F3] last:border-0"
+                    className={cn(
+                      "transition-colors hover:bg-[#F8FAFC]",
+                      i > 0 && blokRows[i - 1].cluster !== r.cluster ? "border-t border-[#E4E4E7]" : i > 0 && "border-t border-[#F1F1F3]",
+                    )}
                   >
-                    <td className="py-1.5 text-[#6b6b6b]">
+                    <td className="px-4 py-2.5 font-medium text-[#1f1f1f]">
                       {i === 0 || blokRows[i - 1].cluster !== r.cluster
                         ? r.cluster
                         : ""}
                     </td>
-                    <td className="py-1.5 text-[#1f1f1f]">{r.blok}</td>
-                    <td className="py-1.5 text-right text-[#1f1f1f]">
-                      {r.total} Unit
+                    <td className="px-4 py-2.5 text-[#475467]">{r.blok}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <span className="inline-flex rounded-full bg-[#E8F3FA] px-2 py-0.5 font-medium text-[#1980C0]">
+                        {r.total} Unit
+                      </span>
                     </td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+          </div>
         </SectionCard>
         </div>
       </div>
 
-      <div className="flex items-start gap-2 rounded-md border border-[#BFE0F3] bg-[#E8F3FA] px-3 py-2 text-[11px] text-[#1f1f1f]">
-        <Info className="mt-0.5 size-3.5 shrink-0 text-[#1980C0]" />
+      <div className="flex items-start gap-2 rounded-md border border-[#BFE0F3] bg-[#E8F3FA] px-4 py-2.5 text-sm text-[#1f1f1f]">
+        <Info className="mt-0.5 size-4 shrink-0 text-[#1980C0]" />
         <span>The total number of units comprises {summary}.</span>
       </div>
     </section>

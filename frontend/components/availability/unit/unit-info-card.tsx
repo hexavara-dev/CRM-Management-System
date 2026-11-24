@@ -7,7 +7,17 @@ import {
   Layers3,
   Ruler,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { UnitDetail } from "./types";
+
+/** Warna badge mengikuti status unit, sama dengan badge di daftar unit. */
+const STATUS_STYLE: Record<string, string> = {
+  Available: "bg-[#ebffed] text-[#26a940]",
+  Reserved: "bg-[#fff1dc] text-[#eb7e00]",
+  Processing: "bg-[#e8f2ff] text-[#2378df]",
+  Sold: "bg-[#eeeeee] text-[#333333]",
+  Blocked: "bg-[#f2f4f7] text-[#667085]",
+};
 
 export function UnitInfoCard({ unit }: { unit: UnitDetail }) {
   const locationLabel =
@@ -22,31 +32,31 @@ export function UnitInfoCard({ unit }: { unit: UnitDetail }) {
     { icon: LandPlot, label: "Luas Tanah", value: unit.landArea },
   ];
   return (
-    <Card className="rounded-xl border-[#e7ebf0] shadow-none">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="text-[20px] font-bold text-[#101828]">
+    <Card className="rounded-2xl border-[#e7ebf0] shadow-none">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between gap-3 border-b border-[#eef1f4] pb-4">
+          <h2 className="text-2xl font-bold text-[#101828]">
             Unit {unit.number}
           </h2>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fff1dc] px-3 py-1.5 text-[10px] font-semibold text-[#eb7e00]">
-            <CalendarDays className="size-3.5" />
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold", STATUS_STYLE[unit.status] ?? STATUS_STYLE.Blocked)}>
+            <CalendarDays className="size-4" />
             {unit.status}
           </span>
         </div>
-        <div className="mt-4 space-y-2.5">
+        <div className="mt-4 space-y-3">
           {details.map((item) => {
             const Icon = item.icon;
             return (
               <div
                 key={item.label}
-                className="grid grid-cols-[18px_100px_10px_1fr] items-center"
+                className="grid grid-cols-[28px_130px_14px_1fr] items-center"
               >
-                <Icon className="size-3.5 text-[#667085]" />
-                <span className="text-[11px] font-medium text-[#475467]">
+                <Icon className="size-5 text-[#475467]" />
+                <span className="text-sm font-medium text-[#475467]">
                   {item.label}
                 </span>
-                <span className="text-[11px] text-[#98a2b3]">:</span>
-                <span className="text-[11px] font-semibold text-[#344054]">
+                <span className="text-sm text-[#98a2b3]">:</span>
+                <span className="text-sm font-semibold text-[#344054]">
                   {item.value}
                 </span>
               </div>

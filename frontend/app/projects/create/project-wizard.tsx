@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Box, MapPin } from "lucide-react";
+import { Box, MapPin, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { buildProjectPayload } from "./build-payload";
@@ -28,6 +28,8 @@ import { Field, SelectField } from "./form-fields";
 import { Stepper } from "./stepper";
 import { FacilityPicker } from "./facility-picker";
 import { MiniRichTextEditor } from "./mini-rich-text-editor";
+
+const SECTION_TITLE = "flex items-center gap-2 text-base font-semibold text-[#1980C0]";
 
 export type WizardInitial = {
   info: ProjectInfo;
@@ -266,16 +268,17 @@ export function ProjectWizard({
             ref={formRef}
             onSubmit={(e) => e.preventDefault()}
             className={cn(
-              "space-y-5 rounded-xl border border-[#E4E4E7] bg-white p-4",
+              "space-y-8 rounded-xl border border-[#E4E4E7] bg-white p-5",
               step !== 0 && "hidden",
             )}
           >
-            <section className="space-y-3">
-              <h3 className="flex items-center gap-1.5 text-xs font-semibold text-[#1980C0]">
-                <Box className="size-3.5" />
+            <section className="space-y-4">
+              <h3 className={SECTION_TITLE}>
+                <Box className="size-5" />
                 Informasi Proyek
               </h3>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid items-start gap-x-6 gap-y-4 lg:grid-cols-2">
+                <div className="min-w-0 space-y-4">
                 <Field label="Kode Proyek" required>
                   <Input
                     name="code"
@@ -294,6 +297,15 @@ export function ProjectWizard({
                     className={INPUT}
                   />
                 </Field>
+                <Field label="Deskripsi Proyek (Opsional)">
+                  <MiniRichTextEditor
+                    name="description"
+                    initialValue={initial?.info.description}
+                    className="min-h-48"
+                  />
+                </Field>
+                </div>
+                <div className="min-w-0 space-y-4">
                 <Field label="Status Proyek" required>
                   <SelectField
                     name="status"
@@ -307,16 +319,6 @@ export function ProjectWizard({
                     required
                   />
                 </Field>
-              </div>
-              <div className="grid items-stretch gap-5 lg:grid-cols-2">
-                <Field label="Deskripsi Proyek (Opsional)" className="flex h-full flex-col">
-                  <MiniRichTextEditor
-                    name="description"
-                    initialValue={initial?.info.description}
-                    className="min-h-72 flex-1 sm:min-h-80 lg:min-h-[22rem]"
-                  />
-                </Field>
-                <div className="min-w-0 space-y-5">
                   <Field label="Sampul Proyek (Opsional)" action={<CoverGuide />}>
                     <CoverUpload
                     name="cover"
@@ -365,8 +367,9 @@ export function ProjectWizard({
               </div>
             </section>
 
-            <section className="space-y-3">
-              <h3 className="text-xs font-semibold text-[#1980C0]">
+            <section className="space-y-4">
+              <h3 className={SECTION_TITLE}>
+                <Sparkles className="size-5" />
                 Fasilitas Proyek
               </h3>
               <FacilityPicker
@@ -375,12 +378,12 @@ export function ProjectWizard({
               />
             </section>
 
-            <section className="space-y-3">
-              <h3 className="flex items-center gap-1.5 text-xs font-semibold text-[#1980C0]">
-                <MapPin className="size-3.5" />
+            <section className="space-y-4">
+              <h3 className={SECTION_TITLE}>
+                <MapPin className="size-5" />
                 Alamat Proyek
               </h3>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
                 <RegionFields
                   initial={initial?.info}
                   postal={

@@ -23,23 +23,23 @@ export function AvailabilitySummaryCard({
 }: SummaryCardProps) {
   return (
     <Card className="rounded-xl border-[#edf0f4] shadow-none">
-      <CardContent className="flex min-h-[40px] items-center gap-3 px-3 py-2">
+      <CardContent className="flex items-center gap-3 px-3.5 py-3">
         <div
-          className={`flex size-11 shrink-0 items-center justify-center rounded-full ${iconContainerClassName}`}
+          className={`flex size-10 shrink-0 items-center justify-center rounded-full ${iconContainerClassName}`}
         >
           <div className={iconClassName}>{icon}</div>
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-medium text-[#667085]">{title}</p>
-          <div className="mt-0.5 flex items-center justify-between gap-2">
-            <h3 className="text-[22px] font-bold leading-none text-[#101828]">
-              {value}
+          <p className="truncate text-xs font-medium text-[#1e3a8a]">{title}</p>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <h3 className="text-2xl font-bold leading-none text-[#1e1b8a]">
+              {value.toLocaleString("id-ID")}
             </h3>
 
             {percentageText && (
               <span
-                className={`rounded-full px-2 py-1 text-[10px] font-semibold ${percentageClassName}`}
+                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${percentageClassName}`}
               >
                 {percentageText}
               </span>

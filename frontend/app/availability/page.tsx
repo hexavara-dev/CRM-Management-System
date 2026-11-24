@@ -13,16 +13,10 @@ import { SalesProgress } from "@/components/availability/sales-progress";
 import { SummaryCard } from "@/components/availability/summary-card";
 import { UnitDistribution } from "@/components/availability/unit-distribution";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAvailabilityOverview } from "@/hooks/use-availability";
 import { errorMessage, useProjects } from "@/hooks/use-projects";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 const EMPTY_SUMMARY = {
   total: 0,
@@ -67,24 +61,20 @@ export default function AvailabilityPage() {
         <main className="space-y-5 p-4 md:p-6">
           <PageHeading
             actions={
-              <Select
-                value={projectId}
-                onValueChange={setProjectId}
-                disabled={isLoading || isError || projects.length === 0}
-              >
-                <SelectTrigger className="w-full sm:w-52">
-                  <SelectValue placeholder={placeholder} />
-                </SelectTrigger>
-
-                <SelectContent>
-                  <SelectItem value="all">Semua proyek</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="w-full sm:w-64">
+                <SearchableSelect
+                  value={projectId === "all" ? undefined : projectId}
+                  onChange={(value) => setProjectId(value ?? "all")}
+                  placeholder="Semua proyek"
+                  options={projects.map((project) => ({
+                    value: String(project.id),
+                    label: project.name,
+                  }))}
+                  loading={isLoading}
+                  disabled={isLoading || isError || projects.length === 0}
+                  disabledHint={placeholder}
+                />
+              </div>
             }
           />
 

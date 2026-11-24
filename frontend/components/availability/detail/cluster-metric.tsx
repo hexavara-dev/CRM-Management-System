@@ -50,18 +50,17 @@ export function ClusterAvailabilityMetric({
 
   return (
     <div
-      className={`flex min-w-0 flex-1 items-start gap-2 rounded-lg px-2 py-2 ${style.container}`}
+      className={`flex min-w-0 flex-col gap-0.5 rounded-lg px-2.5 py-1.5 ${style.container}`}
     >
-      <div className={`mt-0.5 shrink-0 ${style.icon}`}>{icon}</div>
-
-      <div className="min-w-0">
-        <p className="text-[9px] font-semibold text-[#667085]">{title}</p>
-        <p
-          className={`mt-0.5 text-[14px] font-bold leading-none ${style.value}`}
-        >
-          {value}
+      <div className={`flex min-w-0 max-w-full items-center gap-1.5 ${style.icon}`}>
+        <span className="shrink-0">{icon}</span>
+        <p className="truncate text-xs font-semibold">{title}</p>
+      </div>
+      <div className="flex items-baseline justify-between gap-1.5">
+        <p className={`text-base font-bold leading-tight ${style.value}`}>
+          {value.toLocaleString("id-ID")}
         </p>
-        <p className={`mt-1 text-[9px] font-semibold ${style.percentage}`}>
+        <p className={`text-[11px] font-semibold ${style.percentage}`}>
           {percentageText}%
         </p>
       </div>

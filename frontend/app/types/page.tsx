@@ -12,13 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -36,7 +30,12 @@ import {
 import { errorMessage } from "@/hooks/use-projects";
 import {
   Barcode,
+  Bath,
+  BedDouble,
   Building2,
+  Car,
+  CircleCheck,
+  CircleSlash,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -47,10 +46,12 @@ import {
   Layers3,
   MoreVertical,
   Pencil,
+  Plus,
   Search,
   Shapes,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { pageItems } from "@/lib/pagination";
 import { toast } from "sonner";
 import { TypeDialog } from "./type-dialog";
 import type { CellInput } from "jspdf-autotable";
@@ -73,14 +74,14 @@ function Metric({
 }) {
   return (
     <div
-      className={`flex min-h-[68px] items-center gap-3 rounded-xl px-3 py-2.5 ${className}`}
+      className={`flex min-h-20 items-center gap-3 rounded-xl px-4 py-3 ${className}`}
     >
-      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-white/70">
-        <Icon className="size-5" />
+      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-white/80">
+        <Icon className="size-6" />
       </span>
       <div className="min-w-0">
-        <p className="truncate text-[11px] font-medium">{label}</p>
-        <p className={`text-xl font-bold leading-6 ${valueClassName}`}>
+        <p className="truncate text-sm font-medium">{label}</p>
+        <p className={`text-2xl font-bold leading-8 ${valueClassName}`}>
           {value}
         </p>
       </div>
@@ -104,6 +105,8 @@ export default function TypesPage() {
   const { data, isLoading, isError, error } = useProjectTypes();
   const [projectFilter, setProjectFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [dialogKey, setDialogKey] = useState(0);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -129,19 +132,28 @@ export default function TypesPage() {
       const matchesProject =
         projectFilter === "all" || row.projectId === projectFilter;
       const matchesType = typeFilter === "all" || row.name === typeFilter;
+      const matchesStatus =
+        statusFilter === "all" || row.isActive === (statusFilter === "active");
       const matchesSearch =
         !search || row.name.toLocaleLowerCase("id-ID").includes(search);
-      return matchesProject && matchesType && matchesSearch;
+      return matchesProject && matchesType && matchesStatus && matchesSearch;
     });
-  }, [data?.rows, projectFilter, query, typeFilter]);
+  }, [data?.rows, projectFilter, query, typeFilter, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * PAGE_SIZE;
   const visibleRows = filteredRows.slice(start, start + PAGE_SIZE);
 
+  // Kunci baru setiap dialog dibuka agar isian form selalu mulai dari data yang benar.
   const openEdit = (row: ProjectTypeRow) => {
     setEditing(row);
+    setDialogKey((key) => key + 1);
+    setDialogOpen(true);
+  };
+  const openCreate = () => {
+    setEditing(null);
+    setDialogKey((key) => key + 1);
     setDialogOpen(true);
   };
 
@@ -352,16 +364,17 @@ export default function TypesPage() {
           <PageHeading
             title="Types"
             actions={
+              <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     type="button"
                     variant="outline"
                     disabled={!filteredRows.length}
-                    className="h-9 border-[#D0D5DD] px-3 text-xs"
+                    className="h-10 rounded-xl border-[#D0D5DD] px-4 text-sm"
                   >
                     <FileDown className="size-4" />
-                    Export
+                    Ekspor
                     <ChevronDown className="size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -376,16 +389,28 @@ export default function TypesPage() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {canWrite && (
+                <Button
+                  type="button"
+                  onClick={openCreate}
+                  disabled={!data?.projects.length}
+                  className="h-10 rounded-xl bg-[#0866FF] px-4 text-sm hover:bg-[#0757D5]"
+                >
+                  <Plus className="size-4" />
+                  Tambah Tipe
+                </Button>
+              )}
+              </div>
             }
           />
-          <p className="-mt-3 text-xs text-[#667085]">
+          <p className="-mt-3 text-sm text-[#475467]">
             Kelola tipe unit (rumah) di setiap project perumahan.
           </p>
 
           {isLoading ? (
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               {Array.from({ length: 4 }, (_, index) => (
-                <Skeleton key={index} className="h-[68px] rounded-xl" />
+                <Skeleton key={index} className="h-20 rounded-xl" />
               ))}
             </div>
           ) : (
@@ -425,66 +450,72 @@ export default function TypesPage() {
           )}
 
           <section className="overflow-hidden rounded-xl border border-[#E4EAF2] bg-white">
-            <div className="grid gap-2 border-b border-[#E4EAF2] bg-[#FCFDFF] p-3 md:grid-cols-[minmax(170px,0.75fr)_minmax(170px,0.75fr)_minmax(220px,1.5fr)]">
-              <label className="space-y-1 text-[10px] font-semibold text-[#344054]">
-                Project
-                <Select
-                  value={projectFilter}
-                  onValueChange={(value) =>
+            <div className="grid gap-3 border-b border-[#E4EAF2] bg-[#FCFDFF] p-4 md:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_minmax(160px,0.8fr)_minmax(240px,1.6fr)_minmax(160px,0.8fr)]">
+              <div className="space-y-1.5 text-xs font-semibold text-[#344054]">
+                <span>Project</span>
+                <SearchableSelect
+                  value={projectFilter === "all" ? undefined : projectFilter}
+                  onChange={(value) =>
                     updateFilters(() => {
-                      setProjectFilter(value);
+                      setProjectFilter(value ?? "all");
                       setTypeFilter("all");
                     })
                   }
-                >
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue placeholder="Semua Project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Project</SelectItem>
-                    {(data?.projects ?? []).map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1 text-[10px] font-semibold text-[#344054]">
-                Type
-                <Select
-                  value={typeFilter}
-                  onValueChange={(value) =>
-                    updateFilters(() => setTypeFilter(value))
+                  placeholder="Semua Project"
+                  searchPlaceholder="Cari project..."
+                  options={(data?.projects ?? []).map((project) => ({
+                    value: project.id,
+                    label: project.name,
+                  }))}
+                  loading={isLoading}
+                  triggerClassName="h-10 bg-white text-sm font-normal text-foreground"
+                />
+              </div>
+              <div className="space-y-1.5 text-xs font-semibold text-[#344054]">
+                <span>Type</span>
+                <SearchableSelect
+                  value={typeFilter === "all" ? undefined : typeFilter}
+                  onChange={(value) =>
+                    updateFilters(() => setTypeFilter(value ?? "all"))
                   }
-                >
-                  <SelectTrigger className="h-8 bg-white text-xs">
-                    <SelectValue placeholder="Semua Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Type</SelectItem>
-                    {typeOptions.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-              <label className="space-y-1 text-[10px] font-semibold text-[#344054]">
-                Pencarian
+                  placeholder="Semua Type"
+                  searchPlaceholder="Cari tipe..."
+                  options={typeOptions.map((type) => ({ value: type, label: type }))}
+                  triggerClassName="h-10 bg-white text-sm font-normal text-foreground"
+                />
+              </div>
+              <div className="space-y-1.5 text-xs font-semibold text-[#344054]">
+                <span>Pencarian</span>
                 <span className="relative block">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#667085]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#667085]" />
                   <Input
                     value={query}
                     onChange={(event) =>
                       updateFilters(() => setQuery(event.target.value))
                     }
                     placeholder="Cari nama tipe..."
-                    className="h-8 bg-white pl-8 text-xs"
+                    className="h-10 bg-white pl-9 text-sm font-normal md:text-sm"
                   />
                 </span>
-              </label>
+              </div>
+              <div className="space-y-1.5 text-xs font-semibold text-[#344054]">
+                <span>Status</span>
+                <SearchableSelect
+                  value={statusFilter === "all" ? undefined : statusFilter}
+                  onChange={(value) =>
+                    updateFilters(() =>
+                      setStatusFilter((value as "active" | "inactive" | undefined) ?? "all"),
+                    )
+                  }
+                  placeholder="Semua Status"
+                  searchPlaceholder="Cari status..."
+                  options={[
+                    { value: "active", label: "Aktif" },
+                    { value: "inactive", label: "Nonaktif" },
+                  ]}
+                  triggerClassName="h-10 bg-white text-sm font-normal text-foreground"
+                />
+              </div>
             </div>
 
             {isLoading ? (
@@ -499,7 +530,7 @@ export default function TypesPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table className="min-w-[980px] text-xs">
+                <Table className="min-w-[1080px] text-sm">
                   <TableHeader>
                     <TableRow className="bg-[#F5F8FC] hover:bg-[#F5F8FC]">
                       {[
@@ -509,11 +540,12 @@ export default function TypesPage() {
                         "Gambar",
                         "Spesifikasi Utama",
                         "Unit Dibuat",
+                        "Status",
                         "Aksi",
                       ].map((heading) => (
                         <TableHead
                           key={heading}
-                          className="h-10 px-3 text-[10px] font-semibold text-[#344054]"
+                          className="h-12 px-4 text-sm font-semibold text-[#1e3a8a]"
                         >
                           {heading}
                         </TableHead>
@@ -524,7 +556,7 @@ export default function TypesPage() {
                     {visibleRows.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={7}
+                          colSpan={8}
                           className="h-36 text-center text-sm text-[#667085]"
                         >
                           {filteredRows.length
@@ -538,29 +570,32 @@ export default function TypesPage() {
                           key={row.id}
                           className="border-[#E9EEF5] hover:bg-[#FAFCFF]"
                         >
-                          <TableCell className="px-3 py-2.5 text-[#667085]">
+                          <TableCell className="px-4 py-3 text-[#667085]">
                             {start + index + 1}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5">
+                          <TableCell className="px-4 py-3">
                             <div className="flex min-w-[145px] items-start gap-2">
-                              <Building2 className="mt-0.5 size-4 shrink-0 text-[#0866FF]" />
+                              <Building2 className="mt-0.5 size-5 shrink-0 text-[#0866FF]" />
                               <div className="min-w-0">
                                 <p className="truncate font-semibold text-[#101828]">
                                   {row.projectName}
                                 </p>
-                                <p className="truncate text-[10px] text-[#667085]">
+                                <p className="max-w-56 truncate text-xs text-[#667085]" title={row.location || row.projectCode}>
                                   {row.location || row.projectCode}
                                 </p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="px-3 py-2.5">
-                            <p className="whitespace-nowrap font-semibold text-[#101828]">
+                          <TableCell className="px-4 py-3">
+                            <p className="whitespace-nowrap text-base font-bold text-[#101828]">
                               {row.name}
                             </p>
+                            <p className="whitespace-nowrap text-xs text-[#1e3a8a]">
+                              {row.typeVariants.length} varian
+                            </p>
                           </TableCell>
-                          <TableCell className="px-3 py-2.5">
-                            <div className="size-[76px] overflow-hidden rounded-lg border border-[#E4EAF2] bg-[#F4F4F5]">
+                          <TableCell className="px-4 py-3">
+                            <div className="h-[72px] w-28 overflow-hidden rounded-xl border border-[#E4EAF2] bg-[#F4F4F5]">
                               {row.image ? (
                                 <img
                                   src={row.image}
@@ -573,29 +608,39 @@ export default function TypesPage() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="px-3 py-2.5">
-                            <div className="space-y-0.5 whitespace-nowrap text-[10px] leading-4 text-[#344054]">
+                          <TableCell className="px-4 py-3">
+                            <div className="space-y-1 whitespace-nowrap text-xs leading-4 text-[#344054]">
                               {specifications(row).map((spec, specIndex) => (
                                 <p
                                   key={`${row.id}-${specIndex}`}
                                   className="flex items-center gap-1.5"
                                 >
-                                  {specIndex === 0 ? (
-                                    <House className="size-3 shrink-0" />
-                                  ) : specIndex === 3 ? (
-                                    <Barcode className="size-3 shrink-0" />
-                                  ) : (
-                                    <Layers3 className="size-3 shrink-0" />
-                                  )}
+                                  {(() => {
+                                    const SpecIcon = [House, BedDouble, Bath, Car][specIndex] ?? Layers3;
+                                    return <SpecIcon className="size-3.5 shrink-0 text-[#475467]" />;
+                                  })()}
                                   {spec}
                                 </p>
                               ))}
                             </div>
                           </TableCell>
-                          <TableCell className="px-3 py-2.5 text-center font-semibold text-[#344054]">
+                          <TableCell className="px-4 py-3 text-center text-base font-bold text-[#101828]">
                             {numberFormat.format(row.unitCount)}
                           </TableCell>
-                          <TableCell className="px-3 py-2.5">
+                          <TableCell className="px-4 py-3">
+                            {row.isActive ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E7F8EC] px-3 py-1 text-xs font-semibold text-[#12833B]">
+                                <CircleCheck className="size-3.5" />
+                                Aktif
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F2F4F7] px-3 py-1 text-xs font-semibold text-[#667085]">
+                                <CircleSlash className="size-3.5" />
+                                Nonaktif
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="px-4 py-3">
                             {canWrite && (
                               <Button
                                 type="button"
@@ -605,7 +650,7 @@ export default function TypesPage() {
                                 onClick={() => openEdit(row)}
                                 className="text-[#344054] hover:text-[#0866FF]"
                               >
-                                <Pencil className="size-3.5" />
+                                <Pencil className="size-4" />
                               </Button>
                             )}
                             {!canWrite && (
@@ -620,7 +665,7 @@ export default function TypesPage() {
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E4EAF2] px-3 py-2.5 text-[10px] text-[#475467]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E4EAF2] px-4 py-3 text-sm text-[#475467]">
               <span>
                 Menampilkan {filteredRows.length ? start + 1 : 0}–
                 {Math.min(start + PAGE_SIZE, filteredRows.length)} dari{" "}
@@ -637,10 +682,12 @@ export default function TypesPage() {
                 >
                   <ChevronLeft className="size-3.5" />
                 </Button>
-                {Array.from(
-                  { length: totalPages },
-                  (_, index) => index + 1,
-                ).map((number) => (
+                {pageItems(currentPage, totalPages).map((number, gapIndex) =>
+                  number === "gap" ? (
+                    <span key={`gap-${gapIndex}`} className="px-1 text-xs text-muted-foreground" aria-hidden="true">
+                      …
+                    </span>
+                  ) : (
                   <Button
                     key={number}
                     type="button"
@@ -673,6 +720,7 @@ export default function TypesPage() {
         </main>
       </SidebarInset>
       <TypeDialog
+        key={dialogKey}
         open={dialogOpen}
         projects={data?.projects ?? []}
         initial={editing}

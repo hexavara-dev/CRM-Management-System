@@ -11,13 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { RupiahInput } from "@/components/ui/rupiah-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   type ProjectTypeRow,
   TYPE_ATTRIBUTES,
@@ -97,25 +91,25 @@ function TypeForm({
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1.5 text-xs font-medium text-[#344054] sm:col-span-2">
-          Proyek
+        <div className="space-y-1.5 text-xs font-medium text-[#344054] sm:col-span-2">
+          <span>Proyek</span>
           {initial ? (
             <Input value={initial.projectName} disabled className="h-9" />
           ) : (
-            <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="h-9 bg-white">
-                <SelectValue placeholder="Pilih proyek" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={projectId || undefined}
+              onChange={(value) => value && setProjectId(value)}
+              clearable={false}
+              placeholder="Pilih proyek"
+              searchPlaceholder="Cari proyek..."
+              options={projects.map((project) => ({
+                value: project.id,
+                label: project.name,
+              }))}
+              triggerClassName="h-9 bg-white text-sm font-normal"
+            />
           )}
-        </label>
+        </div>
         <label className="space-y-1.5 text-xs font-medium text-[#344054] sm:col-span-2">
           Nama tipe
           <Input
