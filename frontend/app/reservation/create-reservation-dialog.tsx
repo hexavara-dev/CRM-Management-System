@@ -15,13 +15,7 @@ import { FormInput } from "@/components/ui/form-input";
 import FormSelect from "@/components/ui/form-select";
 import { Input } from "@/components/ui/input";
 import { LabelText } from "@/components/ui/label-text";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, useProjects } from "@/hooks/use-projects";
 import {
@@ -203,28 +197,21 @@ export function CreateReservationDialog({
                     className="h-9 bg-muted/40"
                   />
                 ) : (
-                  <Select
-                    value={projectId}
-                    onValueChange={handleProjectChange}
+                  <SearchableSelect
+                    id="reservation-project"
+                    value={projectId || undefined}
+                    onChange={(value) => value && handleProjectChange(value)}
+                    clearable={false}
+                    placeholder={projectsQuery.isLoading ? "Memuat proyek..." : "Pilih project"}
+                    searchPlaceholder="Cari project..."
+                    loading={projectsQuery.isLoading}
+                    options={(projectsQuery.data?.data ?? []).map((project) => ({
+                      value: project.id,
+                      label: project.name,
+                    }))}
                     disabled={projectsQuery.isLoading || !!projectError}
-                  >
-                    <SelectTrigger id="reservation-project" className="w-full">
-                      <SelectValue
-                        placeholder={
-                          projectsQuery.isLoading
-                            ? "Memuat proyek..."
-                            : "Pilih project"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(projectsQuery.data?.data ?? []).map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    triggerClassName="h-9 text-sm"
+                  />
                 )}
                 {!initialSelection && projectError && (
                   <ErrorText>{projectError}</ErrorText>
@@ -266,9 +253,11 @@ export function CreateReservationDialog({
                       <LabelText htmlFor="reservation-unit">
                         Unit tersedia
                       </LabelText>
-                      <Select
-                        value={field.value}
-                        onValueChange={(unitId) => {
+                      <SearchableSelect
+                        id="reservation-unit"
+                        value={field.value || undefined}
+                        onChange={(unitId) => {
+                          if (!unitId) return;
                           field.onChange(unitId);
                           form.clearErrors("unitId");
                           void form.trigger("unitId");
@@ -285,33 +274,26 @@ export function CreateReservationDialog({
                             );
                           }
                         }}
+                        clearable={false}
+                        invalid={!!fieldState.error}
+                        placeholder={
+                          !projectId
+                            ? "Pilih project dahulu"
+                            : unitsQuery.isLoading
+                              ? "Memuat unit..."
+                              : "Pilih unit"
+                        }
+                        searchPlaceholder="Cari kode unit atau tipe..."
+                        loading={unitsQuery.isLoading}
+                        options={(unitsQuery.data ?? []).map((unit) => ({
+                          value: unit.id,
+                          label: `${unit.code} · ${unit.category.name}`,
+                        }))}
                         disabled={
                           !projectId || unitsQuery.isLoading || !!unitError
                         }
-                      >
-                        <SelectTrigger
-                          id="reservation-unit"
-                          className="w-full"
-                          aria-invalid={!!fieldState.error}
-                        >
-                          <SelectValue
-                            placeholder={
-                              !projectId
-                                ? "Pilih project dahulu"
-                                : unitsQuery.isLoading
-                                  ? "Memuat unit..."
-                                  : "Pilih unit"
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(unitsQuery.data ?? []).map((unit) => (
-                            <SelectItem key={unit.id} value={unit.id}>
-                              {unit.code} · {unit.category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        triggerClassName="h-9 text-sm"
+                      />
                       {fieldState.error && (
                         <ErrorText>{fieldState.error.message}</ErrorText>
                       )}
@@ -387,17 +369,19 @@ export function CreateReservationDialog({
                 render={({ field }) => (
                   <div className="space-y-2">
                     <LabelText htmlFor="reservation-status">Status</LabelText>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger id="reservation-status" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ACTIVE">Reserved (reservasi aktif)</SelectItem>
-                        <SelectItem value="PAYMENT_PENDING">
-                          Processing (menunggu pembayaran)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      id="reservation-status"
+                      value={field.value}
+                      onChange={(value) => value && field.onChange(value)}
+                      clearable={false}
+                      placeholder="Pilih status"
+                      searchPlaceholder="Cari status..."
+                      options={[
+                        { value: "ACTIVE", label: "Reserved (reservasi aktif)" },
+                        { value: "PAYMENT_PENDING", label: "Processing (menunggu pembayaran)" },
+                      ]}
+                      triggerClassName="h-9 text-sm"
+                    />
                   </div>
                 )}
               />

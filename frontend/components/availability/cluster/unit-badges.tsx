@@ -7,34 +7,34 @@ export function UnitStatusBadge({ status }: { status: UnitStatus }) {
     available: {
       label: "Available",
       className: "bg-[#ebffed] text-[#26a940]",
-      icon: <House className="size-3" />,
+      icon: <House className="size-4" />,
     },
     reserved: {
       label: "Reserved",
       className: "bg-[#fff3e3] text-[#ef7d00]",
-      icon: <CalendarDays className="size-3" />,
+      icon: <CalendarDays className="size-4" />,
     },
     processing: {
       label: "Processing",
       className: "bg-[#e8f2ff] text-[#2378df]",
-      icon: <CalendarClock className="size-3" />,
+      icon: <CalendarClock className="size-4" />,
     },
     sold: {
       label: "Sold",
       className: "bg-[#eeeeee] text-[#333333]",
-      icon: <Tag className="size-3" />,
+      icon: <Tag className="size-4" />,
     },
     blocked: {
       label: "Blocked",
       className: "bg-[#f2f4f7] text-[#667085]",
-      icon: <Ban className="size-3" />,
+      icon: <Ban className="size-4" />,
     },
   };
   const item = config[status];
 
   return (
     <span
-      className={`inline-flex h-6 items-center gap-1 rounded-full px-2 text-[9px] font-semibold ${item.className}`}
+      className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ${item.className}`}
     >
       {item.icon}
       {item.label}
@@ -68,9 +68,9 @@ export function UnitBlockBadge({
   const levelLabel = level ? formatHierarchyLevel(level) : "Lokasi";
   return (
     <span
-      className={`rounded-full px-2 py-1 text-[9px] font-semibold ${className}`}
+      className={`inline-flex h-7 items-center whitespace-nowrap rounded-full px-2.5 text-xs font-semibold ${className}`}
     >
-      {levelLabel} {block}
+      {block.toLowerCase().startsWith(`${levelLabel.toLowerCase()} `) ? block : `${levelLabel} ${block}`}
     </span>
   );
 }

@@ -9,10 +9,10 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
 
   if (unit.images.length === 0) {
     return (
-      <div className="flex h-[355px] items-center justify-center rounded-xl bg-gradient-to-br from-[#e8f4ff] via-[#f5f9fc] to-[#e9eef5]">
+      <div className="flex h-[420px] items-center justify-center rounded-2xl bg-gradient-to-br from-[#e8f4ff] via-[#f5f9fc] to-[#e9eef5]">
         <div className="text-center">
           <Building2 className="mx-auto size-12 text-[#2695ff]/45" />
-          <p className="mt-3 text-xs font-medium text-[#667085]">
+          <p className="mt-3 text-sm font-medium text-[#667085]">
             Foto unit belum tersedia
           </p>
         </div>
@@ -30,7 +30,7 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
     );
   return (
     <div>
-      <div className="group relative h-[285px] overflow-hidden rounded-xl bg-muted">
+      <div className="group relative h-[340px] overflow-hidden rounded-2xl bg-muted">
         <img
           src={unit.images[activeIndex]}
           alt={`Unit ${unit.number}`}
@@ -39,28 +39,30 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
         <button
           type="button"
           onClick={previous}
-          className="absolute left-3 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#344054] shadow-md transition hover:scale-105"
+          aria-label="Foto sebelumnya"
+          className="absolute left-3 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#344054] shadow-md transition hover:scale-105"
         >
           <ChevronLeft className="size-5" />
         </button>
         <button
           type="button"
           onClick={next}
-          className="absolute right-3 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#344054] shadow-md transition hover:scale-105"
+          aria-label="Foto berikutnya"
+          className="absolute right-3 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#344054] shadow-md transition hover:scale-105"
         >
           <ChevronRight className="size-5" />
         </button>
-        <div className="absolute bottom-3 right-3 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold text-white">
+        <div className="absolute bottom-3 right-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
           {activeIndex + 1} / {unit.images.length}
         </div>
       </div>
-      <div className="mt-2 grid grid-cols-5 gap-2">
+      <div className="mt-3 grid grid-cols-5 gap-3">
         {unit.images.map((image, index) => (
           <button
             key={image}
             type="button"
             onClick={() => setActiveIndex(index)}
-            className={`h-[62px] overflow-hidden rounded-lg border-2 transition ${activeIndex === index ? "border-[#1684ff]" : "border-transparent"}`}
+            className={`h-20 overflow-hidden rounded-xl border-2 transition ${activeIndex === index ? "border-[#1684ff]" : "border-transparent"}`}
           >
             <img
               src={image}

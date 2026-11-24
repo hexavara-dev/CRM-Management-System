@@ -33,10 +33,11 @@ import {
   type UnitStatus,
 } from "@/hooks/use-unit-prices";
 import { cn } from "@/lib/utils";
+import { pageItems } from "@/lib/pagination";
 import { PendingAdjustments } from "./pending-adjustments";
 import { UNIT_STATUS_LABEL, UnitStatusBadge } from "./status-badge";
 import { AdjustPriceDialog, PriceHistoryDialog } from "./unit-price-dialogs";
-import { FilterCombobox, type ComboOption } from "./filter-combobox";
+import { SearchableSelect, type ComboOption } from "@/components/ui/searchable-select";
 import { BulkAdjustDialog } from "./bulk-adjust-dialog";
 
 const PAGE_SIZE = 10;
@@ -225,7 +226,8 @@ export default function PricingPage() {
             <TabsContent value="list" className="space-y-4 pt-3">
               <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
                 <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-1">
-                  <FilterCombobox
+                  <SearchableSelect
+                    className="lg:flex-1"
                     value={productId}
                     placeholder="Semua project"
                     loading={options.projects.isLoading}
@@ -239,7 +241,8 @@ export default function PricingPage() {
                       setPage(1);
                     }}
                   />
-                  <FilterCombobox
+                  <SearchableSelect
+                    className="lg:flex-1"
                     value={clusterId}
                     placeholder="Semua cluster"
                     disabled={!productId || (!locationLoading && clusterOptions.length === 0)}
@@ -252,7 +255,8 @@ export default function PricingPage() {
                       setPage(1);
                     }}
                   />
-                  <FilterCombobox
+                  <SearchableSelect
+                    className="lg:flex-1"
                     value={blockId}
                     placeholder="Semua blok"
                     disabled={!productId}
@@ -261,7 +265,8 @@ export default function PricingPage() {
                     options={blockOptions}
                     onChange={resetPage(setBlockId)}
                   />
-                  <FilterCombobox
+                  <SearchableSelect
+                    className="lg:flex-1"
                     value={variantId}
                     placeholder="Semua tipe"
                     disabled={!productId}
@@ -270,7 +275,8 @@ export default function PricingPage() {
                     options={(options.project.data?.variants ?? []).map((v) => ({ value: v.id, label: v.name }))}
                     onChange={resetPage(setVariantId)}
                   />
-                  <FilterCombobox
+                  <SearchableSelect
+                    className="lg:flex-1"
                     value={status}
                     placeholder="Semua status"
                     options={STATUSES.map((s) => ({ value: s, label: UNIT_STATUS_LABEL[s] }))}
@@ -464,7 +470,12 @@ export default function PricingPage() {
                   <Button type="button" variant="outline" size="icon-sm" aria-label="Previous page" disabled={page === 1} onClick={() => setPage(page - 1)}>
                     <ChevronLeft className="size-3.5" />
                   </Button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                  {pageItems(page, totalPages).map((n, gapIndex) =>
+                  n === "gap" ? (
+                    <span key={`gap-${gapIndex}`} className="px-1 text-xs text-muted-foreground" aria-hidden="true">
+                      …
+                    </span>
+                  ) : (
                     <Button
                       key={n}
                       type="button"

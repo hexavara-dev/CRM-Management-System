@@ -65,7 +65,7 @@ export default function AvailabilityDetailPage() {
             />
           ) : availability.data ? (
             <>
-              <section>
+              <section className="rounded-2xl border border-[#edf0f3] bg-white p-5 shadow-sm">
                 <ProjectAvailabilityHeader
                   project={availability.data.project}
                 />
@@ -80,13 +80,14 @@ export default function AvailabilityDetailPage() {
                 />
               </div>
 
-              <div className="my-4 border-t border-[#edf0f2]" />
+              <div className="my-5" />
 
               {availability.data.groups.length > 0 && (
                 <ClusterAvailabilityOverview
                   clusters={availability.data.groups}
                   availabilityId={availability.data.project.code}
                   level={availability.data.hierarchyLevel}
+                  image={availability.data.project.image}
                 />
               )}
 

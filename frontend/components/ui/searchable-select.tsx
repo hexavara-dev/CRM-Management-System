@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -9,10 +9,12 @@ import { cn } from "@/lib/utils";
 export type ComboOption = { value: string; label: string; hint?: string };
 
 /**
- * Dropdown filter yang bisa diketik untuk mencari opsi. Gayanya mengikuti
- * mode searchable pada FormSelect, tetapi tidak terikat ke React Hook Form.
+ * Dropdown yang bisa diketik untuk mencari opsi (gaya Select2).
+ * - Mode filter (bawaan): opsi teratas berisi placeholder untuk mengosongkan pilihan,
+ *   dan tombol X muncul setelah ada pilihan.
+ * - Mode form (`clearable={false}`): hanya opsi yang ada, tanpa opsi kosong.
  */
-export function FilterCombobox({
+export function SearchableSelect({
   value,
   onChange,
   placeholder,
@@ -20,6 +22,12 @@ export function FilterCombobox({
   disabled,
   disabledHint,
   loading,
+  clearable = true,
+  id,
+  invalid,
+  className,
+  triggerClassName,
+  searchPlaceholder = "Ketik untuk mencari...",
 }: {
   value: string | undefined;
   onChange: (value: string | undefined) => void;
@@ -29,10 +37,21 @@ export function FilterCombobox({
   /** Ditampilkan sebagai teks tombol saat dropdown nonaktif. */
   disabledHint?: string;
   loading?: boolean;
+  /** false untuk field form yang wajib memilih salah satu opsi. */
+  clearable?: boolean;
+  id?: string;
+  invalid?: boolean;
+  /** Kelas pembungkus (lebar/posisi di layout). */
+  className?: string;
+  /** Kelas tombol pemicu (tinggi/ukuran teks). */
+  triggerClassName?: string;
+  searchPlaceholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const selected = options.find((option) => option.value === value);
+  const showClear = clearable && selected && !disabled;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -50,26 +69,30 @@ export function FilterCombobox({
         if (!next) setQuery("");
       }}
     >
-      <div className="relative min-w-0 lg:flex-1">
+      <div className={cn("relative min-w-0", className)}>
         <PopoverTrigger asChild>
           <button
+            ref={triggerRef}
+            id={id}
             type="button"
             disabled={disabled}
             aria-label={placeholder}
+            aria-invalid={invalid || undefined}
             className={cn(
-              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-xs shadow-xs outline-none disabled:cursor-not-allowed disabled:opacity-50",
+              "flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 text-xs shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive",
               !selected && "text-muted-foreground",
-              selected && "pr-14",
+              showClear && "pr-14",
+              triggerClassName,
             )}
           >
             <span className="truncate">{disabled && disabledHint ? disabledHint : (selected?.label ?? placeholder)}</span>
             <ChevronDown className="size-4 shrink-0 opacity-50" />
           </button>
         </PopoverTrigger>
-        {selected && !disabled && (
+        {showClear && (
           <button
             type="button"
-            aria-label={`Hapus filter ${placeholder}`}
+            aria-label={`Hapus pilihan ${placeholder}`}
             onClick={() => onChange(undefined)}
             className="absolute top-1/2 right-7 -translate-y-1/2 rounded p-0.5 text-[#6b6b6b] hover:bg-[#F3F3F3]"
           >
@@ -77,26 +100,33 @@ export function FilterCombobox({
           </button>
         )}
       </div>
-      <PopoverContent align="start" className="z-[999] w-[max(var(--radix-popover-trigger-width),14rem)] p-2">
+      <PopoverContent
+        align="start"
+        // Di dalam dialog, popover dirender di konten dialog agar tetap bisa diklik dan di-scroll.
+        portalContainer={triggerRef.current?.closest<HTMLElement>("[data-slot='dialog-content']") ?? undefined}
+        className="z-[999] w-[max(var(--radix-popover-trigger-width),14rem)] p-2"
+      >
         <Input
           autoFocus
           value={query}
-          placeholder="Ketik untuk mencari..."
+          placeholder={searchPlaceholder}
           onChange={(event) => setQuery(event.target.value)}
           className="h-8 text-xs"
         />
-        <div className="mt-2 max-h-60 overflow-y-auto">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs text-[#6b6b6b] hover:bg-accent"
-            onClick={() => {
-              onChange(undefined);
-              setOpen(false);
-            }}
-          >
-            {placeholder}
-            {!value && <Check className="size-3.5" />}
-          </button>
+        <div className="mt-2 max-h-60 overflow-y-auto overscroll-contain">
+          {clearable && (
+            <button
+              type="button"
+              className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-xs text-[#6b6b6b] hover:bg-accent"
+              onClick={() => {
+                onChange(undefined);
+                setOpen(false);
+              }}
+            >
+              {placeholder}
+              {!value && <Check className="size-3.5" />}
+            </button>
+          )}
           {loading ? (
             <p className="px-2 py-3 text-xs text-muted-foreground">Memuat...</p>
           ) : filtered.length === 0 ? (

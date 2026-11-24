@@ -9,6 +9,8 @@ type ClusterToolbarProps = {
   search: string;
   view: ClusterView;
   blocks: string[];
+  /** false untuk menyembunyikan tab "Semua Blok". */
+  showAll?: boolean;
   onBlockChange: (block: BlockFilter) => void;
   onSearchChange: (search: string) => void;
   onViewChange: (view: ClusterView) => void;
@@ -19,69 +21,68 @@ export function ClusterToolbar({
   search,
   view,
   blocks,
+  showAll = true,
   onBlockChange,
   onSearchChange,
   onViewChange,
 }: ClusterToolbarProps) {
   return (
     <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap items-center">
-        {["all", ...blocks].map((value) => (
+      <div className="flex flex-wrap items-center gap-2">
+        {[...(showAll ? ["all"] : []), ...blocks].map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => onBlockChange(value)}
-            className={`h-8 rounded-full px-4 text-[10px] font-semibold transition ${
+            className={`h-10 rounded-full px-5 text-sm font-semibold transition ${
               block === value
                 ? "bg-[#1684ff] text-white shadow-sm"
                 : "border border-[#e1e5ea] bg-white text-[#344054] hover:bg-muted"
             }`}
           >
-            {value === "all" ? "Semua Blok" : `Blok ${value}`}
+            {value === "all" ? "Semua Blok" : /^blok\s/i.test(value) ? value : `Blok ${value}`}
           </button>
         ))}
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="relative w-full lg:w-[220px]">
-          <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#98a2b3]" />
+        <div className="relative w-full lg:w-72">
+          <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#98a2b3]" />
           <Input
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Search unit number..."
-            className="h-8 rounded-full pl-9 text-[10px] shadow-none"
+            className="h-10 rounded-full pl-10 text-sm shadow-none md:text-sm"
           />
         </div>
 
-        <div className="flex overflow-hidden rounded-lg border border-[#dfe4ea]">
+        <div className="flex shrink-0 gap-2">
           <button
             type="button"
             aria-label="Grid view"
             aria-pressed={view === "grid"}
             onClick={() => onViewChange("grid")}
-            className={`flex size-8 items-center justify-center ${
+            className={`flex size-10 items-center justify-center rounded-xl border ${
               view === "grid"
-                ? "bg-[#eef7ff] text-[#1684ff]"
-                : "bg-white text-[#667085]"
+                ? "border-[#1684ff] bg-[#eef7ff] text-[#1684ff]"
+                : "border-[#dfe4ea] bg-white text-[#667085] hover:bg-muted"
             }`}
           >
-            <Grid2X2 className="size-4" />
+            <Grid2X2 className="size-5" />
           </button>
-
-          <div className="border-l border-[#dfe4ea]" />
 
           <button
             type="button"
             aria-label="List view"
             aria-pressed={view === "list"}
             onClick={() => onViewChange("list")}
-            className={`flex size-8 items-center justify-center ${
+            className={`flex size-10 items-center justify-center rounded-xl border ${
               view === "list"
-                ? "bg-[#eef7ff] text-[#1684ff]"
-                : "bg-white text-[#667085]"
+                ? "border-[#1684ff] bg-[#eef7ff] text-[#1684ff]"
+                : "border-[#dfe4ea] bg-white text-[#667085] hover:bg-muted"
             }`}
           >
-            <List className="size-4" />
+            <List className="size-5" />
           </button>
         </div>
       </div>

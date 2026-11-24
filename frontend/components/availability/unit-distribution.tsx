@@ -1,4 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { formatNumber } from "./format";
 import { statusConfig } from "./status-config";
 import type { UnitStatus } from "./types";
@@ -27,17 +31,18 @@ export function UnitDistribution({
     { key: "uncreated", value: Math.max(0, total - available - processing - reserved - sold - blocked), color: "#e4e4e7" },
   ];
 
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const labelOf = (key: string) =>
+    key === "uncreated" ? "Belum Dibuat" : statusConfig[key as UnitStatus].label;
+
   let current = 0;
-
-  const gradient = segments
-    .map((segment) => {
-      const start = current;
-      const percentage = total > 0 ? (segment.value / total) * 100 : 0;
-      current += percentage;
-
-      return `${segment.color} ${start}% ${current}%`;
-    })
-    .join(", ");
+  const arcs = segments.map((segment) => {
+    const start = current;
+    const percentage = total > 0 ? (segment.value / total) * 100 : 0;
+    current += percentage;
+    return { ...segment, start, percentage };
+  });
+  const hovered = arcs.find((arc) => arc.key === hoveredKey && arc.value > 0) ?? null;
 
   return (
     <Card className="h-full shadow-none">
@@ -50,31 +55,62 @@ export function UnitDistribution({
       <CardContent>
         <div className="flex flex-col items-center justify-around gap-6 sm:flex-row">
           {/* Donut */}
-          <div
-            className="relative size-36 shrink-0 rounded-full"
-            style={{
-              background: `conic-gradient(${gradient})`,
-            }}
-          >
-            <div className="absolute inset-[22px] flex flex-col items-center justify-center rounded-full bg-background">
-              <span className="text-xl font-bold">{formatNumber(total)}</span>
-              <span className="text-xs text-muted-foreground">Units</span>
+          <div className="relative size-36 shrink-0">
+            <svg viewBox="0 0 36 36" className="size-full -rotate-90" role="img" aria-label="Distribusi unit">
+              {total === 0 ? (
+                <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#e4e4e7" strokeWidth={4} />
+              ) : (
+                arcs
+                  .filter((arc) => arc.value > 0)
+                  .map((arc) => (
+                    <circle
+                      key={arc.key}
+                      cx="18"
+                      cy="18"
+                      r="15.9155"
+                      fill="none"
+                      stroke={arc.color}
+                      strokeWidth={hoveredKey === arc.key ? 5 : 4}
+                      pathLength={100}
+                      strokeDasharray={`${arc.percentage} ${100 - arc.percentage}`}
+                      strokeDashoffset={-arc.start}
+                      className={cn(
+                        "cursor-pointer transition-all",
+                        hoveredKey && hoveredKey !== arc.key && "opacity-40",
+                      )}
+                      onMouseEnter={() => setHoveredKey(arc.key)}
+                      onMouseLeave={() => setHoveredKey(null)}
+                    >
+                      <title>{`${labelOf(arc.key)}: ${formatNumber(arc.value)} (${arc.percentage.toFixed(1)}%)`}</title>
+                    </circle>
+                  ))
+              )}
+            </svg>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+              <span className="text-xl font-bold">{formatNumber(hovered ? hovered.value : total)}</span>
+              <span className="w-full truncate text-xs text-muted-foreground">
+                {hovered ? labelOf(hovered.key) : "Units"}
+              </span>
             </div>
           </div>
 
           {/* Legend */}
           <div className="w-full space-y-3">
             {segments.map((segment) => {
-              const label = segment.key === "uncreated"
-                ? "Belum Dibuat"
-                : statusConfig[segment.key as UnitStatus].label;
+              const label = labelOf(segment.key);
 
               const percentage = total > 0 ? (segment.value / total) * 100 : 0;
 
               return (
                 <div
                   key={segment.key}
-                  className="flex items-center justify-between gap-3"
+                  onMouseEnter={() => setHoveredKey(segment.key)}
+                  onMouseLeave={() => setHoveredKey(null)}
+                  className={cn(
+                    "-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-0.5 transition",
+                    hoveredKey === segment.key && "bg-muted",
+                    hoveredKey && hoveredKey !== segment.key && "opacity-50",
+                  )}
                 >
                   <div className="flex items-center gap-2">
                     <span
