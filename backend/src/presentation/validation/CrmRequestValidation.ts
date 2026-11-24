@@ -90,6 +90,8 @@ const dealRules: Record<string, FieldRule> = {
   unitId: id(true),
   paymentMethod: { type: 'string', values: ['CASH', 'KPR', 'KPR_SHARIA'] },
   bankName: optionalText(150, true),
+  notes: optionalText(10000, true),
+  financingBankId: id(true),
 };
 
 const viewingRules: Record<string, FieldRule> = {
@@ -224,6 +226,10 @@ export const validateLeadConversion = (body: unknown) =>
   validateBody(body, {
     expectedAmount: { type: 'number', min: 0 },
     currency: { type: 'string', min: 3, max: 3 },
+    unitId: { ...id(), required: true, allowEmpty: false },
+    paymentMethod: { type: 'string', required: true, values: ['CASH', 'KPR', 'KPR_SHARIA'] },
+    financingBankId: id(true),
+    notes: optionalText(10000, true),
   });
 
 export const validateRequiredName = (body: unknown, field: 'statusName' | 'stageName') =>

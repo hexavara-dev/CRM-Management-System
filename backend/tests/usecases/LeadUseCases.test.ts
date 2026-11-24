@@ -37,7 +37,7 @@ class MockLeadRepository implements IRepository<any> {
     return element;
   }
 
-  async findAll(include?: any, where?: any) {
+  async findAll(_include?: any, _where?: any) {
     return Object.values(this.db);
   }
 
@@ -141,7 +141,7 @@ describe('LeadUseCases', () => {
     expect(updated.stageId).toBe('stage-qualified');
   });
 
-  it('creates Lead and Deal atomically with all Add Lead relations', async () => {
+  it('creates only a Lead from Add Lead even when a legacy createDeal flag is sent', async () => {
     const leadCreate = jest.fn(async ({ data }) => ({ id: 'lead-1', ...data }));
     const dealCreate = jest.fn(async ({ data }) => ({ id: 'deal-1', ...data }));
     const tx = {
@@ -189,25 +189,17 @@ describe('LeadUseCases', () => {
       createDeal: true,
     });
 
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(leadCreate).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        budget: 550_000_000,
-        converted: true,
-        project: { connect: { id: 'project-1' } },
-        productVariant: { connect: { id: 'variant-1' } },
-        campaign: { connect: { id: 'campaign-1' } },
-        customer: { create: expect.objectContaining({ age: 35 }) },
-      }),
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(leadCreate).not.toHaveBeenCalled();
+    expect(dealCreate).not.toHaveBeenCalled();
+    expect(lead).toEqual(expect.objectContaining({
+      budget: 550_000_000,
+      converted: false,
+      project: { connect: { id: 'project-1' } },
+      productVariant: { connect: { id: 'variant-1' } },
+      campaign: { connect: { id: 'campaign-1' } },
+      customer: { create: expect.objectContaining({ age: 35 }) },
     }));
-    expect(dealCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        lead: { connect: { id: 'lead-1' } },
-        expectedAmount: 550_000_000,
-        currency: 'IDR',
-      }),
-    });
-    expect(lead).toHaveProperty('id', 'lead-1');
   });
 
   it('rejects a product variant or campaign outside the selected parent', async () => {

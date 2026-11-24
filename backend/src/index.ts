@@ -61,6 +61,12 @@ import { LeadFormTemplateUseCase } from './usecases/crm/LeadFormTemplateUseCase.
 import { LeadFormTemplateController } from './presentation/controllers/LeadFormTemplateController.js';
 import { AvailabilityUseCase } from './usecases/availability/AvailabilityUseCase.js';
 import { AvailabilityController } from './presentation/controllers/AvailabilityController.js';
+import { DealDetailUseCase } from './usecases/deal/DealDetailUseCase.js';
+import { DealDetailController } from './presentation/controllers/DealDetailController.js';
+import { CustomerProfileUseCase } from './usecases/customer/CustomerProfileUseCase.js';
+import { CustomerProfileController } from './presentation/controllers/CustomerProfileController.js';
+import { FinancingBankUseCase } from './usecases/deal/FinancingBankUseCase.js';
+import { FinancingBankController } from './presentation/controllers/FinancingBankController.js';
 
 // Prisma returns BigInt for price columns; JSON.stringify cannot serialize it.
 // Prices stay below Number.MAX_SAFE_INTEGER (enforced by request validation).
@@ -349,6 +355,28 @@ models.forEach((modelName) => {
   app.put(`/api/${routeName}/:id`, authMiddleware, (req, res) => controller.update(req, res));
   app.delete(`/api/${routeName}/:id`, authMiddleware, (req, res) => controller.delete(req, res));
 });
+
+// Detail Deal domain. Pipeline stages stay configurable and are read through the
+// existing stage/pipeline endpoints; these routes only own transaction, history,
+// customer profile, and verified Lost Deal workflows.
+const dealDetail = new DealDetailController(new DealDetailUseCase(prisma));
+app.get('/api/deal/:id/history', authMiddleware, dealDetail.history);
+app.get('/api/deal/:id/payments', authMiddleware, dealDetail.payments);
+app.post('/api/deal/:id/payments', authMiddleware, dealDetail.createPayment);
+app.put('/api/deal/:id/payments/:paymentId', authMiddleware, dealDetail.updatePayment);
+app.get('/api/deal/:id/lost-requests', authMiddleware, dealDetail.lostRequests);
+app.post('/api/deal/:id/lost-requests', authMiddleware, dealDetail.requestLost);
+app.post('/api/deal/:id/lost-requests/:requestId/approve', authMiddleware, dealDetail.approveLost);
+app.post('/api/deal/:id/lost-requests/:requestId/reject', authMiddleware, dealDetail.rejectLost);
+
+const customerProfiles = new CustomerProfileController(new CustomerProfileUseCase(prisma));
+app.get('/api/customers/:id/profile', authMiddleware, customerProfiles.get);
+
+const financingBanks = new FinancingBankController(new FinancingBankUseCase(prisma));
+app.get('/api/financing-banks', authMiddleware, financingBanks.list);
+app.post('/api/financing-banks', authMiddleware, financingBanks.create);
+app.put('/api/financing-banks/:id', authMiddleware, financingBanks.update);
+app.delete('/api/financing-banks/:id', authMiddleware, financingBanks.remove);
 
 // Product catalog. Owner menulis, member hanya membaca.
 const productController = new ProductController(

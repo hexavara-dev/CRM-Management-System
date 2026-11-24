@@ -1,7 +1,6 @@
 import type { Lead, Deal, LeadActivity, Status, Stage, Prisma, PrismaClient } from '@prisma/client';
 import type { PrismaGenericRepository } from '../../infrastructure/repositories/PrismaGenericRepository.js';
 import type { CreateLeadDTO, UpdateLeadDTO } from '../../presentation/dtos/LeadDTO.js';
-import { randomUUID } from 'node:crypto';
 
 const USER_PUBLIC_FIELDS = {
   id: true,
@@ -170,15 +169,13 @@ export class LeadUseCases {
         })
       : undefined;
 
-    const createdAt = new Date();
     const assigneeId = dto.assignedUserId || currentUserId;
     const data: any = {
       tenant: { connect: { id: dto.tenantId } },
       type: dto.type,
       budget: dto.budget,
       priority: dto.priority ?? 'MEDIUM',
-      converted: dto.createDeal === true,
-      convertedDate: dto.createDeal === true ? createdAt : undefined,
+      converted: false,
       assignedUser: assigneeId ? { connect: { id: assigneeId } } : undefined,
       sourceUser: dto.sourceUserId ? { connect: { id: dto.sourceUserId } } : undefined,
       source: dto.sourceId ? { connect: { id: dto.sourceId } } : undefined,
@@ -243,39 +240,7 @@ export class LeadUseCases {
         : {}),
     };
 
-    if (dto.createDeal && this.prisma) {
-      return this.prisma.$transaction(async (tx) => {
-        const lead = await tx.lead.create({ data });
-        await tx.deal.create({
-          data: {
-            tenant: { connect: { id: dto.tenantId } },
-            lead: { connect: { id: lead.id } },
-            ...(assigneeId ? { assignedUser: { connect: { id: assigneeId } } } : {}),
-            ...(dto.sourceId ? { source: { connect: { id: dto.sourceId } } } : {}),
-            dealType: dto.type || 'new-lead',
-            expectedAmount: dto.budget ?? 0,
-            currency: 'IDR',
-            refCode: `DEAL-${randomUUID()}`,
-          },
-        });
-        return lead;
-      });
-    }
-
-    const lead = await this.leadRepository.create(data);
-    if (dto.createDeal) {
-      await this.dealRepository.create({
-        tenant: { connect: { id: dto.tenantId } },
-        lead: { connect: { id: (lead as any).id } },
-        assignedUser: assigneeId ? { connect: { id: assigneeId } } : undefined,
-        source: dto.sourceId ? { connect: { id: dto.sourceId } } : undefined,
-        dealType: dto.type || 'new-lead',
-        expectedAmount: dto.budget ?? 0,
-        currency: 'IDR',
-        refCode: `DEAL-${randomUUID()}`,
-      });
-    }
-    return lead;
+    return this.leadRepository.create(data);
   }
 
   async getLead(id: string, tenantId?: string, role?: string, currentUserId?: string) {
@@ -626,14 +591,50 @@ export class LeadUseCases {
       throw new Error('Lead already converted');
     }
 
+    if (!dealData.unitId) throw new Error('Unit is required');
+    const paymentMethod = dealData.paymentMethod ?? 'CASH';
+    if (!['CASH', 'KPR', 'KPR_SHARIA'].includes(paymentMethod)) throw new Error('Invalid payment method');
+
+    const [unit, financingBank, defaultStage] = this.prisma
+      ? await Promise.all([
+          this.prisma.productUnit.findFirst({
+            where: { id: dealData.unitId, tenantId: lead.tenantId },
+            select: { id: true, variant: { select: { productId: true } } },
+          }),
+          dealData.financingBankId
+            ? this.prisma.financingBank.findFirst({
+                where: { id: dealData.financingBankId, tenantId: lead.tenantId, isActive: true },
+                select: { id: true, name: true },
+              })
+            : null,
+          this.prisma.stage.findFirst({
+            where: { tenantId: lead.tenantId, entityType: 'deal', isDefaultStage: true, isActive: true },
+            select: { id: true },
+          }),
+        ])
+      : [null, null, null];
+    if (this.prisma && !unit) throw new Error('Unit not found');
+    if (lead.projectId && unit && unit.variant.productId !== lead.projectId) {
+      throw new Error('Unit must belong to the Lead project');
+    }
+    if (paymentMethod !== 'CASH' && !financingBank) throw new Error('Financing bank is required for KPR payment');
+
     const dealPayload = {
       tenant: { connect: { id: lead.tenantId } },
       lead: { connect: { id: lead.id } },
+      ...(lead.assignedUserId ? { assignedUser: { connect: { id: lead.assignedUserId } } } : {}),
+      ...(lead.sourceId ? { source: { connect: { id: lead.sourceId } } } : {}),
+      ...(defaultStage ? { stage: { connect: { id: defaultStage.id } } } : {}),
+      unit: { connect: { id: dealData.unitId } },
       dealType: lead.type,
       expectedAmount: dealData.expectedAmount || 0,
+      amount: dealData.expectedAmount || 0,
       currency: dealData.currency || 'USD',
+      paymentMethod,
+      bankName: paymentMethod === 'CASH' ? null : financingBank?.name ?? null,
+      ...(financingBank ? { financingBank: { connect: { id: financingBank.id } } } : {}),
+      notes: dealData.notes || null,
       refCode: `DEAL-${Date.now()}`,
-      closingDate: new Date(),
     };
 
     if (this.prisma) {
@@ -656,6 +657,27 @@ export class LeadUseCases {
             },
           });
         }
+
+        await tx.dealActivity.create({
+          data: {
+            tenantId: lead.tenantId,
+            dealId: deal.id,
+            actorId: currentUserId ?? null,
+            customerId: lead.customerId,
+            activityType: 'deal_created',
+            notes: { create: { tenantId: lead.tenantId, content: 'Deal dibuat dari Lead.' } },
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            tenantId: lead.tenantId,
+            entityId: deal.id,
+            entityType: 'deal',
+            actorId: currentUserId ?? null,
+            action: 'deal_created',
+            changes: { leadId: lead.id },
+          },
+        });
 
         return deal;
       });

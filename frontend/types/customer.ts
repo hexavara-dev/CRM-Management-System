@@ -1,3 +1,5 @@
+import type { DealActivity, LeadActivity } from "@/types/activity";
+import type { Lead } from "@/types/lead";
 import { Organization } from "@/types/organization";
 
 export interface Customer {
@@ -16,4 +18,7 @@ export interface Customer {
   createdAt?: string;
   created_at?: string;
   organization?: Organization;
+  leads?: Array<Lead & { deals?: import("@/types/deal").Deal[] }>;
+  leadActivities?: LeadActivity[];
+  dealActivities?: DealActivity[];
 }

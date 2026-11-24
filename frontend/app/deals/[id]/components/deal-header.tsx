@@ -2,154 +2,136 @@
 
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { FormInput } from "@/components/ui/form-input";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Deal } from "@/lib/data";
-import { formatRupiah } from "@/lib/helper";
-// import { cn } from "@/lib/utils";
-import { DealFormData, dealFormSchema } from "@/schemas/deal.schema";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Edit } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { FormProvider, useForm } from "react-hook-form";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { Deal } from "@/types/deal";
+import {
+  Activity,
+  CalendarDays,
+  ChevronLeft,
+  Home,
+  LockKeyhole,
+  MoreVertical,
+  Pencil,
+  Phone,
+  TrendingUp,
+} from "lucide-react";
+import Link from "next/link";
 
-interface DealHeaderProps {
+const date = (value: string) =>
+  new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+
+export function DealHeader({
+  deal,
+  hasPendingLost,
+  onLost,
+  onEdit,
+  onAddActivity,
+  onChangeStage,
+}: {
   deal: Deal;
-  onEdit: (data: DealFormData) => Promise<void>;
-}
-
-export function DealHeader({ deal, onEdit }: DealHeaderProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const router = useRouter();
-
-  const form = useForm<DealFormData>({
-    resolver: zodResolver(dealFormSchema),
-    defaultValues: {
-      dealType: "",
-      expectedAmount: deal.value || 0,
-      currency: "IDR",
-      expectedClosingDate: deal.expectedCloseDate
-        ? new Date(deal.expectedCloseDate).toISOString().split("T")[0]
-        : "",
-      stageId: "",
-      statusId: "",
-      assignedUserId: "",
-      lostReason: "",
-      lostNotes: "",
-    },
-  });
-
-  const onSubmit = async (data: DealFormData) => {
-    await onEdit(data);
-    setIsOpen(false);
-  };
+  hasPendingLost: boolean;
+  onLost: () => void;
+  onEdit: () => void;
+  onAddActivity: () => void;
+  onChangeStage: () => void;
+}) {
+  const customer = deal.lead?.customer;
+  const name = customer
+    ? `${customer.firstName} ${customer.lastName || ""}`.trim()
+    : "Customer tidak tersedia";
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-2 md:px-4 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 sticky top-0 z-10">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-1 md:mr-2 h-4" />
-      <div className="flex flex-1 items-center justify-between gap-2 min-w-0">
-        <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
-          <Button
-            onClick={() => router.back()}
-            variant="ghost"
-            size="icon"
-            className="hidden sm:inline-flex"
-          >
-            <ArrowLeft />
-          </Button>
-
-          <div className="min-w-0 flex-1">
-            <h1 className="text-sm md:text-base font-semibold leading-none mb-1 truncate">
-              {deal.name}
+    <header className="border-b border-[#EAECF0] bg-white px-4 py-3">
+      <div className="mb-3 flex items-center gap-2 text-xs text-[#667085]">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 rounded-full"
+          asChild
+        >
+          <Link href="/deals" aria-label="Kembali ke Deals">
+            <ChevronLeft className="size-4" />
+          </Link>
+        </Button>
+        <Link href="/deals" className="hover:text-[#1570EF]">
+          Deals
+        </Link>
+        <span>›</span>
+        <span className="font-semibold text-[#344054]">Detail Deal</span>
+      </div>
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-[#EFF8FF] text-[#1570EF]">
+            <Home className="size-6" />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-semibold text-[#101828]">
+              {name}
             </h1>
-            <p className="text-xs text-muted-foreground truncate">
-              {deal.leadName || "No linked lead"} • {formatRupiah(deal.value)}
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#667085]">
+              <span className="flex items-center gap-1">
+                <Phone className="size-3" />
+                {customer?.phoneNumber || "—"}
+              </span>
+              {deal.leadId && (
+                <Link
+                  href={`/leads/${deal.leadId}`}
+                  className="hover:text-[#1570EF]"
+                >
+                  Dari Lead
+                </Link>
+              )}
+              <span className="flex items-center gap-1">
+                <CalendarDays className="size-3" />
+                Dibuat: {date(deal.createdAt)}
+              </span>
+            </div>
           </div>
-          {/* 
-          <Badge
-            variant="outline"
-            className={cn(
-              "rounded-full px-2 md:px-2.5 py-0.5 text-xs shrink-0 hidden sm:flex",
-              statusColors[statusName] || statusColors.new,
-            )}
-          >
-            {statusName.charAt(0).toUpperCase() + statusName.slice(1)}
-          </Badge> */}
         </div>
-
-        <div className="flex items-center gap-1 md:gap-2 shrink-0">
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="hidden md:flex">
-                Edit Deal
-              </Button>
-            </DialogTrigger>
-            <DialogTrigger asChild>
+        <div className="flex items-center gap-2 self-end md:self-auto">
+          <Button
+            size="sm"
+            onClick={onLost}
+            className={
+              hasPendingLost
+                ? "bg-[#F79009] hover:bg-[#DC6803]"
+                : "bg-[#D92D20] hover:bg-[#B42318]"
+            }
+          >
+            <LockKeyhole className="mr-1.5 size-4" />
+            {hasPendingLost ? "Lost Pending" : "Lost Deals (Verifikasi)"}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
                 size="icon"
-                className="md:hidden size-8"
+                className="size-8"
+                aria-label="Menu Deal"
               >
-                <Edit className="size-4" />
+                <MoreVertical className="size-4" />
               </Button>
-            </DialogTrigger>
-            <DialogContent className="min-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Edit Deal</DialogTitle>
-                <DialogDescription>
-                  Update the deal details below.
-                </DialogDescription>
-              </DialogHeader>
-              <FormProvider {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="grid grid-cols-2 gap-4"
-                  noValidate
-                >
-                  <FormInput
-                    name="dealType"
-                    label="Deal Type"
-                    placeholder="e.g. Service, Product"
-                  />
-                  <FormInput
-                    name="expectedAmount"
-                    label="Value (IDR)"
-                    currency
-                    min={0}
-                  />
-                  <div className="col-span-2">
-                    <FormInput
-                      name="expectedClosingDate"
-                      label="Expected Closing Date"
-                      type="date"
-                    />
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit">Save Changes</Button>
-                  </DialogFooter>
-                </form>
-              </FormProvider>
-            </DialogContent>
-          </Dialog>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onSelect={onEdit}>
+                <Pencil className="size-4" /> Edit Deal
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onAddActivity}>
+                <Activity className="size-4" /> Tambah Activity
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onChangeStage}>
+                <TrendingUp className="size-4" /> Ubah Fase Deal
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

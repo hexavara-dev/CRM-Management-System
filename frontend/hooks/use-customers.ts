@@ -1,10 +1,10 @@
+import { useAuth } from "@/components/auth/auth-provider";
 import api from "@/lib/api";
 import { CustomerFormData } from "@/schemas/customer.schema";
+import { ApiResponse } from "@/types/api";
 import { Customer } from "@/types/customer";
-import { useAuth } from "@/components/auth/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ApiResponse } from "@/types/api";
 
 export function useCustomers() {
   const { user } = useAuth();
@@ -94,6 +94,17 @@ export function useCustomerDetail(id: string) {
     queryKey: ["customer", id],
     queryFn: async () => {
       const response = await api.get<Customer>(`/api/customer/${id}`);
+      return response.data;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCustomerProfile(id: string) {
+  return useQuery({
+    queryKey: ["customer-profile", id],
+    queryFn: async () => {
+      const response = await api.get<Customer>(`/api/customers/${id}/profile`);
       return response.data;
     },
     enabled: !!id,

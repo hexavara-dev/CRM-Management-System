@@ -4,6 +4,7 @@ export const dealFormSchema = z.object({
   leadId: z.string().optional(),
   dealType: z.string().optional(),
   expectedAmount: z.coerce.number().min(0, "Amount must be 0 or greater"),
+  amount: z.coerce.number().min(0, "Amount must be 0 or greater").optional(),
   currency: z.string(),
   expectedClosingDate: z.string().optional(),
   stageId: z.string().optional(),
@@ -14,6 +15,8 @@ export const dealFormSchema = z.object({
   unitId: z.string().optional(),
   paymentMethod: z.enum(["CASH", "KPR", "KPR_SHARIA"]).optional(),
   bankName: z.string().max(150).optional(),
+  notes: z.string().max(10000).optional(),
+  financingBankId: z.string().optional(),
 });
 
 export type DealFormData = z.infer<typeof dealFormSchema>;

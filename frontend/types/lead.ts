@@ -1,10 +1,10 @@
 import { AttachmentRecord, LeadActivity } from "@/types/activity";
-import { Status } from "@/types/status";
-import { Stage } from "@/types/stage";
 import { Customer } from "@/types/customer";
-import { User } from "@/types/user";
 import { Location } from "@/types/location";
 import { Source } from "@/types/source";
+import { Stage } from "@/types/stage";
+import { Status } from "@/types/status";
+import { User } from "@/types/user";
 import { Viewing } from "./viewing";
 
 export interface LeadLabelSummary {
@@ -57,9 +57,21 @@ export interface Lead {
     createdAt: string;
     actor?: User | null;
   }[];
+  needsNotes?: string | null;
 }
 
-export type ArchivedLead = Pick<Lead, "id" | "archiveCategory" | "archiveReason" | "archivedAt" | "project" | "source" | "stage" | "assignedUser" | "archivedBy"> & {
+export type ArchivedLead = Pick<
+  Lead,
+  | "id"
+  | "archiveCategory"
+  | "archiveReason"
+  | "archivedAt"
+  | "project"
+  | "source"
+  | "stage"
+  | "assignedUser"
+  | "archivedBy"
+> & {
   name: string;
   hasDeals: boolean;
   customer: Pick<Customer, "firstName" | "lastName" | "phoneNumber">;

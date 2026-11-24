@@ -4,9 +4,9 @@ import { DealsPipelineTab } from "@/app/deals/components/deals-pipeline-tab";
 import { AppSidebar } from "@/components/Sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
@@ -26,7 +26,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useDeals, type DealFilters } from "@/hooks/use-deals";
+import { type DealFilters, useDeals } from "@/hooks/use-deals";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useProjects } from "@/hooks/use-projects";
 import { useUsers } from "@/hooks/use-users";
@@ -41,12 +41,12 @@ import {
   Eye,
   FileText,
   List,
+  type LucideIcon,
   Pencil,
   Search,
   Target,
   Trash2,
   Trophy,
-  type LucideIcon,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -545,7 +545,7 @@ export default function DealsPage() {
                                     variant="ghost"
                                     aria-label="Edit Deal"
                                     onClick={() =>
-                                      router.push(`/deals/${deal.id}`)
+                                      router.push(`/deals/${deal.id}?edit=1`)
                                     }
                                   >
                                     <Pencil />

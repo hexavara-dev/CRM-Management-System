@@ -2,20 +2,15 @@ import type { Request, Response } from 'express';
 import { DealUseCases } from '../../usecases/deal/DealUseCases.js';
 import { respondWithError } from '../../infrastructure/utils/HttpErrorMapper.js';
 import { parsePagination, parseSearch } from '../../infrastructure/utils/RequestValidation.js';
-import { validateDealCreate, validateDealUpdate } from '../validation/CrmRequestValidation.js';
+import { validateDealUpdate } from '../validation/CrmRequestValidation.js';
 
 export class DealController {
   constructor(private dealUseCases: DealUseCases) {}
 
-  async create(req: Request, res: Response) {
-    try {
-      const tenantId = (req as any).user?.tenantId;
-      const body = validateDealCreate(req.body);
-      const result = await this.dealUseCases.createDeal({ ...body, tenantId } as any);
-      return res.status(201).json(result);
-    } catch (error: any) {
-      return respondWithError(res, error);
-    }
+  async create(_req: Request, res: Response) {
+    return res.status(405).json({
+      error: 'Deal hanya dapat dibuat melalui aksi Buat Deal pada halaman Detail Lead.',
+    });
   }
 
   async getById(req: Request, res: Response) {
@@ -79,8 +74,8 @@ export class DealController {
   async update(req: Request, res: Response) {
     try {
       const tenantId = (req as any).user?.tenantId;
-      const body = validateDealUpdate(req.body);
       const actorId = (req as any).user?.userId;
+      const body = validateDealUpdate(req.body);
       const result = await this.dealUseCases.updateDeal(req.params.id as string, body as any, tenantId, actorId);
       return res.status(200).json(result);
     } catch (error: any) {
