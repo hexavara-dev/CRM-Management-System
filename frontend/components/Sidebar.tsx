@@ -134,6 +134,10 @@ function isPathActive(pathname: string, url: string) {
   return url === "/" ? pathname === "/" : pathname.startsWith(url);
 }
 
+function isSubmenuPathActive(pathname: string, url: string) {
+  return pathname === url;
+}
+
 function NavParentItem({
   item,
   pathname,
@@ -142,9 +146,7 @@ function NavParentItem({
   pathname: string;
 }) {
   const children = item.children ?? [];
-  const hasActiveChild = children.some((child) =>
-    isPathActive(pathname, child.url),
-  );
+  const hasActiveChild = children.some((child) => isPathActive(pathname, child.url));
   const [open, setOpen] = React.useState(hasActiveChild);
 
   return (
@@ -166,7 +168,7 @@ function NavParentItem({
                 <SidebarMenuSubButton
                   asChild
                   className={NAV_SUB_BUTTON_CLASS}
-                  isActive={isPathActive(pathname, child.url)}
+                  isActive={isSubmenuPathActive(pathname, child.url)}
                 >
                   <Link href={child.url}>
                     <child.icon />
@@ -255,10 +257,6 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
           url: "/deals",
           icon: Handshake,
           visible: true,
-          children: [
-            { title: "Daftar Deals", url: "/deals", icon: DollarSign },
-            { title: "Deals Pipeline", url: "/pipeline", icon: Columns3 },
-          ],
         },
         {
           title: "CRM Configuration",

@@ -1,12 +1,5 @@
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Search } from "lucide-react";
 import type {
   ReservationFilterOptions,
@@ -28,26 +21,20 @@ type FilterSelectProps = {
   onChange: (value: string) => void;
 };
 
+/** Filter bisa-cari; "Semua" (nilai "all") berarti tanpa filter. */
 function FilterSelect({ label, value, options, onChange }: FilterSelectProps) {
   return (
-    <label className="grid min-w-0 gap-1 text-[11px] font-semibold text-slate-700">
-      {label}
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger aria-label={label} className="h-9 bg-white">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent position="popper">
-          <SelectGroup>
-            <SelectItem value="all">Semua</SelectItem>
-            {options.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </label>
+    <div className="grid min-w-0 gap-1 text-[11px] font-semibold text-slate-700">
+      <span>{label}</span>
+      <SearchableSelect
+        value={value === "all" ? undefined : value}
+        onChange={(next) => onChange(next ?? "all")}
+        placeholder="Semua"
+        options={options.map((option) => ({ value: option, label: option }))}
+        searchPlaceholder={`Cari ${label.toLowerCase()}...`}
+        triggerClassName="h-9 bg-white text-sm font-normal text-foreground"
+      />
+    </div>
   );
 }
 

@@ -466,6 +466,15 @@ export class AvailabilityUseCase {
     // agar angka dan daftar unit konsisten dengan hierarchy Step 4.
     const nodeUnits = unitsInCategoryTree(data.units, node.id, data.categories);
     const units = this.mapUnits(nodeUnits, data.categories);
+    // Lokasi setingkat (mis. blok lain di cluster yang sama) untuk navigasi antar-lokasi.
+    // Akar pohon proyek tidak ditampilkan sebagai induk.
+    const parentNode =
+      node.parentId && node.parentId !== data.product.categoryId ? data.categories.get(node.parentId) : undefined;
+    const siblings = node.parentId
+      ? childCategories(node.parentId, data.categories)
+          .map((item) => ({ code: item.code, name: item.name }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true }))
+      : [];
     const blocks = [
       ...new Set(
         categoryUnits
@@ -502,6 +511,8 @@ export class AvailabilityUseCase {
         sold: summary.sold,
       },
       blocks,
+      parent: parentNode ? { code: parentNode.code, name: parentNode.name } : null,
+      siblings,
       children: childRows,
       units,
       integrity: data.integrity,

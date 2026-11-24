@@ -134,4 +134,33 @@ describe('DealUseCases.createDeal', () => {
     expect(dealRepo.items).toHaveLength(0);
     expect(activityRepo.items).toHaveLength(0);
   });
+
+  it('rejects atypical payment payloads before any transaction is started', async () => {
+    const transaction = jest.fn();
+    const useCases = new DealUseCases(
+      new MockRepository(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { $transaction: transaction } as any
+    );
+
+    await expect(
+      useCases.createDeal({ tenantId: 'tenant-1', paymentMethod: 'KPR' })
+    ).rejects.toThrow('Bank is required for KPR payment');
+    await expect(
+      useCases.createDeal({ tenantId: 'tenant-1', paymentMethod: 'CASH', bankName: 'BRI' })
+    ).rejects.toThrow('Bank must be empty for cash payment');
+    expect(transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('DealUseCases.deleteDeal', () => {
+  it('never deletes a deal from another tenant', async () => {
+    const repository = new MockRepository([{ id: 'deal-1', tenantId: 'tenant-a' }]);
+    const useCases = new DealUseCases(repository);
+    await expect(useCases.deleteDeal('deal-1', 'tenant-b')).rejects.toThrow('Deal not found');
+  });
 });

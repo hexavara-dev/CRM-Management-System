@@ -53,7 +53,7 @@ export default function UnitDetailPage() {
           ) : unit.data ? (
             <>
               <div className="flex items-center justify-between gap-4">
-                <div className="flex flex-wrap items-center gap-1 text-[9px] font-semibold">
+                <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
                   <span className="text-[#3967fb]">
                     Availability & Reservation
                   </span>
@@ -69,7 +69,7 @@ export default function UnitDetailPage() {
                 <Button
                   asChild
                   variant="outline"
-                  className="h-8 rounded-lg px-3 text-[10px] font-semibold shadow-none"
+                  className="h-10 rounded-xl px-4 text-sm font-medium shadow-none"
                 >
                   <Link
                     href={clusterPath(
@@ -77,20 +77,20 @@ export default function UnitDetailPage() {
                       unit.data.clusterCode,
                     )}
                   >
-                    <ArrowLeft className="mr-1.5 size-3" />
+                    <ArrowLeft className="mr-1.5 size-4" />
                     Kembali ke Hierarchy
                   </Link>
                 </Button>
               </div>
-              <h1 className="mt-4 text-[22px] font-bold tracking-tight text-[#101828]">
+              <h1 className="mt-4 text-2xl font-bold tracking-tight text-[#101828]">
                 Detail Unit
               </h1>
-              <section className="mt-3 grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_1fr]">
-                <div className="space-y-3">
+              <section className="mt-4 grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_1fr]">
+                <div className="space-y-4">
                   <UnitGallery unit={unit.data} />
                   <SpecificationCard unit={unit.data} />
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <UnitInfoCard unit={unit.data} />
                   <PricingCard
                     unit={unit.data}

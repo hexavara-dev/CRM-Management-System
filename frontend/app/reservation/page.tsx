@@ -74,9 +74,9 @@ export default function ReservationPage() {
   };
 
   return (
-    <SidebarProvider className="overflow-hidden bg-surface">
+    <SidebarProvider className="overflow-hidden">
       <AppSidebar />
-      <SidebarInset className="w-0 bg-surface">
+      <SidebarInset className="w-0">
         <header className="flex shrink-0 items-center px-4 pt-3 lg:hidden">
           <SidebarOpenTrigger />
         </header>
@@ -117,7 +117,7 @@ export default function ReservationPage() {
 
             <section
               aria-label="Daftar reservasi"
-              className="overflow-hidden rounded-xl bg-card"
+              className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-card"
             >
               <ReservationFilters
                 filters={filters}

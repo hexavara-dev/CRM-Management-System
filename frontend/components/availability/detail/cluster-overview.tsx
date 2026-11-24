@@ -18,6 +18,8 @@ type ClusterOverviewProps = {
   clusters: ClusterAvailability[];
   availabilityId: string;
   level?: string | null;
+  /** Foto proyek, dipakai sebagai banner kartu cluster. */
+  image?: string | null;
 };
 
 type HierarchyView = "grid" | "list";
@@ -26,6 +28,7 @@ export function ClusterAvailabilityOverview({
   clusters,
   availabilityId,
   level,
+  image,
 }: ClusterOverviewProps) {
   const [view, setView] = useState<HierarchyView>("grid");
   const levelLabel = level ? formatHierarchyLevel(level) : "Hierarchy";
@@ -34,52 +37,52 @@ export function ClusterAvailabilityOverview({
     <section>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-[15px] font-bold text-[#101828]">
+          <h2 className="text-xl font-bold text-[#101828]">
             {levelLabel} Overview
           </h2>
-          <p className="mt-0.5 text-[9px] text-[#667085]">
+          <p className="mt-1 text-sm text-[#475467]">
             Ringkasan ketersediaan unit berdasarkan hierarchy project
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center overflow-hidden rounded-lg border border-[#e3e7ec]">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             aria-label="Tampilan grid"
             aria-pressed={view === "grid"}
             onClick={() => setView("grid")}
-            className={`flex size-9 items-center justify-center transition-colors ${
+            className={`flex size-10 items-center justify-center rounded-xl border transition-colors ${
               view === "grid"
-                ? "bg-[#eff7ff] text-[#258bff]"
-                : "bg-white text-[#64748b] hover:bg-muted"
+                ? "border-[#258bff] bg-[#eff7ff] text-[#258bff]"
+                : "border-[#e3e7ec] bg-white text-[#64748b] hover:bg-muted"
             }`}
           >
-            <Grid2X2 className="size-4" />
+            <Grid2X2 className="size-5" />
           </button>
-          <div className="h-6 border-l border-[#e3e7ec]" />
           <button
             type="button"
             aria-label="Tampilan tabel"
             aria-pressed={view === "list"}
             onClick={() => setView("list")}
-            className={`flex size-9 items-center justify-center transition-colors ${
+            className={`flex size-10 items-center justify-center rounded-xl border transition-colors ${
               view === "list"
-                ? "bg-[#eff7ff] text-[#258bff]"
-                : "bg-white text-[#64748b] hover:bg-muted"
+                ? "border-[#258bff] bg-[#eff7ff] text-[#258bff]"
+                : "border-[#e3e7ec] bg-white text-[#64748b] hover:bg-muted"
             }`}
           >
-            <List className="size-4" />
+            <List className="size-5" />
           </button>
         </div>
       </div>
 
       {clusters.length > 0 && view === "grid" && (
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {clusters.map((cluster) => (
             <ClusterAvailabilityCard
               key={cluster.id}
               cluster={cluster}
               availabilityId={availabilityId}
+              image={image}
             />
           ))}
         </div>
@@ -88,7 +91,7 @@ export function ClusterAvailabilityOverview({
       {clusters.length > 0 && view === "list" && (
         <div className="mt-4 overflow-hidden rounded-xl border border-[#e5e9ef] bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] text-left text-[11px]">
+            <table className="w-full min-w-[1050px] text-left text-sm">
               <thead className="bg-[#f7f9fb] text-[#475467]">
                 <tr className="border-b border-[#e5e9ef]">
                   <th className="px-4 py-3 font-semibold">Hierarchy</th>

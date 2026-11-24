@@ -12,8 +12,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { INPUT } from "./form-styles";
+import { FIELD_LABEL, INPUT } from "./form-styles";
 import type { UnitItem } from "./hierarchy-step";
+
+/** Batas stok per varian, sama dengan validasi backend. */
+const MAX_STOCK = 1000;
+const clampStock = (value: string) => (value !== "" && Number(value) > MAX_STOCK ? String(MAX_STOCK) : value);
 
 export type UnitType = {
   id?: string;
@@ -255,15 +259,15 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
       </div>
 
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>{editing !== null && editing >= 0 ? "Edit Unit Type" : "Add Unit Type"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={save} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3">
               {FIELDS.map((f) => (
-                <div key={f.key} className={f.key === "name" ? "col-span-2" : undefined}>
-                  <label className="mb-1.5 block text-xs font-medium text-[#1f1f1f]">{f.label}</label>
+                <div key={f.key} className={f.key === "name" ? "col-span-2 md:col-span-3" : undefined}>
+                  <label className={FIELD_LABEL}>{f.label}</label>
                   <Input
                       required
                       type={f.numeric ? "number" : "text"}
@@ -282,19 +286,19 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
             <div className="space-y-3 rounded-lg border border-[#E4E4E7] p-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-xs font-semibold text-[#1f1f1f]">Varian tipe</p>
-                  <p className="text-[10px] text-[#667085]">Harga dan stock diatur untuk setiap varian.</p>
+                  <p className="text-sm font-semibold text-[#1f1f1f]">Varian tipe</p>
+                  <p className="text-xs text-[#667085]">Harga dan stock diatur untuk setiap varian.</p>
                 </div>
                 <Button type="button" variant="outline" className="h-8 text-xs" onClick={() => setDraft((current) => ({ ...current, variants: [...current.variants, { key: crypto.randomUUID(), name: "", code: "", stock: "", basePrice: "" }] }))}>
                   <Plus className="mr-1 size-3.5" />Tambah varian
                 </Button>
               </div>
-              <ScrollArea className="h-56 overflow-hidden pr-1">
+              <ScrollArea className="overflow-hidden pr-1 [&>[data-slot=scroll-area-viewport]]:max-h-56">
               <div className="space-y-2">
               {draft.variants.map((option) => (
-                <div key={option.key} className="grid gap-2 rounded-md bg-[#F8FAFC] p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.9fr)_auto]">
+                <div key={option.key} className="grid gap-2 rounded-md bg-[#F8FAFC] p-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.6fr)_minmax(0,1.2fr)_auto]">
                   <Input required value={option.name} placeholder="Nama varian" className={INPUT} onChange={(event) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, name: event.target.value } : item) }))} />
-                  <Input type="number" required min={0} value={option.stock} placeholder="Stock" className={INPUT} onChange={(event) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, stock: event.target.value } : item) }))} />
+                  <Input type="number" required min={0} max={MAX_STOCK} value={option.stock} placeholder="Stock" className={INPUT} onChange={(event) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, stock: clampStock(event.target.value) } : item) }))} />
                   <RupiahInput required value={option.basePrice} placeholder="Harga dasar" className={INPUT} onValueChange={(value) => setDraft((current) => ({ ...current, variants: current.variants.map((item) => item.key === option.key ? { ...item, basePrice: value } : item) }))} />
                   <Button
                     type="button"

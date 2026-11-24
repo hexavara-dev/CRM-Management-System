@@ -1,7 +1,6 @@
 import type { Request, Response } from 'express';
 import { DealUseCases } from '../../usecases/deal/DealUseCases.js';
 import { respondWithError } from '../../infrastructure/utils/HttpErrorMapper.js';
-import { extractFilters } from '../../infrastructure/utils/QueryHelper.js';
 import { parsePagination, parseSearch } from '../../infrastructure/utils/RequestValidation.js';
 import { validateDealCreate, validateDealUpdate } from '../validation/CrmRequestValidation.js';
 
@@ -38,7 +37,37 @@ export class DealController {
 
       const { page, limit } = parsePagination(req.query as Record<string, unknown>);
       const search = parseSearch(req.query as Record<string, unknown>);
-      const filters = extractFilters(req.query);
+      const query = req.query as Record<string, unknown>;
+      const one = (key: string) => {
+        const value = query[key];
+        if (value === undefined) return undefined;
+        if (typeof value !== 'string' || !value.trim()) throw new Error(`${key} must be a non-empty string`);
+        return value.trim();
+      };
+      const date = (key: string) => {
+        const value = one(key);
+        if (!value) return undefined;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) throw new Error(`${key} must be a valid date`);
+        return parsed;
+      };
+      const paymentMethod = one('paymentMethod');
+      if (paymentMethod && !['CASH', 'KPR', 'KPR_SHARIA'].includes(paymentMethod)) {
+        throw new Error('paymentMethod must be CASH, KPR, or KPR_SHARIA');
+      }
+      const startDate = date('startDate');
+      const endDate = date('endDate');
+      if (endDate) endDate.setHours(23, 59, 59, 999);
+      if (startDate && endDate && startDate > endDate) throw new Error('startDate must not be after endDate');
+      const filters = {
+        ...(one('stageId') ? { stageId: one('stageId') } : {}),
+        ...(one('assignedUserId') ? { assignedUserId: one('assignedUserId') } : {}),
+        ...(one('projectId') ? { projectId: one('projectId') } : {}),
+        ...(one('bankName') ? { bankName: one('bankName') } : {}),
+        ...(paymentMethod ? { paymentMethod: paymentMethod as 'CASH' | 'KPR' | 'KPR_SHARIA' } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+      };
 
       const result = await this.dealUseCases.getAllDeals(tenantId, page, limit, filters, search);
       return res.status(200).json(result);
@@ -51,7 +80,8 @@ export class DealController {
     try {
       const tenantId = (req as any).user?.tenantId;
       const body = validateDealUpdate(req.body);
-      const result = await this.dealUseCases.updateDeal(req.params.id as string, body as any, tenantId);
+      const actorId = (req as any).user?.userId;
+      const result = await this.dealUseCases.updateDeal(req.params.id as string, body as any, tenantId, actorId);
       return res.status(200).json(result);
     } catch (error: any) {
       return respondWithError(res, error);

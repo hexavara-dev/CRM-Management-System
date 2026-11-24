@@ -13,9 +13,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatNumber } from "./format";
+import { SimplePagination } from "./simple-pagination";
 import { availabilityPath } from "./routes";
 import { StatusCell } from "./status-cell";
 import type { ProjectAvailability } from "./types";
+
+const PAGE_SIZE = 3;
 
 export function AvailabilityTable({
   projects,
@@ -23,12 +26,19 @@ export function AvailabilityTable({
   projects: ProjectAvailability[];
 }) {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) =>
       project.name.toLowerCase().includes(search.toLowerCase()),
     );
   }, [projects, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProjects.length / PAGE_SIZE));
+  // Halaman dijaga tetap valid saat hasil pencarian atau data berkurang.
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pagedProjects = filteredProjects.slice(pageStart, pageStart + PAGE_SIZE);
 
   return (
     <Card className="shadow-none">
@@ -43,7 +53,10 @@ export function AvailabilityTable({
           <Input
             placeholder="Search project"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="h-9 pl-9 text-xs"
           />
         </div>
@@ -72,7 +85,7 @@ export function AvailabilityTable({
             </thead>
 
             <tbody>
-              {filteredProjects.map((project) => {
+              {pagedProjects.map((project) => {
                 const percentage =
                   project.total > 0
                     ? (project.available / project.total) * 100
@@ -196,10 +209,13 @@ export function AvailabilityTable({
           </table>
         </div>
 
-        <div className="mt-4 text-xs text-muted-foreground">
-          Menampilkan {filteredProjects.length === 0 ? 0 : 1}–
-          {filteredProjects.length} dari {projects.length} proyek
-        </div>
+        <SimplePagination
+          page={currentPage}
+          pageSize={PAGE_SIZE}
+          total={filteredProjects.length}
+          itemLabel="proyek"
+          onPageChange={setPage}
+        />
       </CardContent>
     </Card>
   );

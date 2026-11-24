@@ -487,7 +487,6 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                       <th className="px-3 py-2 font-medium">No. Unit</th>
                       <th className="px-3 py-2 font-medium">Tipe</th>
                       <th className="px-3 py-2 font-medium">Varian</th>
-                      <th className="px-3 py-2 font-medium">Hook</th>
                       <th className="px-3 py-2 font-medium">Status</th>
                       <th className="px-3 py-2 font-medium">Customer</th>
                     </tr>
@@ -506,9 +505,6 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                         <td className="px-3 py-2">{unit.type}</td>
                         <td className="px-3 py-2">{unit.variant}</td>
                         <td className="px-3 py-2">
-                          {unit.isHook ? "Ya" : "Tidak"}
-                        </td>
-                        <td className="px-3 py-2">
                           <span
                             className={cn(
                               "rounded-full border px-2 py-0.5 text-[10px] font-medium",
@@ -526,7 +522,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
                     {visibleUnits.length === 0 && (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={7}
                           className="h-28 px-3 text-center text-[#667085]"
                         >
                           Tidak ada unit untuk pilihan ini.

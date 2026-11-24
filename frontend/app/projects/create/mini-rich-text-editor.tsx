@@ -54,7 +54,7 @@ export function MiniRichTextEditor({
   };
 
   return (
-    <div className={cn("flex min-h-72 flex-col overflow-hidden rounded-md border border-[#D9D9DE] focus-within:border-[#1980C0] focus-within:ring-2 focus-within:ring-[#1980C0]/20", className)}>
+    <div className={cn("flex min-h-72 flex-col overflow-hidden rounded-lg border border-[#D9D9DE] focus-within:border-[#1980C0] focus-within:ring-2 focus-within:ring-[#1980C0]/20", className)}>
       <div className="flex flex-wrap items-center gap-1 border-b border-[#E8E8EC] bg-[#FAFBFC] p-1.5">
         {TOOLBAR_ITEMS.map(({ label, icon: Icon, command }) => (
           <button

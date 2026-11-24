@@ -28,7 +28,7 @@ export function Field({
 }) {
   return (
     <div className={cn("min-w-0", className)}>
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <label className={cn(FIELD_LABEL, "mb-0")}>
           {label} {required && REQUIRED}
         </label>
@@ -62,7 +62,7 @@ export function SelectField({
       onValueChange={setValue}
       required={required}
     >
-      <SelectTrigger className="h-9 w-full text-xs">
+      <SelectTrigger className="h-11 w-full rounded-lg px-3.5 text-sm data-[size=default]:h-11">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -72,7 +72,7 @@ export function SelectField({
               ? { value: option, label: option }
               : option;
           return (
-            <SelectItem key={item.value} value={item.value} className="text-xs">
+            <SelectItem key={item.value} value={item.value} className="text-sm">
               {item.label}
             </SelectItem>
           );

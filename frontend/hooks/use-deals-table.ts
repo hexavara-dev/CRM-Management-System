@@ -15,7 +15,6 @@ export function useDealsTable(options: UseDealsTableOptions = {}) {
   const dealsQuery = useDeals({
     page: currentPage,
     limit: rowsPerPage,
-    useServerPagination: true,
   });
 
   const { pagination, isLoading, isFetching } = dealsQuery;
