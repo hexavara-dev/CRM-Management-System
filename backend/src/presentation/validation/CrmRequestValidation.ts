@@ -99,6 +99,7 @@ const viewingRules: Record<string, FieldRule> = {
   name: optionalText(150, true),
   email: optionalText(255, true),
   scheduledAt: { type: 'date', nullable: false },
+  durationMinutes: { type: 'number', integer: true, min: 15, max: 480 },
   notes: optionalText(10000, true),
 };
 

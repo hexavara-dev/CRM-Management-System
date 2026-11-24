@@ -8,6 +8,7 @@ export interface CreateViewingDTO {
   name?: string;
   email?: string;
   scheduledAt: Date;
+  durationMinutes?: number;
   actorId?: string;
   notes?: string;
 }
@@ -21,6 +22,7 @@ export interface UpdateViewingDTO {
   name?: string;
   email?: string;
   scheduledAt?: Date;
+  durationMinutes?: number;
   actorId?: string;
   notes?: string;
 }

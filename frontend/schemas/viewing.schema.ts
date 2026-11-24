@@ -7,6 +7,12 @@ export const viewingFormSchema = z.object({
   sourceId: z.string().optional(),
   locationId: z.string().optional(),
   scheduledAt: z.string().min(1, "Visit date is required"),
+  durationMinutes: z
+    .string()
+    .refine(
+      (value) => /^\d+$/.test(value) && Number(value) >= 15 && Number(value) <= 480,
+      "Duration must be between 15 and 480 minutes",
+    ),
   notes: z.string().optional(),
 });
 

@@ -10,6 +10,7 @@ import {
   validateStageCreate,
   validateTaskUpdate,
   validateViewingCreate,
+  validateViewingUpdate,
 } from '../src/presentation/validation/CrmRequestValidation.js';
 
 describe('request validation', () => {
@@ -47,6 +48,17 @@ describe('request validation', () => {
     expect(() =>
       validateViewingCreate({ leadId: 'lead-1', scheduledAt: 'not-a-date' })
     ).toThrow('scheduledAt must be a valid date');
+  });
+
+  it('accepts a viewing durationMinutes between 15 and 480 whole minutes', () => {
+    const base = { leadId: 'lead-1', scheduledAt: '2026-11-16T10:00:00.000Z' };
+    expect(validateViewingCreate({ ...base, durationMinutes: 90 }).durationMinutes).toBe(90);
+    expect(validateViewingUpdate({ durationMinutes: 30 }).durationMinutes).toBe(30);
+    for (const invalid of [10, 500, 60.5]) {
+      expect(() => validateViewingCreate({ ...base, durationMinutes: invalid })).toThrow(
+        /durationMinutes/
+      );
+    }
   });
 
   it('requires at least one supported field for partial updates', () => {

@@ -13,6 +13,7 @@
     "db:push:prod": "dotenv -e .env.prod -- npx prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:projects": "tsx prisma/seed-realistic-projects.ts",
+    "db:seed:visit-schedule": "tsx prisma/seed-visit-schedule.ts",
     "api:dev": "dotenv -e .env -- npm run dev",
     "api:prod": "dotenv -e .env.prod -- npm run dev",
     "generate": "prisma generate",

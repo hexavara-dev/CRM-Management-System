@@ -552,6 +552,8 @@ model Viewing {
   name        String?        @db.VarChar(150)
   email       String?        @db.VarChar(255)
   scheduledAt DateTime       @map("scheduled_at") @db.DateTime(6)
+  /// Durasi visit dalam menit; waktu selesai = scheduledAt + durationMinutes.
+  durationMinutes Int        @default(60) @map("duration_minutes")
   actorId     String?        @map("actor_id") @db.VarChar(36)
   notes       String?
   createdAt   DateTime       @default(now()) @map("created_at") @db.DateTime(6)

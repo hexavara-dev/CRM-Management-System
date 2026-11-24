@@ -1,6 +1,5 @@
 import type { Request, Response } from 'express';
 import { ViewingUseCase } from '../../usecases/viewing/ViewingUseCase.js';
-import { extractFilters } from '../../infrastructure/utils/QueryHelper.js';
 import { respondWithError } from '../../infrastructure/utils/HttpErrorMapper.js';
 import { parsePagination } from '../../infrastructure/utils/RequestValidation.js';
 import {
@@ -35,14 +34,14 @@ export class ViewingController {
 
   async getAll(req: Request, res: Response) {
     try {
-      const { tenantId } = (req as any).user;
+      const { tenantId, userId, role } = (req as any).user || {};
       const { page, limit } = parsePagination(req.query as Record<string, unknown>);
-      const filters = extractFilters(req.query);
       const data = await this.viewingUseCase.getAllViewings(
         tenantId,
         page,
         limit,
-        filters
+        req.query as Record<string, unknown>,
+        { userId, role }
       );
       res.json(data);
     } catch (error: any) {
