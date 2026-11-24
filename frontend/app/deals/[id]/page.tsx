@@ -37,7 +37,7 @@ import { DealTabs } from "./components/deal-tabs";
 export default function DealDetailPage() {
   const params = useParams<{ id: string }>();
   const { data: deal, isLoading } = useDealDetail(params.id);
-  const { updateDeal } = useDeals({ getAll: false });
+  const { updateDeal } = useDeals();
   const { createLeadActivity } = useActivities();
   const { updateTask, deleteTask } = useTasks();
   const { uploadFile } = useUpload();

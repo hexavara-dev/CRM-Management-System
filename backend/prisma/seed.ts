@@ -4,6 +4,7 @@ import { PrismaGenericRepository } from '../src/infrastructure/repositories/Pris
 import { AuthUseCases } from '../src/usecases/auth/AuthUseCases.js';
 import { seedReservationData } from './seed/reservationSeed.js';
 import { seedAttributeCatalog } from './seed/attributeCatalog.js';
+import { seedDealsData } from './seed/dealsSeed.js';
 
 const TENANT_NAME = 'Demo Organization';
 // Hanya untuk akun demo lokal. Jangan dipakai di server yang bisa diakses orang lain.
@@ -80,6 +81,7 @@ async function main() {
 
   await seedAttributeCatalog(prisma, owner!.tenantId);
   await seedReservationData(prisma, owner!.tenantId, salesUsers);
+  await seedDealsData(prisma, owner!.tenantId, salesUsers);
 }
 
 main()

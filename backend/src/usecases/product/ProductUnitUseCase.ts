@@ -38,7 +38,7 @@ export class ProductUnitUseCase {
         take: filters.limit,
         orderBy: { code: 'asc' },
         include: {
-          variant: { select: { id: true, name: true } },
+          variant: { select: { id: true, name: true, product: { select: { id: true, name: true } } } },
           typeVariant: { select: { id: true, name: true, basePrice: true, currentPrice: true } },
           category: { select: { id: true, name: true, type: true } },
         },

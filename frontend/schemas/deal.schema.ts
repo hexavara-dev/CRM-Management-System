@@ -11,6 +11,9 @@ export const dealFormSchema = z.object({
   assignedUserId: z.string().optional(),
   lostReason: z.string().optional(),
   lostNotes: z.string().optional(),
+  unitId: z.string().optional(),
+  paymentMethod: z.enum(["CASH", "KPR", "KPR_SHARIA"]).optional(),
+  bankName: z.string().max(150).optional(),
 });
 
 export type DealFormData = z.infer<typeof dealFormSchema>;

@@ -9,6 +9,9 @@ export interface CreateDealDTO {
   expectedAmount?: number;
   currency?: string;
   expectedClosingDate?: Date;
+  unitId?: string;
+  paymentMethod?: 'CASH' | 'KPR' | 'KPR_SHARIA';
+  bankName?: string | null;
 }
 
 export interface UpdateDealDTO {
@@ -24,4 +27,7 @@ export interface UpdateDealDTO {
   closingDate?: Date | string | null;
   lostReason?: string | null;
   lostNotes?: string | null;
+  unitId?: string | null;
+  paymentMethod?: 'CASH' | 'KPR' | 'KPR_SHARIA';
+  bankName?: string | null;
 }

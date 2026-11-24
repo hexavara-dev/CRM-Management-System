@@ -1,178 +1,23 @@
 import api from "@/lib/api";
-import { DealFormData } from "@/schemas/deal.schema";
-import { PaginatedResponse } from "@/types/api";
-import { Deal } from "@/types/deal";
+import type { Deal, DealPaymentMethod, DealSummary } from "@/types/deal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-function normalizeCollection<T>(payload: unknown): T[] {
-  if (Array.isArray(payload)) return payload as T[];
-
-  const data = (payload as { data?: unknown } | undefined)?.data;
-  if (Array.isArray(data)) return data as T[];
-
-  const nestedData = (data as { data?: unknown } | undefined)?.data;
-  if (Array.isArray(nestedData)) return nestedData as T[];
-
-  const dataPerPage = (data as { data_per_page?: unknown } | undefined)
-    ?.data_per_page;
-  if (Array.isArray(dataPerPage)) return dataPerPage as T[];
-
-  return [];
-}
-
-type ConvertDealPayload = {
-  tenantId?: string;
-  leadId?: string;
-  assignedUserId?: string;
-  expectedAmount?: number;
-  amount?: number;
-  currency?: string;
+export type DealFilters = { page?: number; limit?: number; search?: string; stageId?: string; projectId?: string; paymentMethod?: DealPaymentMethod; bankName?: string; assignedUserId?: string; startDate?: string; endDate?: string };
+type DealResponse = { data: Deal[]; meta: { total: number; page: number; limit: number; totalPages: number }; summary: DealSummary };
+export type DealPayload = { leadId?: string; assignedUserId?: string; stageId?: string; statusId?: string; unitId?: string; expectedAmount?: number; amount?: number; currency?: string; expectedClosingDate?: string | null; paymentMethod: DealPaymentMethod; bankName?: string | null };
+const errorMessage = (error: unknown, fallback: string) => {
+  const response = error as { response?: { data?: { error?: unknown } } };
+  return typeof response.response?.data?.error === "string" ? response.response.data.error : fallback;
 };
 
-type UseDealsOptions = {
-  page?: number;
-  limit?: number;
-  useServerPagination?: boolean;
-  additionalParams?: Record<string, unknown>;
-  getAll?: boolean;
-};
-
-export function useDeals(options: UseDealsOptions = {}) {
-  const {
-    page,
-    limit,
-    useServerPagination,
-    additionalParams,
-    getAll = false,
-  } = options;
+export function useDeals(filters: DealFilters = {}) {
   const queryClient = useQueryClient();
-
-  const queryParams = {
-    ...(additionalParams ?? {}),
-    ...(useServerPagination &&
-    typeof page === "number" &&
-    typeof limit === "number"
-      ? { page, limit }
-      : {}),
-  };
-
-  const dealsQuery = useQuery<PaginatedResponse<Deal[]>>({
-    queryKey: ["deals", { page, limit, useServerPagination, additionalParams }],
-    queryFn: async () => {
-      const response = await api.get<PaginatedResponse<Deal[]>>("/api/deal", {
-        params: queryParams,
-      });
-      const totalPages = response.data.meta?.totalPages;
-      if (
-        useServerPagination &&
-        typeof page === "number" &&
-        typeof limit === "number" &&
-        typeof totalPages === "number" &&
-        page > Math.max(totalPages, 1)
-      ) {
-        const correctedPage = Math.max(totalPages, 1);
-        const correctedResponse = await api.get<PaginatedResponse<Deal[]>>(
-          "/api/deal",
-          { params: { ...queryParams, page: correctedPage } },
-        );
-        return correctedResponse.data;
-      }
-      return response.data;
-    },
-    enabled: getAll || useServerPagination === true,
-  });
-
-  const createDealMutation = useMutation<Deal, unknown, ConvertDealPayload>({
-    mutationFn: async (data) => {
-      const payload = {
-        ...data,
-        expectedAmount: data.expectedAmount ?? data.amount,
-      };
-
-      const response = await api.post<Deal>("/api/deal", payload);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["deals"] });
-      toast.success("Deal created successfully");
-    },
-    onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to create deal");
-    },
-  });
-
-  const updateDealMutation = useMutation({
-    mutationFn: async ({
-      id,
-      data,
-    }: {
-      id: string;
-      data: Partial<DealFormData>;
-    }) => {
-      const { expectedClosingDate, ...rest } = data;
-      const processedData = {
-        ...rest,
-        ...(expectedClosingDate !== undefined && {
-          expectedClosingDate:
-            expectedClosingDate.trim() !== ""
-              ? new Date(expectedClosingDate).toISOString()
-              : null,
-        }),
-      };
-      const response = await api.put<Deal>(`/api/deal/${id}`, processedData);
-      return response.data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["deals"] });
-      queryClient.invalidateQueries({ queryKey: ["deal", variables.id] });
-      toast.success("Deal updated successfully");
-    },
-    onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to update deal");
-    },
-  });
-
-  const deleteDealMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await api.delete(`/api/deal/${id}`);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["deals"] });
-      toast.success("Deal deleted successfully");
-    },
-    onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to delete deal");
-    },
-  });
-
-  return {
-    deals: normalizeCollection<Deal>(dealsQuery.data),
-    pagination: dealsQuery.data?.meta ?? null,
-    isLoading: dealsQuery.isLoading,
-    isFetching: dealsQuery.isFetching,
-    isSuccess: dealsQuery.isSuccess,
-    isError: dealsQuery.isError,
-    createDeal: createDealMutation.mutateAsync,
-    updateDeal: updateDealMutation.mutateAsync,
-    deleteDeal: deleteDealMutation.mutateAsync,
-    isCreating: createDealMutation.isPending,
-    isUpdating: updateDealMutation.isPending,
-    isDeleting: deleteDealMutation.isPending,
-  };
+  const query = useQuery({ queryKey: ["deals", filters], queryFn: async () => (await api.get<DealResponse>("/api/deal", { params: filters })).data });
+  const invalidate = () => { queryClient.invalidateQueries({ queryKey: ["deals"] }); queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] }); };
+  const create = useMutation({ mutationFn: async (data: DealPayload) => (await api.post<Deal>("/api/deal", data)).data, onSuccess: () => { invalidate(); toast.success("Deal berhasil dibuat."); }, onError: (error) => toast.error(errorMessage(error, "Gagal membuat Deal.")) });
+  const update = useMutation({ mutationFn: async ({ id, data }: { id: string; data: Partial<DealPayload> }) => (await api.put<Deal>(`/api/deal/${id}`, data)).data, onSuccess: () => { invalidate(); toast.success("Deal berhasil diperbarui."); }, onError: (error) => toast.error(errorMessage(error, "Gagal memperbarui Deal.")) });
+  const remove = useMutation({ mutationFn: async (id: string) => { await api.delete(`/api/deal/${id}`); }, onSuccess: () => { invalidate(); toast.success("Deal dihapus permanen."); }, onError: (error) => toast.error(errorMessage(error, "Gagal menghapus Deal.")) });
+  return { deals: query.data?.data ?? [], pagination: query.data?.meta, summary: query.data?.summary, isLoading: query.isLoading, isFetching: query.isFetching, createDeal: create.mutateAsync, updateDeal: update.mutateAsync, deleteDeal: remove.mutateAsync, isCreating: create.isPending, isUpdating: update.isPending, isDeleting: remove.isPending };
 }
-
-export function useDealDetail(id: string) {
-  return useQuery({
-    queryKey: ["deal", id],
-    queryFn: async () => {
-      const response = await api.get<Deal>(`/api/deal/${id}`);
-      return response.data;
-    },
-    enabled: !!id,
-  });
-}
+export function useDealDetail(id: string) { return useQuery({ queryKey: ["deal", id], queryFn: async () => (await api.get<Deal>(`/api/deal/${id}`)).data, enabled: !!id }); }
