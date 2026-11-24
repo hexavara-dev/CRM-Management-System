@@ -20,6 +20,7 @@ import {
   type LeadLabelType,
 } from "@/hooks/use-lead-labels";
 import { errorMessage } from "@/hooks/use-projects";
+import { pageItems } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 import { LabelDialog } from "./label-dialog";
 import { LabelBadge, LabelIcon } from "./label-icons";
@@ -259,7 +260,12 @@ export default function LeadsLabelPage() {
                   <Button type="button" variant="outline" size="icon-sm" aria-label="Halaman sebelumnya" disabled={page === 1} onClick={() => setPage(page - 1)}>
                     <ChevronLeft className="size-3.5" />
                   </Button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                  {pageItems(page, totalPages).map((n, gapIndex) =>
+                  n === "gap" ? (
+                    <span key={`gap-${gapIndex}`} className="px-1 text-xs text-muted-foreground" aria-hidden="true">
+                      …
+                    </span>
+                  ) : (
                     <Button
                       key={n}
                       type="button"

@@ -11,6 +11,7 @@ import {
   FileText,
   Images,
   Map as MapIcon,
+  ExternalLink,
   MapPin,
   Pencil,
   Search,
@@ -36,6 +37,7 @@ import {
 import { UnitDistribution } from "./unit-distribution";
 import { InfoCard } from "@/components/projects/info-card";
 import { CoverGallery } from "./cover-gallery";
+import { parseMapsInput } from "../create/parse-maps-link";
 import { FacilityIcon } from "@/components/projects/facility-icon";
 import { SoldSummary } from "./sold-summary";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -318,12 +320,43 @@ export default function ProjectDetailPage() {
                           <MapPin className="mt-0.5 size-3.5 shrink-0" />
                           {fullAddress(project) || "Alamat belum diisi."}
                         </p>
-                        {/* Preview peta hanya tampil bila link Google Maps diisi. */}
-                        {project.mapsUrl?.trim() && (
-                          <div className="mt-3 flex h-24 items-center justify-center rounded-md bg-gradient-to-br from-[#E3F0E5] to-[#EEF3F7]">
-                            <MapPin className="size-5 text-[#1980C0]" />
-                          </div>
-                        )}
+                        {/* Peta tampil bila link Google Maps tersimpan dan dapat dibaca. */}
+                        {(() => {
+                          const map = project.mapsUrl?.trim() ? parseMapsInput(project.mapsUrl) : null;
+                          if (!map?.ok) return null;
+                          return (
+                            <>
+                              <div className="relative mt-3 h-44 overflow-hidden rounded-lg border border-[#E4E4E7]">
+                                <iframe
+                                  src={map.preview.embedUrl}
+                                  title={`Lokasi ${project.name}`}
+                                  loading="lazy"
+                                  referrerPolicy="no-referrer-when-downgrade"
+                                  // Tanpa allow-top-navigation: isi iframe tidak bisa membelokkan halaman CRM.
+                                  sandbox="allow-scripts allow-same-origin allow-popups"
+                                  className="pointer-events-none size-full"
+                                />
+                                {/* Klik di dalam iframe akan membuka maps.google.com di frame dan diblokir Google;
+                                    lapisan ini membuka Google Maps di tab baru. */}
+                                <a
+                                  href={map.preview.embedUrl.replace("&output=embed", "")}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  aria-label="Buka lokasi di Google Maps"
+                                  className="absolute inset-0"
+                                />
+                              </div>
+                              <a
+                                href={map.preview.embedUrl.replace("&output=embed", "")}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-[#1980C0] hover:underline"
+                              >
+                                Buka di Google Maps <ExternalLink className="size-3" />
+                              </a>
+                            </>
+                          );
+                        })()}
                       </InfoCard>
                     </div>
                   </div>

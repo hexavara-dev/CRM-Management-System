@@ -21,6 +21,7 @@ import {
   type FormTemplateSummary,
 } from "@/hooks/use-form-templates";
 import { errorMessage } from "@/hooks/use-projects";
+import { pageItems } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 import { ConfigHeader } from "../config-header";
 import { LabelIcon } from "../leads-label/label-icons";
@@ -257,7 +258,12 @@ export default function FormTemplatePage() {
                   <Button type="button" variant="outline" size="icon-sm" aria-label="Halaman sebelumnya" disabled={page === 1} onClick={() => setPage(page - 1)}>
                     <ChevronLeft className="size-3.5" />
                   </Button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                  {pageItems(page, totalPages).map((n, gapIndex) =>
+                  n === "gap" ? (
+                    <span key={`gap-${gapIndex}`} className="px-1 text-xs text-muted-foreground" aria-hidden="true">
+                      …
+                    </span>
+                  ) : (
                     <Button
                       key={n}
                       type="button"

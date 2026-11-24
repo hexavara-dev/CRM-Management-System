@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { MapPin } from "lucide-react";
-import { MetricTile } from "@/components/projects/metric-tile";
 import { NoImagePlaceholder } from "@/components/projects/no-image-placeholder";
 import { cn } from "@/lib/utils";
 import type { ProjectListItem } from "@/hooks/use-projects";
@@ -12,6 +11,16 @@ import {
   statusOf,
 } from "./projects-data";
 
+/** Angka metrik berwarna dengan label abu di bawahnya. */
+function Metric({ label, value, className }: { label: string; value: number; className: string }) {
+  return (
+    <div className={cn("rounded-xl px-2 py-2 text-center", className)}>
+      <p className="text-base font-bold leading-tight">{value.toLocaleString("id-ID")}</p>
+      <p className="mt-0.5 text-xs leading-tight text-[#6b6b6b]">{label}</p>
+    </div>
+  );
+}
+
 export function ProjectCard({ project }: { project: ProjectListItem }) {
   const { units, sold, reserved, available, soldPct } = projectMetrics(
     project.unitSummary,
@@ -21,9 +30,9 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
   return (
     <Link
       href={`/projects/${project.id}`}
-      className="block overflow-hidden rounded-xl border border-[#E4E4E7] bg-white p-2 transition-shadow hover:shadow-md"
+      className="flex h-full flex-col overflow-hidden rounded-2xl border border-[#E4E4E7] bg-white transition hover:-translate-y-0.5 hover:shadow-md"
     >
-      <div className="relative flex h-36 items-center justify-center overflow-hidden rounded-lg bg-[#F4F4F5]">
+      <div className="relative flex h-44 items-center justify-center overflow-hidden bg-[#F4F4F5]">
         {project.coverUrl ? (
           <Image
             src={project.coverUrl}
@@ -37,60 +46,45 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
         )}
         <span
           className={cn(
-            "absolute right-2 top-2 rounded-md px-2 py-0.5 text-[11px] font-medium",
+            "absolute right-3 top-3 rounded-full bg-white px-3 py-1 text-xs font-medium shadow-sm",
             STATUS_STYLE[status],
+            "bg-white/95",
           )}
         >
           {status}
         </span>
       </div>
-      <div className="space-y-2 px-1 pb-1 pt-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-sm font-semibold text-[#1f1f1f]">
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-[#1f1f1f]">
             {project.name}
           </h3>
-          <span className="shrink-0 text-[11px] text-[#6b6b6b]">
+          <span className="max-w-[45%] shrink-0 break-all pt-0.5 text-right text-[11px] leading-4 text-[#667085]">
             {project.code}
           </span>
         </div>
         {shortLocation(project) && (
-          <p className="flex items-center gap-1 text-[11px] text-[#6b6b6b]">
-            <MapPin className="size-3 shrink-0" />
+          <p className="flex items-center gap-1.5 text-sm text-[#475467]">
+            <MapPin className="size-4 shrink-0" />
             <span className="truncate">{shortLocation(project)}</span>
           </p>
         )}
-        <div>
+        <div className="mt-auto">
+          <p className="mb-1 text-right text-sm text-[#1f1f1f]">
+            Sold {soldPct}%
+          </p>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#E4E4E7]">
             <div
               className="h-full rounded-full bg-[#1980C0]"
               style={{ width: `${soldPct}%` }}
             />
           </div>
-          <p className="mt-1 text-right text-[10px] text-[#6b6b6b]">
-            Sold {soldPct}%
-          </p>
         </div>
-        <div className="grid grid-cols-4 gap-1.5">
-          <MetricTile
-            label="Units"
-            value={units}
-            className="bg-[#E5F1FA] text-[#1980C0]"
-          />
-          <MetricTile
-            label="Sold"
-            value={sold}
-            className="bg-[#E6F6EC] text-[#1E9E55]"
-          />
-          <MetricTile
-            label="Reserved"
-            value={reserved}
-            className="bg-[#FFF1E0] text-[#D9822B]"
-          />
-          <MetricTile
-            label="Available"
-            value={available}
-            className="bg-[#FDEBEA] text-[#D64545]"
-          />
+        <div className="grid grid-cols-4 gap-2">
+          <Metric label="Units" value={units} className="bg-[#EEF6FD] text-[#1e3a8a]" />
+          <Metric label="Sold" value={sold} className="bg-[#EFFAF2] text-[#166534]" />
+          <Metric label="Reserved" value={reserved} className="bg-[#ECFAFA] text-[#155e75]" />
+          <Metric label="Available" value={available} className="bg-[#FFF4EB] text-[#9a3412]" />
         </div>
       </div>
     </Link>

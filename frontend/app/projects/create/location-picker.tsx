@@ -1,9 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { Code2, Crosshair, ExternalLink, Link2, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseMapsInput } from "./parse-maps-link";
+
+/** Format isian titik lokasi yang diterima parseMapsInput. */
+const LOCATION_FORMATS = [
+  {
+    icon: Crosshair,
+    title: "Koordinat",
+    description: "Di Google Maps, klik kanan titik lokasi lalu klik angka koordinat paling atas untuk menyalinnya.",
+    example: "-7.983908, 112.621391",
+  },
+  {
+    icon: Link2,
+    title: "Link Google Maps",
+    description: "Pilih lokasi di Google Maps, lalu salin URL dari address bar browser.",
+    example: "https://www.google.com/maps/place/...",
+  },
+  {
+    icon: Code2,
+    title: "Kode embed",
+    description: "Di Google Maps: Bagikan → Sematkan peta → Salin HTML.",
+    example: '<iframe src="https://www.google.com/maps/embed?...">',
+  },
+];
 
 export function LocationPicker({ initialValue = "" }: { initialValue?: string }) {
   const [value, setValue] = useState(initialValue);
@@ -57,8 +79,33 @@ export function LocationPicker({ initialValue = "" }: { initialValue?: string })
           </div>
         </>
       ) : (
-        <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-[#D9D9DE] px-6 text-center text-xs text-[#6b6b6b]">
-          {error ?? "Di Google Maps: pilih lokasi, lalu salin URL dari address bar atau Bagikan → Sematkan peta → Salin HTML. Preview muncul di sini."}
+        <div className="rounded-lg border border-dashed border-[#D9D9DE] bg-[#FAFBFC] p-4">
+          {error ? (
+            <p className="py-6 text-center text-xs text-[#D64545]">{error}</p>
+          ) : (
+            <>
+              <p className="flex items-center gap-1.5 text-xs font-medium text-[#1f1f1f]">
+                <MapPin className="size-3.5 text-[#1980C0]" />
+                Isi dengan salah satu format berikut, preview peta akan muncul di sini.
+              </p>
+              <ul className="mt-3 divide-y divide-[#EDEDED] rounded-lg border border-[#E4E4E7] bg-white">
+                {LOCATION_FORMATS.map(({ icon: Icon, title, description, example }) => (
+                  <li key={title} className="flex items-start gap-3 px-3 py-2.5">
+                    <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md bg-[#E8F3FA] text-[#1980C0]">
+                      <Icon className="size-3.5" />
+                    </span>
+                    <div className="min-w-0 flex-1 text-xs">
+                      <p className="font-semibold text-[#1f1f1f]">{title}</p>
+                      <p className="mt-0.5 leading-4 text-[#667085]">{description}</p>
+                    </div>
+                    <code className="hidden max-w-[40%] shrink-0 truncate rounded bg-[#F4F5F7] px-2 py-1 font-mono text-[10px] text-[#344054] sm:block" title={example}>
+                      {example}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
 
