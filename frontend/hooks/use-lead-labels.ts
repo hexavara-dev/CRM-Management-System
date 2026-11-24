@@ -35,12 +35,12 @@ export type LeadLabelPayload = {
 
 const KEY = "lead-labels";
 
-export function useLeadLabels(type: LeadLabelType, page: number, limit: number) {
+export function useLeadLabels(type: LeadLabelType | undefined, page: number, limit: number) {
   const { user } = useAuth();
   return useQuery({
     queryKey: [KEY, user?.tenantId, type, page, limit],
     queryFn: async () =>
-      (await api.get<LeadLabelList>("/api/lead-labels", { params: { type, page, limit } })).data,
+      (await api.get<LeadLabelList>("/api/lead-labels", { params: { ...(type ? { type } : {}), page, limit } })).data,
     enabled: !!user,
     placeholderData: keepPreviousData,
   });

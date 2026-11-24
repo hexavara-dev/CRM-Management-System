@@ -28,6 +28,7 @@ type UseLeadsOptions = {
   useServerPagination?: boolean;
   additionalParams?: Record<string, unknown>;
   getAll?: boolean;
+  fetchAllPages?: boolean;
 };
 
 export function useLeads(options: UseLeadsOptions = {}) {
@@ -40,6 +41,7 @@ export function useLeads(options: UseLeadsOptions = {}) {
     useServerPagination = false,
     additionalParams,
     getAll = false,
+    fetchAllPages = false,
   } = options;
 
   const queryParams = {
@@ -59,12 +61,33 @@ export function useLeads(options: UseLeadsOptions = {}) {
         limit,
         useServerPagination,
         additionalParams: additionalParams ?? {},
+        fetchAllPages,
       },
     ],
     queryFn: async () => {
       const response = await api.get<PaginatedResponse<Lead[]>>(`/api/lead`, {
         params: queryParams,
       });
+      if (fetchAllPages && (response.data.meta?.totalPages ?? 1) > 1) {
+        const remaining = await Promise.all(
+          Array.from(
+            { length: (response.data.meta?.totalPages ?? 1) - 1 },
+            (_, index) =>
+              api.get<PaginatedResponse<Lead[]>>("/api/lead", {
+                params: { ...queryParams, page: index + 2, limit: 100 },
+              }),
+          ),
+        );
+        return {
+          ...response.data,
+          data: [
+            ...normalizeCollection<Lead>(response.data),
+            ...remaining.flatMap((pageResponse) =>
+              normalizeCollection<Lead>(pageResponse.data),
+            ),
+          ],
+        };
+      }
       const totalPages = response.data.meta?.totalPages;
       if (
         useServerPagination &&
@@ -90,12 +113,7 @@ export function useLeads(options: UseLeadsOptions = {}) {
       if (!tenantId) {
         throw new Error("Not authenticated - no tenant ID");
       }
-      const payload = {
-        ...data,
-        tenantId,
-      };
-
-      const response = await api.post<Lead>("/api/lead", payload);
+      const response = await api.post<Lead>("/api/lead", data);
       return response.data;
     },
     onSuccess: () => {
@@ -138,12 +156,15 @@ export function useLeads(options: UseLeadsOptions = {}) {
     mutationFn: async ({
       id,
       stageName,
+      evidenceAttachmentIds,
     }: {
       id: string;
       stageName: string;
+      evidenceAttachmentIds?: string[];
     }) => {
       const response = await api.post<Lead>(`/api/lead/${id}/set-stage`, {
         stageName,
+        evidenceAttachmentIds,
       });
       return response.data;
     },

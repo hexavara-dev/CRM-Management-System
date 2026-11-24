@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useLeads } from "@/hooks/use-leads";
 import { useAuth } from "@/components/auth/auth-provider";
@@ -6,10 +6,17 @@ import { useAuth } from "@/components/auth/auth-provider";
 type UseLeadsTableOptions = {
   initialPage?: number;
   initialLimit?: number;
+  filters?: {
+    search?: string;
+    statusId?: string;
+    assignedUserId?: string;
+    sourceId?: string;
+    labelId?: string;
+  };
 };
 
 export function useLeadsTable(options: UseLeadsTableOptions = {}) {
-  const { initialPage = 1, initialLimit = 10 } = options;
+  const { initialPage = 1, initialLimit = 10, filters = {} } = options;
   const { user } = useAuth();
 
   const [currentPage, setCurrentPage] = useState(initialPage);
@@ -19,11 +26,26 @@ export function useLeadsTable(options: UseLeadsTableOptions = {}) {
     limit: rowsPerPage,
     useServerPagination: true,
     additionalParams: {
-      assignedUserId: user?.role === "owner" ? undefined : user?.id,
+      search: filters.search || undefined,
+      statusId: filters.statusId || undefined,
+      assignedUserId:
+        user?.role === "owner" ? filters.assignedUserId || undefined : user?.id,
+      sourceId: filters.sourceId || undefined,
+      labelId: filters.labelId || undefined,
       isDeleted: false,
     },
     getAll: true,
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    filters.search,
+    filters.statusId,
+    filters.assignedUserId,
+    filters.sourceId,
+    filters.labelId,
+  ]);
 
   const { pagination, isLoading, isFetching } = leadsQuery;
   const displayedPage = pagination

@@ -1,665 +1,275 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  closestCorners,
-  type DragEndEvent,
-  type DragStartEvent,
-  useDroppable,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, type DragEndEvent, type DragStartEvent, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FormProvider, useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Box,
-  Circle,
-  GripVertical,
-  Pencil,
-  Plus,
-  Trash2,
-  User,
-} from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { ConfirmModal } from "@/components/ui/confirm-modal";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { FormInput } from "@/components/ui/form-input";
-import FormSelect from "@/components/ui/form-select";
-import { useLeads } from "@/hooks/use-leads";
-import { useStages } from "@/hooks/use-stages";
-import { Stage } from "@/types/stage";
-import { Lead } from "@/types/lead";
+import { GripVertical, Loader2, Paperclip, Phone, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+
 import { useAuth } from "@/components/auth/auth-provider";
-import { useSidebar } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useLeads } from "@/hooks/use-leads";
+import { type PipelineStage, usePipelineStages } from "@/hooks/use-pipeline-stages";
+import { useSources } from "@/hooks/use-sources";
+import { useUsers } from "@/hooks/use-users";
+import api from "@/lib/api";
+import { cn } from "@/lib/utils";
+import type { Lead } from "@/types/lead";
+import { toast } from "sonner";
 
-const stageSchema = z.object({
-  name: z.string().min(1, "Stage name is required"),
-  isTerminal: z.boolean().optional(),
-  color: z.string(),
-});
+const lastContactAt = (lead: Lead) => lead.activities?.[0]?.createdAt || lead.createdAt;
 
-type StageFormData = z.infer<typeof stageSchema>;
+const contactAge = (lead: Lead) => {
+  const days = Math.max(0, Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(lastContactAt(lead)).setHours(0, 0, 0, 0)) / 86_400_000));
+  return days === 0 ? "Hari ini" : `${days} hari`;
+};
 
-const addLeadToStageSchema = z.object({
-  leadId: z.string().min(1, "Please select a lead"),
-});
-
-type AddLeadToStageData = z.infer<typeof addLeadToStageSchema>;
-
-function LeadBoardCard({
-  lead,
-  onOpen,
-  onDelete,
-}: {
-  lead: Lead;
-  onOpen: () => void;
-  onDelete: (e: React.MouseEvent) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: lead.id,
-    data: { type: "lead", lead },
-  });
-
-  const fullName =
-    `${lead.customer.firstName} ${lead.customer.lastName || ""}`.trim();
+function PipelineCard({ lead, overlay = false }: { lead: Lead; overlay?: boolean }) {
+  const router = useRouter();
+  const sortable = useSortable({ id: lead.id, data: { type: "lead", lead }, disabled: overlay });
+  const name = `${lead.customer.firstName} ${lead.customer.lastName || ""}`.trim();
 
   return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
-      className={`group relative cursor-pointer rounded-lg border bg-card p-3 transition-colors hover:border-primary/50 ${
-        isDragging ? "opacity-50" : ""
-      }`}
-      onClick={onOpen}
+    <article
+      ref={overlay ? undefined : sortable.setNodeRef}
+      style={overlay ? undefined : { transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }}
+      className={cn("group rounded-lg border border-[#E4E7EC] bg-white p-3 shadow-sm", sortable.isDragging && "opacity-40", overlay && "w-72 rotate-1 shadow-xl")}
     >
       <div className="flex items-start gap-2">
-        <button
-          className="mt-1 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate pr-8 text-sm font-medium">{fullName}</p>
-          <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
-            <User className="size-4" />
-            {lead.assignedUser?.name || "Unassigned"}
+        {!overlay && (
+          <button type="button" aria-label={`Pindahkan ${name}`} className="mt-0.5 cursor-grab text-[#98A2B3] opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100 active:cursor-grabbing" {...sortable.attributes} {...sortable.listeners}>
+            <GripVertical className="size-4" />
+          </button>
+        )}
+        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => !overlay && router.push(`/leads/${lead.id}`)}>
+          <p className="truncate text-sm font-semibold text-[#101828]">{name}</p>
+          <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-[#475467]">
+            <span className="max-w-28 truncate rounded bg-[#E7F0FF] px-1.5 py-0.5 font-medium text-[#0B63F6]">{lead.location?.name || "-"}</span>
+            <span aria-hidden="true">|</span>
+            <span className="truncate">{lead.source?.name || "-"}</span>
           </p>
-          <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
-            <Box className="size-4" />
-            {lead.location?.name}
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-[#475467]">
+            <Phone className="size-3.5" /> Last Contact:
+            <span className="rounded bg-[#F2F4F7] px-1.5 py-0.5 font-medium text-[#344054]">{contactAge(lead)}</span>
           </p>
-          <p className="mt-1 flex items-center gap-1 truncate text-xs text-muted-foreground">
-            <Circle className="size-4" />
-            {lead.viewing?.status?.name || "No viewing status"}
-          </p>
-        </div>
-      </div>
-
-      <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
-        <button
-          type="button"
-          className="rounded p-1 text-red-500 hover:bg-accent"
-          onClick={onDelete}
-        >
-          <Trash2 className="h-3 w-3" />
         </button>
       </div>
-    </div>
+    </article>
   );
 }
 
-function LeadStageLane({
-  stage,
-  leads,
-  onAddLead,
-  onEditStage,
-  onDeleteStage,
-  onOpenLead,
-  onDeleteLead,
-}: {
-  stage: Stage;
-  leads: Lead[];
-  onAddLead: (stage: Stage) => void;
-  onEditStage: (stage: Stage) => void;
-  onDeleteStage: (stage: Stage) => void;
-  onOpenLead: (lead: Lead) => void;
-  onDeleteLead: (leadId: string) => void;
-}) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: stage.id,
-    data: { type: "stage", stage },
-  });
+function StageLane({ stage, leads, expanded, onToggle }: { stage: PipelineStage; leads: Lead[]; expanded: boolean; onToggle: () => void }) {
+  const droppable = useDroppable({ id: stage.id, data: { type: "stage", stage } });
+  const shown = expanded ? leads : leads.slice(0, 3);
+  const remaining = Math.max(0, leads.length - shown.length);
+  const color = stage.color || "#667085";
 
   return (
-    <div className="flex w-75 min-w-75 flex-col">
-      <div className="flex items-center justify-between rounded-t-lg bg-muted/50 px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{stage.name}</span>
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-            {leads.length}
-          </span>
-          <span
-            className="w-4 h-4 rounded-full border"
-            style={{ backgroundColor: stage.color || "#f3f4f6" }}
-          ></span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="rounded p-1 hover:bg-accent"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddLead(stage);
-            }}
-          >
-            <Plus className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            className="rounded p-1 hover:bg-accent"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditStage(stage);
-            }}
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button
-            type="button"
-            className="rounded p-1 text-red-500 hover:bg-accent"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDeleteStage(stage);
-            }}
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
-        </div>
-      </div>
-
-      <div
-        ref={setNodeRef}
-        className={`min-h-55 flex-1 space-y-2 rounded-b-lg p-2 transition-colors ${
-          isOver ? "bg-primary/10" : "bg-muted/20"
-        }`}
-      >
-        <SortableContext
-          items={leads.map((lead) => lead.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {leads.map((lead) => (
-            <LeadBoardCard
-              key={lead.id}
-              lead={lead}
-              onOpen={() => onOpenLead(lead)}
-              onDelete={(e) => {
-                e.stopPropagation();
-                onDeleteLead(lead.id);
-              }}
-            />
-          ))}
-        </SortableContext>
-      </div>
-    </div>
-  );
-}
-
-export function LeadsPipelineTab() {
-  const router = useRouter();
-  const { user } = useAuth();
-  const { setOpen, setOpenMobile } = useSidebar();
-  const { leads, setLeadStage, deleteLead } = useLeads({ getAll: true });
-  const {
-    stages,
-    createStage,
-    isUpdating,
-    isCreating,
-    updateStage,
-    deleteStage,
-    isDeleting,
-    isLoading: isStagesLoading,
-  } = useStages("lead");
-
-  const [activeLead, setActiveLead] = useState<Lead | null>(null);
-  const [isAddStageOpen, setIsAddStageOpen] = useState(false);
-  const [editingStage, setEditingStage] = useState<Stage | null>(null);
-  const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
-  const [selectedStage, setSelectedStage] = useState<Stage | null>(null);
-  const [isDeleteStageOpen, setIsDeleteStageOpen] = useState(false);
-  const [stageToDelete, setStageToDelete] = useState<Stage | null>(null);
-
-  const defaultStagesInitialized = useRef(false);
-  const hasAutoClosedRef = useRef(false);
-
-  useEffect(() => {
-    if (hasAutoClosedRef.current) return;
-    hasAutoClosedRef.current = true;
-    setOpen(false);
-    setOpenMobile(false);
-  }, [setOpen, setOpenMobile]);
-
-  useEffect(() => {
-    if (
-      !isStagesLoading &&
-      stages.length === 0 &&
-      !defaultStagesInitialized.current
-    ) {
-      defaultStagesInitialized.current = true;
-      const defaultStages = [
-        "New Inquiry",
-        "Contacted",
-        "Qualified",
-        "Negotiation",
-        "Converted",
-      ];
-
-      const createDefaultStages = async () => {
-        for (let i = 0; i < defaultStages.length; i++) {
-          await createStage({
-            name: defaultStages[i],
-            position: i,
-            color: "#f3f4f6",
-            tenantId: user?.tenantId,
-          });
-          await new Promise((resolve) => setTimeout(resolve, 80));
-        }
-      };
-
-      createDefaultStages();
-    }
-  }, [isStagesLoading, stages.length, createStage]);
-
-  const stageForm = useForm<StageFormData>({
-    resolver: zodResolver(stageSchema),
-    defaultValues: {
-      name: "",
-      isTerminal: false,
-    },
-  });
-
-  const addLeadForm = useForm<AddLeadToStageData>({
-    resolver: zodResolver(addLeadToStageSchema),
-    defaultValues: {
-      leadId: "",
-    },
-  });
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  const sortedStages = useMemo(
-    () => [...stages].sort((a, b) => a.position - b.position),
-    [stages],
-  );
-
-  const leadsByStage = useMemo(() => {
-    const grouped: Record<string, Lead[]> = {};
-    sortedStages.forEach((stage) => {
-      grouped[stage.id] = leads.filter((lead) => lead.stageId === stage.id);
-    });
-    return grouped;
-  }, [sortedStages, leads]);
-
-  const leadOptions = useMemo(() => {
-    return leads.map((lead) => ({
-      label:
-        `${lead.customer.firstName} ${lead.customer.lastName || ""}`.trim(),
-      value: lead.id,
-    }));
-  }, [leads]);
-
-  const handleDragStart = (event: DragStartEvent) => {
-    if (event.active.data.current?.type === "lead") {
-      setActiveLead(event.active.data.current.lead as Lead);
-    }
-  };
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveLead(null);
-
-    if (!over) return;
-
-    const activeType = active.data.current?.type;
-    const overType = over.data.current?.type;
-
-    if (activeType !== "lead") return;
-
-    const leadId = active.id as string;
-
-    let destinationStageName: string | undefined;
-
-    if (overType === "stage") {
-      destinationStageName = (over.data.current?.stage as Stage | undefined)
-        ?.name;
-    }
-
-    if (overType === "lead") {
-      const targetLead = over.data.current?.lead as Lead | undefined;
-      const targetStage = sortedStages.find(
-        (s) => s.id === targetLead?.stageId,
-      );
-      destinationStageName = targetStage?.name;
-    }
-
-    if (!destinationStageName) {
-      return;
-    }
-
-    try {
-      await setLeadStage({
-        id: leadId,
-        stageName: destinationStageName,
-      });
-    } catch (error) {
-      console.error("Failed to move lead:", error);
-    }
-  };
-
-  const handleEditStage = (stage: Stage) => {
-    setEditingStage(stage);
-    stageForm.reset({
-      name: stage.name,
-      isTerminal: stage.isTerminal,
-    });
-    setIsAddStageOpen(true);
-  };
-
-  const handleDeleteStage = (stage: Stage) => {
-    setStageToDelete(stage);
-    setIsDeleteStageOpen(true);
-  };
-
-  const onConfirmDeleteStage = async () => {
-    if (!stageToDelete) return;
-
-    try {
-      await deleteStage(stageToDelete.id);
-      setIsDeleteStageOpen(false);
-      setStageToDelete(null);
-    } catch (error) {
-      console.error("Failed to delete stage:", error);
-    }
-  };
-
-  const onSubmitStage = async (data: StageFormData) => {
-    try {
-      if (editingStage) {
-        await updateStage({
-          id: editingStage.id,
-          data,
-        });
-      } else {
-        await createStage({
-          ...data,
-          tenantId: user?.tenantId,
-          position: sortedStages.length,
-        });
-      }
-
-      stageForm.reset();
-      setEditingStage(null);
-      setIsAddStageOpen(false);
-    } catch (error) {
-      console.error("Failed to save stage:", error);
-    }
-  };
-
-  const handleAddLead = (stage: Stage) => {
-    setSelectedStage(stage);
-    addLeadForm.reset({ leadId: "" });
-    setIsAddLeadOpen(true);
-  };
-
-  const handleDeleteLead = async (leadId: string) => {
-    if (confirm("Are you sure you want to delete this lead?")) {
-      try {
-        await deleteLead(leadId);
-      } catch (error) {
-        console.error("Failed to delete lead:", error);
-      }
-    }
-  };
-
-  const onSubmitAddLead = async (data: AddLeadToStageData) => {
-    if (!selectedStage?.name) return;
-
-    try {
-      await setLeadStage({
-        id: data.leadId,
-        stageName: selectedStage.name,
-      });
-
-      addLeadForm.reset();
-      setIsAddLeadOpen(false);
-      setSelectedStage(null);
-    } catch (error) {
-      console.error("Failed to add lead to stage:", error);
-    }
-  };
-
-  return (
-    <div className="space-y-4 w-full">
-      <div className="flex flex-col justify-between gap-2 md:flex-row md:items-center">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Drag cards between stages to update lead pipeline.
-        </h2>
-        <Button onClick={() => setIsAddStageOpen(true)} className="w-max">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Stage
-        </Button>
-      </div>
-
-      <Dialog
-        open={isAddStageOpen}
-        onOpenChange={(open) => {
-          setIsAddStageOpen(open);
-          if (!open) {
-            setEditingStage(null);
-            stageForm.reset();
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {editingStage ? "Edit Stage" : "Add New Stage"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingStage
-                ? "Update the stage details."
-                : "Create a new pipeline stage."}
-            </DialogDescription>
-          </DialogHeader>
-          <FormProvider {...stageForm}>
-            <form
-              onSubmit={stageForm.handleSubmit(onSubmitStage)}
-              className="space-y-4"
-            >
-              <FormInput
-                name="name"
-                label="Stage Name"
-                placeholder="e.g. Qualified"
-              />
-              <FormInput
-                name="color"
-                type="color"
-                label="Color"
-                className="max-w-40"
-              />
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="lead-isTerminal"
-                  {...stageForm.register("isTerminal")}
-                  className="h-4 w-4"
-                />
-                <label htmlFor="lead-isTerminal" className="text-sm">
-                  Is Terminal
-                </label>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setIsAddStageOpen(false);
-                    setEditingStage(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">
-                  {isCreating
-                    ? "Creating..."
-                    : isUpdating
-                      ? "Updating..."
-                      : editingStage
-                        ? "Update"
-                        : "Create"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </FormProvider>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isAddLeadOpen} onOpenChange={setIsAddLeadOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add Lead to {selectedStage?.name}</DialogTitle>
-            <DialogDescription>
-              Select an existing lead to add to this pipeline stage.
-            </DialogDescription>
-          </DialogHeader>
-          <FormProvider {...addLeadForm}>
-            <form
-              onSubmit={addLeadForm.handleSubmit(onSubmitAddLead)}
-              className="space-y-4"
-            >
-              <FormSelect
-                name="leadId"
-                label="Select Lead"
-                placeholder="Select a lead..."
-                options={leadOptions}
-              />
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsAddLeadOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">Add Lead</Button>
-              </DialogFooter>
-            </form>
-          </FormProvider>
-        </DialogContent>
-      </Dialog>
-
-      <ConfirmModal
-        isOpen={isDeleteStageOpen}
-        onClose={() => {
-          setIsDeleteStageOpen(false);
-          setStageToDelete(null);
-        }}
-        loading={isDeleting}
-        onConfirm={onConfirmDeleteStage}
-        title="Delete Stage"
-        description={`Are you sure you want to delete stage \"${stageToDelete?.name || "this stage"}\"?`}
-      />
-
-      <div className="w-full min-w-0 overflow-x-auto pb-2">
-        {isStagesLoading ? (
-          <div className="flex h-56 items-center justify-center rounded-lg border bg-card text-muted-foreground">
-            Loading pipeline...
+    <section className="flex w-72 min-w-72 flex-col rounded-xl border border-[#E4E7EC] bg-[#F8FAFC]">
+      <header className="rounded-t-xl px-3 py-2.5" style={{ backgroundColor: `${color}18`, color }}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold">{stage.name}</h3>
+            <p className="mt-0.5 line-clamp-2 text-[10px] opacity-75">
+              {stage.description || `Probabilitas ${stage.probability}%`}
+            </p>
           </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="flex w-max min-w-full gap-4 pb-4 pr-2">
-              <SortableContext items={sortedStages.map((stage) => stage.id)}>
-                {sortedStages.map((stage) => (
-                  <LeadStageLane
-                    key={stage.id}
-                    stage={stage}
-                    leads={leadsByStage[stage.id] || []}
-                    onAddLead={handleAddLead}
-                    onEditStage={handleEditStage}
-                    onDeleteStage={handleDeleteStage}
-                    onOpenLead={(lead) => router.push(`/leads/${lead.id}`)}
-                    onDeleteLead={handleDeleteLead}
-                  />
-                ))}
-              </SortableContext>
-            </div>
-
-            <DragOverlay>
-              {activeLead && (
-                <div className="rounded-lg border bg-card p-3 opacity-80 shadow-lg">
-                  <p className="text-sm font-medium">
-                    {`${activeLead.customer.firstName} ${activeLead.customer.lastName || ""}`.trim()}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {activeLead.customer.organization?.name ||
-                      "No organization"}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {activeLead.assignedUser?.name || "Unassigned"}
-                  </p>
-                </div>
-              )}
-            </DragOverlay>
-          </DndContext>
+          <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">{leads.length}</span>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1 text-[9px] font-semibold">
+          <span className="rounded-full bg-white/65 px-1.5 py-0.5">{stage.probability}%</span>
+          {stage.isDefaultStage && <span className="rounded-full bg-white/65 px-1.5 py-0.5">Default</span>}
+          {stage.isTerminalStage && <span className="rounded-full bg-white/65 px-1.5 py-0.5">Final</span>}
+          {stage.evidences.length > 0 && <span className="rounded-full bg-white/65 px-1.5 py-0.5">{stage.evidences.length} evidence</span>}
+        </div>
+      </header>
+      <div ref={droppable.setNodeRef} className={cn("min-h-64 flex-1 space-y-2 p-2", droppable.isOver && "bg-blue-50")}>
+        <SortableContext items={shown.map((lead) => lead.id)} strategy={verticalListSortingStrategy}>
+          {shown.map((lead) => <PipelineCard key={lead.id} lead={lead} />)}
+        </SortableContext>
+        {leads.length === 0 && <p className="px-2 py-10 text-center text-xs text-[#98A2B3]">Belum ada Lead</p>}
+        {(remaining > 0 || expanded) && leads.length > 3 && (
+          <button type="button" onClick={onToggle} className="px-1 py-1 text-xs font-semibold text-[#0B63F6]">
+            {expanded ? "Tampilkan lebih sedikit" : `+ ${remaining} lead lainnya`}
+          </button>
         )}
       </div>
+    </section>
+  );
+}
+
+export type LeadDateRange = { from: string; to: string };
+
+export function LeadsPipelineTab({
+  dateRange,
+}: {
+  dateRange: LeadDateRange;
+}) {
+  const { user } = useAuth();
+  const [search, setSearch] = useState("");
+  const [salesId, setSalesId] = useState("all");
+  const [sourceId, setSourceId] = useState("all");
+  const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
+  const [activeLead, setActiveLead] = useState<Lead>();
+  const [pendingMove, setPendingMove] = useState<{ lead: Lead; stage: PipelineStage }>();
+  const [evidenceFiles, setEvidenceFiles] = useState<Record<string, File>>({});
+  const [isMoving, setIsMoving] = useState(false);
+
+  const leadsQuery = useLeads({ page: 1, limit: 100, useServerPagination: true, additionalParams: { assignedUserId: user?.role === "owner" ? undefined : user?.id, isDeleted: false }, getAll: true, fetchAllPages: true });
+  const stagesQuery = usePipelineStages("lead");
+  const stages = useMemo(
+    () => (stagesQuery.data ?? []).filter((stage) => stage.isActive),
+    [stagesQuery.data],
+  );
+  const { users } = useUsers();
+  const { sources } = useSources({ additionalParams: { type: "lead" } });
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase("id-ID");
+    return leadsQuery.leads.filter((lead) => {
+      const name = `${lead.customer.firstName} ${lead.customer.lastName || ""}`.toLocaleLowerCase("id-ID");
+      const leadDate = lead.createdAt.slice(0, 10);
+      return (!needle || name.includes(needle) || (lead.customer.phoneNumber || "").includes(needle)) && (salesId === "all" || lead.assignedUser?.id === salesId) && (sourceId === "all" || lead.source?.id === sourceId) && (!dateRange.from || leadDate >= dateRange.from) && (!dateRange.to || leadDate <= dateRange.to);
+    });
+  }, [dateRange, leadsQuery.leads, salesId, search, sourceId]);
+  const sortedStages = useMemo(() => [...stages].sort((a, b) => a.position - b.position), [stages]);
+  const grouped = useMemo(() => Object.fromEntries(sortedStages.map((stage) => [stage.id, filtered.filter((lead) => lead.stageId === stage.id)])) as Record<string, Lead[]>, [filtered, sortedStages]);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    if (event.active.data.current?.type === "lead") setActiveLead(event.active.data.current.lead as Lead);
+  };
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setActiveLead(undefined);
+    if (!event.over || event.active.data.current?.type !== "lead") return;
+    const targetStage = event.over.data.current?.type === "stage" ? (event.over.data.current.stage as PipelineStage) : sortedStages.find((stage) => stage.id === (event.over?.data.current?.lead as Lead | undefined)?.stageId);
+    const sourceLead = event.active.data.current.lead as Lead;
+    if (!targetStage || sourceLead.stageId === targetStage.id) return;
+    if (targetStage.evidences.some((evidence) => evidence.isRequired)) {
+      setEvidenceFiles({});
+      setPendingMove({ lead: sourceLead, stage: targetStage });
+      return;
+    }
+    await leadsQuery.setLeadStage({ id: sourceLead.id, stageName: targetStage.name });
+  };
+
+  const requiredEvidence = pendingMove?.stage.evidences.filter((evidence) => evidence.isRequired) ?? [];
+  const confirmMove = async () => {
+    if (!pendingMove || requiredEvidence.some((evidence) => !evidenceFiles[evidence.id ?? evidence.name])) {
+      toast.error("Lengkapi seluruh evidence wajib.");
+      return;
+    }
+    setIsMoving(true);
+    const uploadedIds: string[] = [];
+    try {
+      for (const evidence of requiredEvidence) {
+        const file = evidenceFiles[evidence.id ?? evidence.name];
+        const form = new FormData();
+        form.append("document", file);
+        const response = await api.post<{ attachment: { id: string } }>(`/api/lead/${pendingMove.lead.id}/upload`, form);
+        uploadedIds.push(response.data.attachment.id);
+      }
+      await leadsQuery.setLeadStage({
+        id: pendingMove.lead.id,
+        stageName: pendingMove.stage.name,
+        evidenceAttachmentIds: uploadedIds,
+      });
+      toast.success(`Lead dipindahkan ke ${pendingMove.stage.name}.`);
+      setPendingMove(undefined);
+      setEvidenceFiles({});
+    } catch (error) {
+      await Promise.all(uploadedIds.map((id) => api.delete(`/api/attachment/${id}`).catch(() => undefined)));
+      const message = (error as { response?: { data?: { error?: string } } }).response?.data?.error;
+      toast.error(message || "Gagal memindahkan Lead.");
+    } finally {
+      setIsMoving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <label className="space-y-1">
+            <span aria-hidden="true" className="invisible block text-xs font-medium">Pencarian</span>
+            <span className="relative block">
+              <span className="sr-only">Cari nama atau nomor HP</span>
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama atau nomor HP..." className="pl-9" />
+            </span>
+          </label>
+          <label className="space-y-1">
+            <span className="block text-xs font-medium">Project</span>
+            <Select disabled value="all"><SelectTrigger aria-label="Filter project"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua Project</SelectItem></SelectContent></Select>
+          </label>
+          <label className="space-y-1">
+            <span className="block text-xs font-medium">Assigned Sales</span>
+            <Select value={salesId} onValueChange={setSalesId} disabled={user?.role !== "owner"}>
+              <SelectTrigger aria-label="Filter assigned sales"><SelectValue placeholder="Semua Sales" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Semua Sales</SelectItem>{users.map((sales) => <SelectItem key={sales.id} value={sales.id}>{sales.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </label>
+          <label className="space-y-1">
+            <span className="block text-xs font-medium">Asal Leads</span>
+            <Select value={sourceId} onValueChange={setSourceId}>
+              <SelectTrigger aria-label="Filter asal Leads"><SelectValue placeholder="Semua Sumber" /></SelectTrigger>
+              <SelectContent><SelectItem value="all">Semua Sumber</SelectItem>{sources.map((source) => <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </label>
+          <label className="space-y-1">
+            <span className="block text-xs font-medium">Label</span>
+            <Select disabled value="all"><SelectTrigger aria-label="Filter label"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua Label</SelectItem></SelectContent></Select>
+          </label>
+        </div>
+      </div>
+
+      {leadsQuery.isLoading || stagesQuery.isLoading ? (
+        <div className="flex h-64 items-center justify-center rounded-xl border text-sm text-muted-foreground">Memuat pipeline...</div>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="flex w-full gap-2 overflow-x-auto pb-3">
+            {sortedStages.map((stage) => <StageLane key={stage.id} stage={stage} leads={grouped[stage.id] ?? []} expanded={expandedStages.has(stage.id)} onToggle={() => setExpandedStages((current) => { const next = new Set(current); if (next.has(stage.id)) next.delete(stage.id); else next.add(stage.id); return next; })} />)}
+          </div>
+          <DragOverlay>{activeLead ? <PipelineCard lead={activeLead} overlay /> : null}</DragOverlay>
+        </DndContext>
+      )}
+
+      <Dialog open={!!pendingMove} onOpenChange={(open) => !open && !isMoving && setPendingMove(undefined)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Lengkapi Evidence Tahapan</DialogTitle>
+            <DialogDescription>
+              Upload evidence wajib sebelum {pendingMove?.lead.customer.firstName ?? "Lead"} dipindahkan ke {pendingMove?.stage.name ?? "tahapan tujuan"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {requiredEvidence.map((evidence) => {
+              const key = evidence.id ?? evidence.name;
+              const accept = evidence.fileTypes.flatMap((type) => ({ PDF: [".pdf"], DOC: [".doc", ".docx"], IMAGE: [".jpg", ".jpeg", ".png", ".webp"], SHEET: [".xls", ".xlsx"] })[type]).join(",");
+              return (
+                <label key={key} className="block rounded-lg border p-3">
+                  <span className="flex items-center gap-2 text-sm font-semibold"><Paperclip className="size-4" />{evidence.name}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">Format: {evidence.fileTypes.join(", ")} · maksimal 10 MB</span>
+                  <Input type="file" accept={accept} disabled={isMoving} className="mt-2" onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) setEvidenceFiles((current) => ({ ...current, [key]: file }));
+                  }} />
+                </label>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={isMoving} onClick={() => setPendingMove(undefined)}>Batal</Button>
+            <Button type="button" disabled={isMoving || requiredEvidence.some((evidence) => !evidenceFiles[evidence.id ?? evidence.name])} onClick={confirmMove}>
+              {isMoving ? <><Loader2 className="size-4 animate-spin" /> Memindahkan...</> : "Upload & Pindahkan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
