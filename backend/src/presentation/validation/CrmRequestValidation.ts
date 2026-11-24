@@ -22,8 +22,8 @@ const leadCreateRules: Record<string, FieldRule> = {
   age: { type: 'number', integer: true, min: 0, max: 120 },
   company: optionalText(150),
   // Lead progression is controlled by the configured Leads Pipeline.
-  stageId: { ...id(), required: false, allowEmpty: false },
-  // Kept optional for backward-compatible API clients; the UI no longer uses lead statuses.
+  stageId: { ...id(), required: true, allowEmpty: false },
+  // Kept optional for backward-compatible records; the UI no longer uses lead statuses.
   statusId: id(),
   sourceId: { ...id(), required: true, allowEmpty: false },
   assignedUserId: id(),
