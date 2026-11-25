@@ -72,7 +72,7 @@ export function ClusterUnitList({
               >
                 <td className="px-4 py-3">
                   <Link
-                    href={unitPath(availabilityId, clusterId, unit.code)}
+                    href={unitPath(availabilityId, clusterId, unit.id)}
                     className="flex w-fit items-center gap-3 font-semibold text-[#101828] hover:text-[#1684ff]"
                   >
                     {unit.image ? (

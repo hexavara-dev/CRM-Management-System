@@ -1011,10 +1011,11 @@ model ProductUnit {
   reservations     Reservation[]
   deals            Deal[]
 
-  @@unique([tenantId, code])
+  /// Nomor unit boleh sama di lokasi lain, baik di proyek yang sama maupun berbeda.
+  @@unique([categoryId, code])
+  @@index([tenantId, code])
   @@index([variantId])
   @@index([typeVariantId])
-  @@index([categoryId])
   @@index([characteristicId])
   @@map("product_units")
 }

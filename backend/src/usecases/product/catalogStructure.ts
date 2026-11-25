@@ -54,7 +54,7 @@ export function orderLocations(locations: LocationInput[]): LocationInput[] {
   return ordered;
 }
 
-/** Checks that every unit points to an existing variant and location, with unique codes. */
+/** Checks that every unit points to an existing variant and location, with codes unique per location. */
 export function assertUnits(units: UnitInput[], variantCounts: number[] | number, locationKeys: Set<string>) {
   const counts = Array.isArray(variantCounts) ? variantCounts : Array.from({ length: variantCounts }, () => 1);
   const codes = new Set<string>();
@@ -69,8 +69,10 @@ export function assertUnits(units: UnitInput[], variantCounts: number[] | number
     if (unit.locationKey && !locationKeys.has(unit.locationKey)) {
       throw new Error(`Unit ${unit.code} refers to an unknown location`);
     }
-    if (codes.has(unit.code)) throw new Error(`Duplicate unit code: ${unit.code}`);
-    codes.add(unit.code);
+    // Kolasi database tidak membedakan huruf besar/kecil.
+    const key = JSON.stringify([unit.locationKey ?? null, unit.code.trim().toLowerCase()]);
+    if (codes.has(key)) throw new Error(`Invalid units: Duplicate unit code ${unit.code} in the same location`);
+    codes.add(key);
   }
 }
 

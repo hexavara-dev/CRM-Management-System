@@ -32,15 +32,15 @@ export function AddUnitDialog({
   // Nomor unit mengikuti node leaf aktual dan tidak bergantung pada nama level tertentu.
   const prefix = location.name.replace(/^(blok|block)\s*/i, "").trim().replace(/\s+/g, "-");
   const normalizeCode = (code: string) => code.trim().toLocaleLowerCase("id-ID");
-  const taken = new Set(units.map((u) => normalizeCode(u.code)));
+  // Nomor hanya perlu unik di lokasi ini; lokasi lain boleh memakai nomor yang sama.
+  const taken = new Set(units.filter((u) => u.locationId === location.id).map((u) => normalizeCode(u.code)));
   // Unit yang masih berada di root project belum ter-assign ke blok dan tetap
   // dihitung sebagai stok yang tersedia untuk assignment.
   const options = unitTypes.flatMap((type) => type.variants.map((variant) => ({ type, variant })));
   const assigned = (key: string) => units.filter((u) => u.typeVariantKey === key && u.locationId !== "root").length;
   const firstAvailable = options.find(({ variant }) => Math.max(0, Number(variant.stock) - assigned(variant.key)) > 0);
   const [activeVariant, setActiveVariant] = useState(firstAvailable?.variant.key ?? options[0]?.variant.key ?? "");
-  // Cari nomor yang benar-benar kosong, bukan sekadar jumlah unit + 1. Dengan begitu gap nomor
-  // dan unit pada lokasi lain tidak membuat generator menawarkan kode yang sudah dipakai.
+  // Cari nomor yang benar-benar kosong di lokasi ini, bukan sekadar jumlah unit + 1.
   const makeRows = (count: number, type: string, typeVariantKey: string, typeVariantName: string, currentRows: UnitRow[] = []): UnitRow[] => {
     const unavailable = new Set([...taken, ...currentRows.map((row) => normalizeCode(row.code)).filter(Boolean)]);
     const result: UnitRow[] = [];
@@ -136,7 +136,7 @@ export function AddUnitDialog({
     }
     const usedCodes = codes.filter((_, index) => taken.has(normalizedCodes[index]));
     if (usedCodes.length) {
-      fail(<>Nomor unit sudah digunakan: <strong className="font-bold">{usedCodes.join(", ")}</strong>. Ganti dengan nomor lain atau hapus baris tersebut.</>);
+      fail(<>Nomor unit sudah digunakan di lokasi ini: <strong className="font-bold">{usedCodes.join(", ")}</strong>. Ganti dengan nomor lain atau hapus baris tersebut.</>);
       return;
     }
     onSave(rows.map((r, i) => ({ id: crypto.randomUUID(), locationId: location.id, code: codes[i], type: r.type, typeVariantKey: r.typeVariantKey, typeVariantName: r.typeVariantName, hook: r.hook, status: "Available" })));

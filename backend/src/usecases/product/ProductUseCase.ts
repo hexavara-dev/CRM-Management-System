@@ -822,8 +822,10 @@ export class ProductUseCase {
         });
       }
       removedTypeUrls = [];
+      let unitIds: string[] = [];
       if (structureProvided) {
         const synced = await this.syncStructure(tx, id, tenantId, project.categoryId, structureInput);
+        unitIds = synced.unitIds;
         removedTypeUrls.push(...synced.removedUrls);
         for (const [variantIndex, variant] of (structureInput.variants ?? []).entries()) {
           removedTypeUrls.push(...await this.saveTypeImages(
@@ -837,14 +839,9 @@ export class ProductUseCase {
         }
       }
       if (storedUnitImages.length && structureInput.units) {
-        const unitRows = await tx.productUnit.findMany({
-          where: { tenantId, variant: { productId: id, tenantId }, code: { in: structureInput.units.map((unit) => unit.code) } },
-          select: { id: true, code: true },
-        });
-        const unitByCode = new Map(unitRows.map((unit) => [unit.code, unit.id]));
         await tx.productMedia.createMany({
           data: storedUnitImages.map((image) => ({
-            tenantId, productId: id, unitId: unitByCode.get(structureInput.units?.[image.unitIndex]?.code ?? "") ?? null,
+            tenantId, productId: id, unitId: unitIds[image.unitIndex] ?? null,
             mediaType: 'IMAGE' as const, fileName: image.file.originalname.slice(0, 255), fileUrl: image.url,
             fileType: image.file.mimetype, fileSize: image.file.buffer.length, sortOrder: 0, isPrimary: false,
           })).filter((media) => Boolean(media.unitId)),
@@ -973,6 +970,7 @@ export class ProductUseCase {
     const masterOf = specificationMasters(tx, tenantId);
     const variantIds: string[] = [];
     const typeVariantIds: string[][] = [];
+    const unitIds: string[] = [];
     for (const [variantIndex, variant] of variants.entries()) {
       const old = oldVariants.find((row) => row.id === variant.id);
       const row = old
@@ -1067,6 +1065,7 @@ export class ProductUseCase {
       if (!categoryId) throw new Error('Invalid unit location');
       const old = oldUnits.find((row) => row.id === unit.id);
       if (old) {
+        unitIds.push(old.id);
         if (unit.status && unit.status !== old.status) {
           throw new Error(`Conflict: the status of unit ${old.code} can only change through a reservation. Reload the project.`);
         }
@@ -1080,10 +1079,11 @@ export class ProductUseCase {
           });
         }
       } else {
-        await tx.productUnit.create({
+        const created = await tx.productUnit.create({
           data: { tenantId, code: unit.code, variantId, typeVariantId, categoryId,
             status: 'AVAILABLE', isHook: unit.isHook ?? false },
         });
+        unitIds.push(created.id);
       }
     }
 
@@ -1100,7 +1100,7 @@ export class ProductUseCase {
       }
       await tx.productCategory.delete({ where: { id: row.id } });
     }
-    return { variantIds, typeVariantIds, removedUrls };
+    return { variantIds, typeVariantIds, unitIds, removedUrls };
   }
 
   /** Deletes the product and returns the stored file URLs of its media for cleanup. */
