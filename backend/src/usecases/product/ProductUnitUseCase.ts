@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient, ProductUnitStatus } from '@prisma/client';
 import { categoryWithDescendants } from './catalogRules.js';
+import { unitSellingPrices } from '../pricing/unitPrices.js';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 
 export type UnitListFilters = {
@@ -89,12 +90,17 @@ export class ProductUnitUseCase {
       this.prisma.productUnit.count({ where }),
     ]);
 
+    const prices = await unitSellingPrices(this.prisma, tenantId, rows);
     return {
-      data: rows.map((row) => ({
-        ...row,
-        // Keep the existing reservation contract while exposing the dynamic child variant.
-        variant: { ...row.variant, currentPrice: row.typeVariant.currentPrice },
-      })),
+      data: rows.map((row) => {
+        // currentPrice adalah harga jual unit hari ini, sama dengan Pricing.
+        const currentPrice = prices.get(row.id) ?? row.typeVariant.basePrice;
+        return {
+          ...row,
+          variant: { ...row.variant, currentPrice },
+          typeVariant: { ...row.typeVariant, currentPrice },
+        };
+      }),
       meta: {
         total,
         page: filters.page,

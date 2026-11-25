@@ -104,9 +104,11 @@ describe('unit photo fallback', () => {
       ]) },
       productUnit: { findMany: fn([{
         id: 'u-1', code: 'A-01', name: null, categoryId: 'c-1', status: 'AVAILABLE', variantId: 'v-1', typeVariantId: 'tv-1',
-        variant: { id: 'v-1', name: 'Type 36' }, typeVariant: { id: 'tv-1', name: 'Standard', attributes: [] }, media: unitMedia, reservations: [],
+        variant: { id: 'v-1', name: 'Type 36' }, typeVariant: { id: 'tv-1', name: 'Standard', basePrice: BigInt(1), attributes: [] }, media: unitMedia, reservations: [],
       }]) },
       reservation: { findMany: fn([]) },
+      productVariantPriceLog: { findMany: fn([]) },
+      unitPriceAdjustment: { findMany: fn([]) },
       productMedia: { findMany: fn(media) },
     };
     return new AvailabilityUseCase(prisma as never).unit('t-1', 'PRJ', 'C1', 'A-01').then((unit) => unit?.images);

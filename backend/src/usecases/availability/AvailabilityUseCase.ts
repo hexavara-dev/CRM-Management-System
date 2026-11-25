@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient, ProductCategoryType, ProductUnitStatus } from '@prisma/client';
+import { unitSellingPrices } from '../pricing/unitPrices.js';
 import { byLocationName } from '../product/catalogStructure.js';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 import {
@@ -41,7 +42,10 @@ const unitInclude = (tenantId: string) =>
     },
   }) satisfies Prisma.ProductUnitInclude;
 
-type AvailabilityUnit = Prisma.ProductUnitGetPayload<{ include: ReturnType<typeof unitInclude> }>;
+type AvailabilityUnit = Prisma.ProductUnitGetPayload<{ include: ReturnType<typeof unitInclude> }> & {
+  /** Harga jual hari ini, sama dengan Pricing. */
+  sellingPrice: number;
+};
 type Summary = {
   total: number;
   available: number;
@@ -116,11 +120,6 @@ function locationOf(product: {
   return [product.address, product.village, product.subdistrict, product.city, product.province]
     .filter((part): part is string => Boolean(part?.trim()))
     .join(', ');
-}
-
-function priceOf(unit: AvailabilityUnit) {
-  const legacyVariant = unit.variant as typeof unit.variant & { currentPrice?: bigint };
-  return Number(unit.typeVariant?.currentPrice ?? legacyVariant.currentPrice ?? 0);
 }
 
 function ancestorsOf(categoryId: string, categories: Map<string, AvailabilityCategory>) {
@@ -338,7 +337,10 @@ export class AvailabilityUseCase {
       orderBy: { code: 'asc' },
       include: unitInclude(tenantId),
     });
-    const units = projectUnits.filter((unit) => hierarchy.categories.has(unit.categoryId));
+    const prices = await unitSellingPrices(this.prisma, tenantId, projectUnits);
+    const units = projectUnits
+      .filter((unit) => hierarchy.categories.has(unit.categoryId))
+      .map((unit) => ({ ...unit, sellingPrice: Number(prices.get(unit.id) ?? 0) }));
     const integrity = availabilityIntegrity(
       projectUnits.length - units.length,
       hierarchy.skippedCycleEdges
@@ -442,7 +444,7 @@ export class AvailabilityUseCase {
         isHook: unit.isHook,
         type: unit.variant.name,
         variant: unit.typeVariant?.name ?? 'Default',
-        price: priceOf(unit),
+        price: unit.sellingPrice,
         basePrice: Number(unit.typeVariant?.basePrice ?? 0),
         location: location?.name ?? '—',
         locationLevel: location?.type ?? 'CATEGORY',
@@ -575,7 +577,7 @@ export class AvailabilityUseCase {
       const suffix = item.attribute.unit ? ` ${item.attribute.unit}` : '';
       return `${item.value}${suffix}`;
     };
-    const price = priceOf(unit);
+    const price = unit.sellingPrice;
     const images = unit.media.length
       ? unit.media.map((media) => media.fileUrl)
       : await this.fallbackImages(tenantId, data.product.id, unit.variantId, unit.typeVariantId);

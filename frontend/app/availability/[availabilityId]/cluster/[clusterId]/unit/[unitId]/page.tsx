@@ -116,7 +116,6 @@ export default function UnitDetailPage() {
                     unitId: unit.data.id,
                     unitLabel: unit.data.number,
                     price: unit.data.finalPrice,
-                    basePrice: unit.data.basePrice,
                   }}
                 />
               )}

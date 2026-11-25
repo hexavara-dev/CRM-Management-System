@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { unitSellingPrices, type PricedUnit } from '../pricing/unitPrices.js';
 import type { Prisma, PrismaClient, ReservationStatus } from '@prisma/client';
 import type {
   CreateReservationDTO,
@@ -108,11 +109,16 @@ function rupiah(value: bigint) {
   }).format(value);
 }
 
-function assertPriceAtLeastBase(price: number, basePrice: bigint, unitCode: string) {
-  if (BigInt(price) < basePrice) {
-    throw new Error(
-      `Harga jual unit ${unitCode} tidak boleh lebih rendah dari harga dasar ${rupiah(basePrice)}.`
-    );
+/** Harga reservasi minimal harga jual resmi hari ini; harga lebih rendah diatur dulu lewat Pricing. */
+async function assertReservationPrice(
+  tx: Prisma.TransactionClient,
+  tenantId: string,
+  unit: PricedUnit & { code: string },
+  price: number
+) {
+  const minimum = (await unitSellingPrices(tx, tenantId, [unit])).get(unit.id) ?? unit.typeVariant.basePrice;
+  if (BigInt(price) < minimum) {
+    throw new Error(`Harga jual unit ${unit.code} tidak boleh lebih rendah dari harga jual resmi ${rupiah(minimum)}.`);
   }
 }
 
@@ -300,13 +306,13 @@ export class ReservationUseCase {
       const [unit, sales] = await Promise.all([
         tx.productUnit.findFirst({
           where: { id: dto.unitId, tenantId },
-          select: { id: true, code: true, typeVariant: { select: { basePrice: true } } },
+          select: { id: true, code: true, categoryId: true, typeVariantId: true, typeVariant: { select: { basePrice: true } } },
         }),
         tx.user.findFirst({ where: { id: salesId, tenantId }, select: { id: true } }),
       ]);
       if (!unit) throw new Error('Unit not found');
       if (!sales) throw new Error('Sales user not found');
-      assertPriceAtLeastBase(dto.price, unit.typeVariant.basePrice, unit.code);
+      await assertReservationPrice(tx, tenantId, unit, dto.price);
 
       const claimed = await tx.productUnit.updateMany({
         where: { id: dto.unitId, tenantId, status: 'AVAILABLE' },
@@ -341,7 +347,7 @@ export class ReservationUseCase {
     await this.prisma.$transaction(async (tx) => {
       const current = await tx.reservation.findFirst({
         where: { id, tenantId },
-        select: { id: true, unitId: true, status: true },
+        select: { id: true, unitId: true, status: true, price: true },
       });
       if (!current) throw new Error('Reservation not found');
 
@@ -381,14 +387,16 @@ export class ReservationUseCase {
         if (!sales) throw new Error('Sales user not found');
       }
 
-      if (dto.price !== undefined) {
-        const priceUnitId = dto.unitId ?? current.unitId;
+      // Harga yang sudah disepakati tetap berlaku walau harga resmi naik; diperiksa hanya bila harga atau unit berubah.
+      const price = dto.price ?? Number(current.price);
+      const priceUnitId = dto.unitId ?? current.unitId;
+      if (price !== Number(current.price) || priceUnitId !== current.unitId) {
         const priceUnit = await tx.productUnit.findFirst({
           where: { id: priceUnitId, tenantId },
-          select: { code: true, typeVariant: { select: { basePrice: true } } },
+          select: { id: true, code: true, categoryId: true, typeVariantId: true, typeVariant: { select: { basePrice: true } } },
         });
         if (!priceUnit) throw new Error('Unit not found');
-        assertPriceAtLeastBase(dto.price, priceUnit.typeVariant.basePrice, priceUnit.code);
+        await assertReservationPrice(tx, tenantId, priceUnit, price);
       }
 
       const saved = await tx.reservation.updateMany({

@@ -135,6 +135,8 @@ describe('type variant specifications', () => {
       ]) },
       productUnit: { findMany: unitFindMany },
       reservation: { findMany: fn([]) },
+      productVariantPriceLog: { findMany: fn([]) },
+      unitPriceAdjustment: { findMany: fn([]) },
       productMedia: { findMany: fn([]) },
     };
     const detail = await new AvailabilityUseCase(prisma as never).unit('t-1', 'PRJ', 'C1', 'A-01');

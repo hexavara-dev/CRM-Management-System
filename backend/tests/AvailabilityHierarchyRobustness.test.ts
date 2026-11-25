@@ -65,6 +65,8 @@ function setup(categories: Category[], units: ReturnType<typeof makeUnit>[] = []
       findMany: jest.fn().mockResolvedValue(units as never),
     },
     reservation: { findMany: jest.fn().mockResolvedValue([]) },
+    productVariantPriceLog: { findMany: jest.fn().mockResolvedValue([] as never) },
+    unitPriceAdjustment: { findMany: jest.fn().mockResolvedValue([] as never) },
   } as never);
 }
 
