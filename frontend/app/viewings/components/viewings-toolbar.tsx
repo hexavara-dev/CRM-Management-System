@@ -22,7 +22,7 @@ import {
   ChevronRight,
   Search,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 
 export const ALL_FILTER_VALUE = "all";
 
@@ -38,6 +38,9 @@ type FilterSelectProps = {
   ariaLabel: string;
 };
 
+/** Lebar filter dropdown: penuh di layar kecil; di ≥ sm mengecil/membesar bersama (maks 176px) supaya satu baris. */
+const FILTER_WIDTH = "w-full sm:w-auto sm:min-w-0 sm:max-w-44 sm:flex-1 sm:basis-0";
+
 function FilterSelect({
   value,
   onChange,
@@ -51,7 +54,7 @@ function FilterSelect({
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger
         aria-label={ariaLabel}
-        className={cn("h-10 bg-white", className)}
+        className={cn("h-9 bg-white text-xs", className)}
       >
         <SelectValue />
       </SelectTrigger>
@@ -189,7 +192,6 @@ type ViewingsToolbarProps = {
   isSalesLoading?: boolean;
   isProjectLoading?: boolean;
   isStatusLoading?: boolean;
-  modeToggle: ReactNode;
 };
 
 export function ViewingsToolbar({
@@ -210,7 +212,6 @@ export function ViewingsToolbar({
   isSalesLoading,
   isProjectLoading,
   isStatusLoading,
-  modeToggle,
 }: ViewingsToolbarProps) {
   const isCalendar = mode === "calendar";
 
@@ -223,10 +224,11 @@ export function ViewingsToolbar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div
-        className={cn("relative w-full", isCalendar ? "sm:w-56" : "sm:w-44")}
-      >
+    // Filter di kiri dan kontrol bulan di kanan selalu satu baris; hanya filter kiri yang boleh wrap sendiri.
+    <div className="flex flex-wrap items-center justify-between gap-2 sm:flex-nowrap">
+      {/* ≥ sm: filter berbagi lebar yang tersedia (mengecil bersama) agar tetap satu baris. */}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-nowrap">
+      <div className="relative w-full sm:w-auto sm:min-w-0 sm:max-w-60 sm:flex-[1.3] sm:basis-0">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={search}
@@ -236,7 +238,7 @@ export function ViewingsToolbar({
               ? "Search customer, sales, atau lokasi..."
               : "Cari nama customer atau no. telepon..."
           }
-          className="h-10 bg-white pl-9"
+          className="h-9 bg-white pl-9 text-xs"
           aria-label="Cari visit"
           maxLength={100}
         />
@@ -253,7 +255,7 @@ export function ViewingsToolbar({
         allLabel="Semua Sales"
         options={salesOptions}
         isLoading={isSalesLoading}
-        className="w-full sm:w-32"
+        className={FILTER_WIDTH}
       />
       <FilterSelect
         ariaLabel="Filter project"
@@ -262,7 +264,7 @@ export function ViewingsToolbar({
         allLabel={isCalendar ? "Semua Project/Lokasi" : "Semua Project"}
         options={projectOptions}
         isLoading={isProjectLoading}
-        className={isCalendar ? "w-full sm:w-48" : "w-full sm:w-44"}
+        className={FILTER_WIDTH}
       />
       <FilterSelect
         ariaLabel="Filter status"
@@ -271,30 +273,31 @@ export function ViewingsToolbar({
         allLabel={isCalendar ? "Status: Semua" : "Semua Status"}
         options={statusOptions}
         isLoading={isStatusLoading}
-        className="w-full sm:w-36"
+        className={FILTER_WIDTH}
       />
+      </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        {isCalendar ? (
-          <>
+      {isCalendar ? (
+        <div className="flex shrink-0 items-center gap-2">
+
             <Button
               type="button"
               variant="outline"
               size="icon"
-              className="h-10 w-10 bg-white"
+              className="h-9 w-9 bg-white"
               onClick={() => shiftMonth(-1)}
               aria-label="Bulan sebelumnya"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="min-w-32 text-center text-sm font-medium capitalize">
+            <span className="min-w-28 text-center text-sm font-medium capitalize">
               {formatMonthLabel(month)}
             </span>
             <Button
               type="button"
               variant="outline"
               size="icon"
-              className="h-10 w-10 bg-white"
+              className="h-9 w-9 bg-white"
               onClick={() => shiftMonth(1)}
               aria-label="Bulan berikutnya"
             >
@@ -303,16 +306,13 @@ export function ViewingsToolbar({
             <Button
               type="button"
               variant="outline"
-              className="h-10 bg-white"
+              className="h-9 bg-white text-xs"
               onClick={goToToday}
             >
               Today
             </Button>
-          </>
-        ) : (
-          modeToggle
-        )}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

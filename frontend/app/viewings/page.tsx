@@ -420,14 +420,13 @@ export default function ViewingsPage() {
       isSalesLoading={isUsersLoading}
       isProjectLoading={isProjectsLoading}
       isStatusLoading={isStatusesLoading}
-      modeToggle={<ViewModeToggle mode={viewMode} onChange={setViewMode} />}
     />
   );
 
   return (
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
-      <SidebarInset className="w-0">
+      <SidebarInset className="w-0 min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="flex flex-1 items-center justify-between">
@@ -549,9 +548,9 @@ export default function ViewingsPage() {
           </div>
         </header>
 
-        <div className="space-y-4 p-4">
+        <div className="space-y-3 p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
           {isCalendar ? (
-            <div className="space-y-4 rounded-xl border bg-slate-50/60 p-4">
+            <div className="space-y-3 rounded-xl border bg-slate-50/60 p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h1 className="text-base font-semibold">
                   Visit Schedule Management
@@ -570,19 +569,22 @@ export default function ViewingsPage() {
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3">
-                <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                  <CalendarIcon className="size-6" />
-                </span>
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight">
-                    Visit Schedule Management
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    Kelola jadwal kunjungan customer dan pantau agenda visit tim
-                    sales secara terpusat.
-                  </p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                    <CalendarIcon className="size-6" />
+                  </span>
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight">
+                      Visit Schedule Management
+                    </h1>
+                    <p className="text-sm text-muted-foreground">
+                      Kelola jadwal kunjungan customer dan pantau agenda visit
+                      tim sales secara terpusat.
+                    </p>
+                  </div>
                 </div>
+                <ViewModeToggle mode={viewMode} onChange={setViewMode} />
               </div>
               {toolbar}
               <ViewingsTable

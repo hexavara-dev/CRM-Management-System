@@ -156,7 +156,7 @@ export function ViewingsCalendar({
 
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <div className="max-h-[calc(100dvh-250px)] overflow-auto rounded-xl border bg-white">
         <div className="min-w-225">
           <div className="grid grid-cols-7 border-b bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-500">
             {WEEKDAY_LABELS.map((dayName) => (
@@ -184,7 +184,7 @@ export function ViewingsCalendar({
                 return (
                   <div
                     key={dateKey}
-                    className="min-h-32 border-r border-b bg-white p-2 last:border-r-0"
+                    className="min-h-24 border-r border-b bg-white p-2 last:border-r-0 lg:min-h-20"
                   >
                     <span className="text-sm text-slate-300">
                       {day.getDate()}
@@ -196,7 +196,7 @@ export function ViewingsCalendar({
               return (
                 <div
                   key={dateKey}
-                  className="min-h-32 cursor-pointer border-r border-b bg-white p-2 transition-colors last:border-r-0 hover:bg-slate-50/60"
+                  className="min-h-24 cursor-pointer border-r border-b bg-white p-2 transition-colors last:border-r-0 hover:bg-slate-50/60 lg:min-h-20"
                   role="button"
                   tabIndex={0}
                   onClick={() => openDateDialog(dateKey)}
