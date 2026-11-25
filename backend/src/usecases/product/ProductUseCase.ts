@@ -12,9 +12,9 @@ import {
   type UnitInput,
 } from './catalogStructure.js';
 
-/** Value of a master attribute for a product or one of its variants (pivot row). */
+/** Value of a master attribute for a product (facility) or one of its type variants (specification). */
 export type AttributeInput = {
-  variantId?: string | null;
+  typeVariantId?: string | null;
   attributeId?: string;
   value?: number;
 };
@@ -38,8 +38,6 @@ export type VariantInput = {
   /** Batas minimum harga jual unit; null menghapus batas. */
   minPrice?: number | null;
   stock?: number;
-  /** Only used when creating a product together with its variants. */
-  attributes?: NewAttributeInput[];
 };
 
 export type TypeVariantInput = {
@@ -51,6 +49,8 @@ export type TypeVariantInput = {
   minPrice?: number | null;
   stock?: number;
   isActive?: boolean;
+  /** Spesifikasi unit milik varian ini; yang tidak dikirim tidak diubah. */
+  attributes?: NewAttributeInput[];
 };
 
 export type ProjectTypeImage = { variantIndex: number; file: Express.Multer.File };
@@ -95,6 +95,65 @@ export type ProductListFilters = {
   categoryId?: string;
   isActive?: boolean;
 };
+
+function assertUniqueSpecifications(variants: VariantInput[]) {
+  for (const variant of variants) {
+    for (const option of variant.typeVariants ?? []) {
+      const codes = (option.attributes ?? []).map((attribute) => attribute.code);
+      if (new Set(codes).size !== codes.length) {
+        throw new Error(`Invalid attributes: variant ${option.name} has duplicate attribute codes`);
+      }
+    }
+  }
+}
+
+/** Finds (or creates) UNIT_TYPE attribute masters by code, cached for one transaction. */
+function specificationMasters(tx: Prisma.TransactionClient, tenantId: string) {
+  const ids = new Map<string, string>();
+  return async (attribute: NewAttributeInput) => {
+    const code = attribute.code as string;
+    const known = ids.get(code);
+    if (known) return known;
+    const existing = await tx.attribute.findFirst({ where: { tenantId, code }, select: { id: true, source: true } });
+    if (existing && existing.source !== 'UNIT_TYPE') throw new Error('Invalid attribute source for this level');
+    const id =
+      existing?.id ??
+      (
+        await tx.attribute.create({
+          data: {
+            tenantId,
+            code,
+            name: attribute.name as string,
+            dataType: attribute.dataType as AttributeDataType,
+            unit: attribute.unit ?? null,
+          },
+        })
+      ).id;
+    ids.set(code, id);
+    return id;
+  };
+}
+
+/** Saves the specifications of one type variant; values that did not change are not written. */
+async function saveSpecifications(
+  tx: Prisma.TransactionClient,
+  owner: { tenantId: string; productId: string; variantId: string; typeVariantId: string },
+  attributes: NewAttributeInput[] | undefined,
+  masterOf: (attribute: NewAttributeInput) => Promise<string>
+) {
+  if (!attributes?.length) return;
+  const current = await tx.productAttribute.findMany({
+    where: { tenantId: owner.tenantId, typeVariantId: owner.typeVariantId },
+    select: { id: true, attributeId: true, value: true },
+  });
+  for (const attribute of attributes) {
+    const attributeId = await masterOf(attribute);
+    const value = attribute.value ?? 0;
+    const existing = current.find((row) => row.attributeId === attributeId);
+    if (!existing) await tx.productAttribute.create({ data: { ...owner, attributeId, value } });
+    else if (existing.value !== value) await tx.productAttribute.update({ where: { id: existing.id }, data: { value } });
+  }
+}
 
 export class ProductUseCase {
   constructor(private prisma: PrismaClient, private storage: typeof localStorage = localStorage) {}
@@ -223,7 +282,7 @@ export class ProductUseCase {
           },
         },
         attributes: {
-          orderBy: [{ variantId: 'asc' }, { attribute: { name: 'asc' } }],
+          orderBy: [{ variantId: 'asc' }, { typeVariantId: 'asc' }, { attribute: { name: 'asc' } }],
           include: { attribute: true },
         },
         media: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }] },
@@ -310,12 +369,7 @@ export class ProductUseCase {
       new Set(typeImages.map((image) => image.variantIndex)).size !== typeImages.length) {
       throw new Error('Invalid type image indexes');
     }
-    for (const variant of variants) {
-      const codes = (variant.attributes ?? []).map((a) => a.code);
-      if (new Set(codes).size !== codes.length) {
-        throw new Error(`Variant ${variant.name} has duplicate attribute codes`);
-      }
-    }
+    assertUniqueSpecifications(variants);
     const locations = orderLocations(input.locations ?? []);
     const units = input.units ?? [];
     if (unitImages.some((image) => image.unitIndex < 0 || image.unitIndex >= units.length)) throw new Error('Invalid unit image indexes');
@@ -409,31 +463,7 @@ export class ProductUseCase {
           });
         }
 
-        const masterIds = new Map<string, string>();
-        const masterOf = async (a: NewAttributeInput) => {
-          const known = masterIds.get(a.code as string);
-          if (known) return known;
-          const existing = await tx.attribute.findFirst({
-            where: { tenantId, code: a.code as string },
-            select: { id: true },
-          });
-          const id =
-            existing?.id ??
-            (
-              await tx.attribute.create({
-                data: {
-                  tenantId,
-                  code: a.code as string,
-                  name: a.name as string,
-                  dataType: a.dataType as AttributeDataType,
-                  unit: a.unit ?? null,
-                },
-              })
-            ).id;
-          masterIds.set(a.code as string, id);
-          return id;
-        };
-
+        const masterOf = specificationMasters(tx, tenantId);
         const variantIds: string[] = [];
         const typeVariantIds: string[][] = [];
         for (const [variantIndex, variant] of variants.entries()) {
@@ -462,18 +492,13 @@ export class ProductUseCase {
             }));
           }
           typeVariantIds.push(optionRows.map((option) => option.id));
-          if (variant.attributes?.length) {
-            const pivots = [];
-            for (const a of variant.attributes) {
-              pivots.push({
-                tenantId,
-                productId: product.id,
-                variantId: row.id,
-                attributeId: await masterOf(a),
-                value: a.value ?? 0,
-              });
-            }
-            await tx.productAttribute.createMany({ data: pivots });
+          for (const [optionIndex, option] of childVariants[variantIndex]!.entries()) {
+            await saveSpecifications(
+              tx,
+              { tenantId, productId: product.id, variantId: row.id, typeVariantId: optionRows[optionIndex]!.id },
+              option.attributes,
+              masterOf
+            );
           }
         }
 
@@ -588,15 +613,6 @@ export class ProductUseCase {
           stock: option.stock,
           isActive: option.isActive,
         })),
-        attributes: current.attributes
-          .filter((attribute) => attribute.variantId === variant.id)
-          .map((attribute) => ({
-            name: attribute.attribute.name,
-            code: attribute.attribute.code,
-            dataType: attribute.attribute.dataType,
-            value: attribute.value,
-            unit: attribute.attribute.unit,
-          })),
       }));
       const typeVariantIndexes = new Map(current.variants.flatMap((variant, index) =>
         variant.typeVariants.map((option, optionIndex) => [option.id, [index, optionIndex] as const])
@@ -812,6 +828,7 @@ export class ProductUseCase {
     const locations = orderLocations(input.locations as LocationInput[]);
     const units = input.units as UnitInput[];
     if (!variants.length) throw new Error('variants must contain at least one variant');
+    assertUniqueSpecifications(variants);
     const normalizedVariants = variants.map((variant) => this.typeVariantsOf(variant));
     assertUnits(units, normalizedVariants.map((items) => items.length), new Set(locations.map((location) => location.key)));
 
@@ -865,20 +882,7 @@ export class ProductUseCase {
       await tx.productUnit.deleteMany({ where: { tenantId, id: { in: ids } } });
     }
 
-    const masterIds = new Map<string, string>();
-    const masterOf = async (attribute: NewAttributeInput) => {
-      const cached = masterIds.get(attribute.code as string);
-      if (cached) return cached;
-      const existing = await tx.attribute.findFirst({
-        where: { tenantId, code: attribute.code as string }, select: { id: true },
-      });
-      const id = existing?.id ?? (await tx.attribute.create({
-        data: { tenantId, code: attribute.code as string, name: attribute.name as string,
-          dataType: attribute.dataType as AttributeDataType, unit: attribute.unit ?? null },
-      })).id;
-      masterIds.set(attribute.code as string, id);
-      return id;
-    };
+    const masterOf = specificationMasters(tx, tenantId);
     const variantIds: string[] = [];
     const typeVariantIds: string[][] = [];
     for (const [variantIndex, variant] of variants.entries()) {
@@ -931,6 +935,12 @@ export class ProductUseCase {
               },
             });
         optionIds.push(optionRow.id);
+        await saveSpecifications(
+          tx,
+          { tenantId, productId, variantId: row.id, typeVariantId: optionRow.id },
+          option.attributes,
+          masterOf
+        );
       }
       const removedOptions = oldOptions.filter((option) => !incomingOptionIds.includes(option.id));
       for (const option of removedOptions) {
@@ -941,21 +951,6 @@ export class ProductUseCase {
         await tx.productTypeVariant.delete({ where: { id: option.id } });
       }
       typeVariantIds.push(optionIds);
-      for (const attribute of variant.attributes ?? []) {
-        const attributeId = await masterOf(attribute);
-        const existing = await tx.productAttribute.findFirst({
-          where: { tenantId, productId, variantId: row.id, attributeId }, select: { id: true, value: true },
-        });
-        if (existing) {
-          if (existing.value !== (attribute.value ?? 0)) {
-            await tx.productAttribute.update({ where: { id: existing.id }, data: { value: attribute.value ?? 0 } });
-          }
-        } else {
-          await tx.productAttribute.create({
-            data: { tenantId, productId, variantId: row.id, attributeId, value: attribute.value ?? 0 },
-          });
-        }
-      }
     }
 
     const locationIds = new Map<string, string>();
@@ -1039,7 +1034,9 @@ export class ProductUseCase {
 
   async addVariant(productId: string, tenantId: string, input: VariantInput) {
     await this.get(productId, tenantId);
+    assertUniqueSpecifications([input]);
     return this.prisma.$transaction(async (tx) => {
+      const masterOf = specificationMasters(tx, tenantId);
       const type = await tx.productVariant.create({ data: { tenantId, productId, name: input.name as string } });
       const options = this.typeVariantsOf(input);
       const typeVariants = [];
@@ -1050,6 +1047,12 @@ export class ProductUseCase {
           currentPrice: option.currentPrice ?? option.basePrice ?? 0,
           minPrice: option.minPrice ?? null, stock: option.stock ?? 0, isActive: option.isActive ?? true,
         } }));
+        await saveSpecifications(
+          tx,
+          { tenantId, productId, variantId: type.id, typeVariantId: typeVariants[typeVariants.length - 1]!.id },
+          option.attributes,
+          masterOf
+        );
       }
       return { ...type, typeVariants };
     });
@@ -1057,11 +1060,13 @@ export class ProductUseCase {
 
   async updateVariant(productId: string, variantId: string, tenantId: string, input: VariantInput) {
     await this.assertVariant(productId, variantId, tenantId);
+    assertUniqueSpecifications([input]);
     return this.prisma.$transaction(async (tx) => {
+      const masterOf = specificationMasters(tx, tenantId);
       const type = await tx.productVariant.update({ where: { id: variantId }, data: input.name === undefined ? {} : { name: input.name } });
       const current = await tx.productTypeVariant.findMany({ where: { tenantId, productVariantId: variantId }, orderBy: { createdAt: 'asc' } });
       if (!current.length) throw new Error('Type variant not found');
-      const requested = input.typeVariants?.length ? input.typeVariants : [{
+      const requested: TypeVariantInput[] = input.typeVariants?.length ? input.typeVariants : [{
         id: current[0]!.id, name: current[0]!.name, code: current[0]!.code,
         basePrice: input.basePrice ?? Number(current[0]!.basePrice),
         currentPrice: input.currentPrice ?? Number(current[0]!.currentPrice),
@@ -1091,6 +1096,12 @@ export class ProductUseCase {
             minPrice: option.minPrice ?? null, stock: option.stock ?? 0, isActive: option.isActive ?? true,
           } }));
         }
+        await saveSpecifications(
+          tx,
+          { tenantId, productId, variantId, typeVariantId: typeVariants[typeVariants.length - 1]!.id },
+          option.attributes,
+          masterOf
+        );
       }
       for (const option of current.filter((item) => !requestedIds.includes(item.id))) {
         if (await tx.productUnit.count({ where: { tenantId, typeVariantId: option.id } }) ||
@@ -1112,38 +1123,43 @@ export class ProductUseCase {
 
   // ---------- attributes (values; the definitions live in AttributeUseCase) ----------
 
-  private async assertAttributeFree(
-    productId: string,
-    variantId: string | null,
-    attributeId: string,
-    exceptId?: string
-  ) {
-    const existing = await this.prisma.productAttribute.findFirst({
-      where: { productId, variantId, attributeId, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
-      select: { id: true },
-    });
-    if (existing) throw new Error('This attribute already has a value at this level');
-  }
-
   async addAttribute(productId: string, tenantId: string, input: AttributeInput) {
     await this.get(productId, tenantId);
-    const variantId = input.variantId ?? null;
-    if (variantId) await this.assertVariant(productId, variantId, tenantId);
+    const typeVariant = input.typeVariantId
+      ? await this.prisma.productTypeVariant.findFirst({
+          where: { id: input.typeVariantId, tenantId, productVariant: { productId, tenantId } },
+          select: { id: true, productVariantId: true },
+        })
+      : null;
+    if (input.typeVariantId && !typeVariant) throw new Error('Type variant not found');
     const master = await this.prisma.attribute.findFirst({
       where: { id: input.attributeId as string, tenantId },
       select: { id: true, source: true },
     });
     if (!master) throw new Error('Attribute not found');
-    if (master.source !== (variantId ? 'UNIT_TYPE' : 'PROJECT')) {
+    if (master.source !== (typeVariant ? 'UNIT_TYPE' : 'PROJECT')) {
       throw new Error('Invalid attribute source for this level');
     }
-    await this.assertAttributeFree(productId, variantId, master.id);
+    const typeVariantId = typeVariant?.id ?? null;
+    const existing = await this.prisma.productAttribute.findFirst({
+      where: { tenantId, productId, typeVariantId, attributeId: master.id, ...(typeVariantId ? {} : { variantId: null }) },
+      select: { id: true },
+    });
+    if (existing) throw new Error('A value for this attribute already exists at this level');
     return this.prisma.productAttribute.create({
-      data: { tenantId, productId, variantId, attributeId: master.id, value: input.value ?? 0 },
+      data: {
+        tenantId,
+        productId,
+        variantId: typeVariant?.productVariantId ?? null,
+        typeVariantId,
+        attributeId: master.id,
+        value: input.value ?? 0,
+      },
       include: { attribute: true },
     });
   }
 
+  /** Only the value can change; a value cannot move to another variant. */
   async updateAttribute(
     productId: string,
     productAttributeId: string,
@@ -1154,19 +1170,12 @@ export class ProductUseCase {
       where: { id: productAttributeId, productId, tenantId },
     });
     if (!current) throw new Error('Attribute not found');
-    const variantId = input.variantId !== undefined ? input.variantId : current.variantId;
-    if (variantId) await this.assertVariant(productId, variantId, tenantId);
-    const master = await this.prisma.attribute.findFirst({
-      where: { id: current.attributeId, tenantId }, select: { source: true },
-    });
-    if (!master || master.source !== (variantId ? 'UNIT_TYPE' : 'PROJECT')) {
-      throw new Error('Invalid attribute source for this level');
+    if (input.typeVariantId !== undefined && input.typeVariantId !== current.typeVariantId) {
+      throw new Error('Invalid typeVariantId: an attribute value cannot move to another variant');
     }
-    await this.assertAttributeFree(productId, variantId, current.attributeId, productAttributeId);
-
     return this.prisma.productAttribute.update({
       where: { id: productAttributeId },
-      data: { variantId, value: input.value ?? current.value },
+      data: { value: input.value ?? current.value },
       include: { attribute: true },
     });
   }

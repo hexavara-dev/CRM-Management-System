@@ -1,6 +1,7 @@
 import { validateBody, type FieldRule } from '../../../infrastructure/utils/RequestValidation.js';
 import type {
   ProductInput,
+  TypeVariantInput,
   VariantInput,
 } from '../../../usecases/product/ProductUseCase.js';
 import { CATEGORY_TYPES, MAX_LOCATIONS, MAX_UNITS, MAX_VARIANTS, PRICE_MAX, STOCK_MAX } from './constants.js';
@@ -26,13 +27,21 @@ const typeVariantRules: Record<string, FieldRule> = {
   minPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX, nullable: true },
   stock: { type: 'number', required: true, integer: true, min: 0, max: STOCK_MAX },
   isActive: { type: 'boolean' },
-};
-
-/** Variant sent together with a new product; may carry its attributes. */
-const newVariantRules: Record<string, FieldRule> = {
-  ...variantRules,
   attributes: { type: 'array' },
 };
+
+/** Validates type variants together with their unit specifications. */
+function typeVariantsOf(value: unknown): TypeVariantInput[] {
+  return arrayOf(value, 100, 'typeVariants', (item) => {
+    const typeVariant = validateBody(item, typeVariantRules) as TypeVariantInput;
+    if (typeVariant.attributes !== undefined) {
+      typeVariant.attributes = arrayOf(typeVariant.attributes, 50, 'attributes', (attribute) =>
+        validateBody(attribute, newAttributeRules)
+      ) as NonNullable<TypeVariantInput['attributes']>;
+    }
+    return typeVariant;
+  });
+}
 
 const productRules: Record<string, FieldRule> = {
   categoryId: { type: 'string', max: 36 },
@@ -67,9 +76,7 @@ const locationRules: Record<string, FieldRule> = {
 export function validateVariant(body: unknown, partial = false) {
   const variant = validateBody(body, variantRules, { partial }) as VariantInput;
   if (variant.typeVariants !== undefined) {
-    variant.typeVariants = arrayOf(variant.typeVariants, 100, 'typeVariants', (item) =>
-      validateBody(item, typeVariantRules)
-    );
+    variant.typeVariants = typeVariantsOf(variant.typeVariants);
   }
   return variant;
 }
@@ -115,16 +122,9 @@ export function validateProduct(body: unknown, partial = false) {
   }
   if (result.variants !== undefined) {
     result.variants = arrayOf(result.variants, MAX_VARIANTS, 'variants', (v) => {
-      const variant = validateBody(v, newVariantRules) as VariantInput;
-      if (variant.attributes !== undefined) {
-        variant.attributes = arrayOf(variant.attributes, 50, 'attributes', (a) =>
-          validateBody(a, newAttributeRules)
-        ) as NonNullable<VariantInput['attributes']>;
-      }
+      const variant = validateBody(v, variantRules) as VariantInput;
       if (variant.typeVariants !== undefined) {
-        variant.typeVariants = arrayOf(variant.typeVariants, 100, 'typeVariants', (item) =>
-          validateBody(item, typeVariantRules)
-        );
+        variant.typeVariants = typeVariantsOf(variant.typeVariants);
         if (variant.typeVariants.length === 0) throw new Error('typeVariants must contain at least one item');
       } else if (variant.basePrice === undefined) {
         throw new Error('typeVariants must contain at least one item');

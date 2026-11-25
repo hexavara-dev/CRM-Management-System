@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { errorMessage } from "@/hooks/use-projects";
 import api from "@/lib/api";
+import { specPayload, type SpecValues, specsOfVariant } from "@/lib/unit-specs";
 
 type ProductList = {
   data: {
@@ -23,6 +24,7 @@ type ProductList = {
 type ProductAttribute = {
   id: string;
   variantId: string | null;
+  typeVariantId: string | null;
   attributeId: string;
   value: number;
   attribute: { id: string; code: string; name: string; unit: string | null };
@@ -45,7 +47,7 @@ type ProductVariant = {
   minPrice: number | null;
   stock: number;
   unitCount: number;
-  typeVariants: ProductTypeVariant[];
+  typeVariants: (Omit<ProductTypeVariant, "id" | "specs"> & { id: string })[];
 };
 
 export type ProductTypeVariant = {
@@ -57,6 +59,7 @@ export type ProductTypeVariant = {
   minPrice?: number | null;
   stock: number;
   unitCount?: number;
+  specs: SpecValues;
 };
 
 type ProductDetail = {
@@ -73,27 +76,6 @@ type ProductDetail = {
   media: ProductMedia[];
 };
 
-export type TypeAttributeCode =
-  | "building_area"
-  | "surface_area"
-  | "floors"
-  | "bedroom"
-  | "bathroom"
-  | "carport";
-
-export const TYPE_ATTRIBUTES: {
-  code: TypeAttributeCode;
-  name: string;
-  unit?: string;
-}[] = [
-  { code: "building_area", name: "Building Area", unit: "m²" },
-  { code: "surface_area", name: "Surface Area", unit: "m²" },
-  { code: "floors", name: "Floors" },
-  { code: "bedroom", name: "Bedroom" },
-  { code: "bathroom", name: "Bathroom" },
-  { code: "carport", name: "Carport" },
-];
-
 export type ProjectTypeRow = {
   id: string;
   projectId: string;
@@ -107,8 +89,6 @@ export type ProjectTypeRow = {
   stock: number;
   unitCount: number;
   image: string | null;
-  attributes: Record<TypeAttributeCode, number>;
-  attributeRows: ProductAttribute[];
   typeVariants: ProductTypeVariant[];
 };
 
@@ -116,10 +96,7 @@ export type ProjectTypeForm = {
   projectId: string;
   variantId?: string;
   name: string;
-  basePrice: number;
-  stock: number;
-  typeVariants?: ProductTypeVariant[];
-  attributes: Record<TypeAttributeCode, number>;
+  typeVariants: ProductTypeVariant[];
   image?: File;
 };
 
@@ -133,15 +110,6 @@ export type ProjectTypesData = {
     averageTypes: number;
   };
 };
-
-const emptyAttributes = (): Record<TypeAttributeCode, number> => ({
-  building_area: 0,
-  surface_area: 0,
-  floors: 0,
-  bedroom: 0,
-  bathroom: 0,
-  carport: 0,
-});
 
 async function allProducts() {
   const params = { page: 1, limit: 100 };
@@ -176,16 +144,17 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
 
   const rows = details.flatMap((product) =>
     product.variants.map((variant) => {
-      const attributeRows = product.attributes.filter(
-        (attribute) => attribute.variantId === variant.id,
-      );
-      const attributes = emptyAttributes();
-      for (const attribute of attributeRows) {
-        if (attribute.attribute.code in attributes) {
-          attributes[attribute.attribute.code as TypeAttributeCode] =
-            attribute.value;
-        }
-      }
+      const typeVariants = variant.typeVariants.map((option) => ({
+        id: option.id,
+        name: option.name,
+        code: option.code,
+        basePrice: Number(option.basePrice),
+        currentPrice: Number(option.currentPrice ?? option.basePrice),
+        minPrice: option.minPrice == null ? null : Number(option.minPrice),
+        stock: option.stock,
+        unitCount: option.unitCount,
+        specs: specsOfVariant(product.attributes, option.id),
+      }));
       const media = product.media
         .filter(
           (item) => item.mediaType === "IMAGE" && item.variantId === variant.id,
@@ -215,9 +184,7 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
         unitCount: variant.unitCount,
         // Gambar type hanya dari media milik variant ini; gambar proyek (variantId null) tidak dipakai sebagai fallback.
         image: media?.fileUrl ?? null,
-        attributes,
-        attributeRows,
-        typeVariants: variant.typeVariants,
+        typeVariants,
       } satisfies ProjectTypeRow;
     }),
   );
@@ -245,32 +212,9 @@ export function useProjectTypes() {
   });
 }
 
-async function ensureAttributeDefinitions() {
-  const definitions = (
-    await api.get<{ data: { id: string; code: string }[] }>("/api/attributes")
-  ).data.data;
-  const byCode = new Map(
-    definitions.map((definition) => [definition.code, definition.id]),
-  );
-
-  for (const attribute of TYPE_ATTRIBUTES) {
-    if (byCode.has(attribute.code)) continue;
-    const created = (
-      await api.post<{ id: string }>("/api/attributes", {
-        name: attribute.name,
-        code: attribute.code,
-        dataType: "NUMBER",
-        unit: attribute.unit ?? null,
-      })
-    ).data;
-    byCode.set(attribute.code, created.id);
-  }
-  return byCode;
-}
-
 /** Hanya field yang diterima API; unitCount adalah data tampilan. */
-function typeVariantPayload({ unitCount: _unitCount, ...option }: ProductTypeVariant) {
-  return { ...option, currentPrice: option.currentPrice ?? option.basePrice };
+function typeVariantPayload({ unitCount: _unitCount, specs, ...option }: ProductTypeVariant) {
+  return { ...option, currentPrice: option.currentPrice ?? option.basePrice, attributes: specPayload(specs) };
 }
 
 async function uploadTypeImage(
@@ -296,40 +240,18 @@ export function useCreateProjectType() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (form: ProjectTypeForm) => {
-      const attributeIds = await ensureAttributeDefinitions();
       const variant = (
-        await api.post<{ id: string }>(
-          `/api/products/${form.projectId}/variants`,
-          {
-            name: form.name.trim(),
-            typeVariants: form.typeVariants?.map(typeVariantPayload) ?? [{ name: "Default", code: null, basePrice: form.basePrice, currentPrice: form.basePrice, stock: form.stock }],
-          },
-        )
+        await api.post<{ id: string }>(`/api/products/${form.projectId}/variants`, {
+          name: form.name.trim(),
+          typeVariants: form.typeVariants.map(typeVariantPayload),
+        })
       ).data;
-      const specResults = await Promise.all(
-        TYPE_ATTRIBUTES.map(async (attribute) => {
-          const attributeId = attributeIds.get(attribute.code);
-          if (!attributeId) return false;
-          try {
-            await api.post(`/api/products/${form.projectId}/attributes`, {
-              variantId: variant.id,
-              attributeId,
-              value: form.attributes[attribute.code],
-            });
-            return true;
-          } catch {
-            return false;
-          }
-        }),
-      );
       const imageUploaded = await uploadTypeImage(
         form.projectId,
         variant.id,
         form.image,
       );
-      return {
-        partial: specResults.some((result) => !result) || !imageUploaded,
-      };
+      return { partial: !imageUploaded };
     },
     onSuccess: async ({ partial }) => {
       await queryClient.invalidateQueries({ queryKey: ["project-types"] });
@@ -338,7 +260,7 @@ export function useCreateProjectType() {
       await queryClient.invalidateQueries({ queryKey: ["project-edit"] });
       toast[partial ? "warning" : "success"](
         partial
-          ? "Tipe tersimpan, tetapi sebagian spesifikasi atau gambar gagal disimpan."
+          ? "Tipe tersimpan, tetapi gambar gagal disimpan."
           : "Tipe berhasil ditambahkan.",
       );
     },
@@ -353,54 +275,18 @@ export function useUpdateProjectType() {
     mutationFn: async (
       form: ProjectTypeForm & {
         variantId: string;
-        attributeRows: ProductAttribute[];
       },
     ) => {
-      const attributeIds = await ensureAttributeDefinitions();
-      await api.put(
-        `/api/products/${form.projectId}/variants/${form.variantId}`,
-        {
-          name: form.name.trim(),
-          ...(form.typeVariants?.length
-            ? { typeVariants: form.typeVariants.map(typeVariantPayload) }
-            : { basePrice: form.basePrice, stock: form.stock }),
-        },
-      );
-
-      const specResults = await Promise.all(
-        TYPE_ATTRIBUTES.map(async (attribute) => {
-          const definitionId = attributeIds.get(attribute.code);
-          if (!definitionId) return false;
-          const current = form.attributeRows.find(
-            (row) => row.attribute.code === attribute.code,
-          );
-          try {
-            if (current) {
-              await api.put(
-                `/api/products/${form.projectId}/attributes/${current.id}`,
-                { value: form.attributes[attribute.code] },
-              );
-            } else {
-              await api.post(`/api/products/${form.projectId}/attributes`, {
-                variantId: form.variantId,
-                attributeId: definitionId,
-                value: form.attributes[attribute.code],
-              });
-            }
-            return true;
-          } catch {
-            return false;
-          }
-        }),
-      );
+      await api.put(`/api/products/${form.projectId}/variants/${form.variantId}`, {
+        name: form.name.trim(),
+        typeVariants: form.typeVariants.map(typeVariantPayload),
+      });
       const imageUploaded = await uploadTypeImage(
         form.projectId,
         form.variantId,
         form.image,
       );
-      return {
-        partial: specResults.some((result) => !result) || !imageUploaded,
-      };
+      return { partial: !imageUploaded };
     },
     onSuccess: async ({ partial }) => {
       await queryClient.invalidateQueries({ queryKey: ["project-types"] });
@@ -409,7 +295,7 @@ export function useUpdateProjectType() {
       await queryClient.invalidateQueries({ queryKey: ["project-edit"] });
       toast[partial ? "warning" : "success"](
         partial
-          ? "Tipe diperbarui, tetapi sebagian spesifikasi atau gambar gagal disimpan."
+          ? "Tipe diperbarui, tetapi gambar gagal disimpan."
           : "Tipe berhasil diperbarui.",
       );
     },

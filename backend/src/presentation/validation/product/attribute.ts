@@ -29,9 +29,9 @@ export const newAttributeRules: Record<string, FieldRule> = {
   value: attributeValueRule,
 };
 
-/** Pivot: the value of a master attribute for a product or variant. */
+/** Pivot: the value of a master attribute for a product (facility) or type variant (specification). */
 const attributeRules: Record<string, FieldRule> = {
-  variantId: { type: 'string', nullable: true, max: 36 },
+  typeVariantId: { type: 'string', nullable: true, max: 36 },
   attributeId: { type: 'string', required: true, max: 36 },
   value: attributeValueRule,
 };

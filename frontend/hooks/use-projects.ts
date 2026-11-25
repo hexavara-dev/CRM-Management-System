@@ -82,6 +82,7 @@ export interface ProjectDetail extends ProjectLocation {
   attributes: {
     id: string;
     variantId: string | null;
+    typeVariantId: string | null;
     value: number;
     attribute: ProjectAttribute;
   }[];
@@ -151,13 +152,13 @@ export interface CreateProjectPayload {
       code?: string;
       basePrice: number;
       stock: number;
-    }[];
-    attributes: {
-      name: string;
-      code: string;
-      dataType: "NUMBER" | "STRING";
-      value: number;
-      unit?: string;
+      attributes: {
+        name: string;
+        code: string;
+        dataType: "NUMBER" | "STRING";
+        value: number;
+        unit?: string;
+      }[];
     }[];
   }[];
   locations: {

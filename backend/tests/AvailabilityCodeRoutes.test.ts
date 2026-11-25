@@ -29,7 +29,7 @@ const unit = {
   name: null,
   categoryId: 'block',
   status: 'AVAILABLE',
-  variant: { name: 'Type 45', currentPrice: 650_000_000n, attributes: [] },
+  variant: { name: 'Type 45', currentPrice: 650_000_000n },
   typeVariant: { id: 'tv-45', name: 'Standard', currentPrice: 650_000_000n },
   typeVariantId: 'tv-45',
   media: [],

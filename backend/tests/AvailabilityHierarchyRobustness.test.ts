@@ -39,7 +39,7 @@ function makeUnit(id: string, categoryId: string) {
     categoryId,
     status: 'AVAILABLE',
     isHook: false,
-    variant: { name: 'Type 36', currentPrice: 400_000_000n, attributes: [] },
+    variant: { name: 'Type 36', currentPrice: 400_000_000n },
     typeVariant: {
       id: 'type-variant-1',
       name: 'Standard',

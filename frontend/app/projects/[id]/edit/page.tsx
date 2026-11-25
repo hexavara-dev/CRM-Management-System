@@ -3,23 +3,16 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { ProjectWizard, type WizardInitial } from "@/app/projects/create/project-wizard";
+import { specsOfVariant } from "@/lib/unit-specs";
 import { useProjectEditData, type ProjectEditData } from "@/hooks/use-projects";
 
 function toWizardInitial(project: ProjectEditData): WizardInitial {
-  const attributeValue = (variantId: string, code: string) =>
-    String(project.attributes.find((item) => item.variantId === variantId && item.attribute.code === code)?.value ?? 0);
   const variantName = new Map(project.variants.map((variant) => [variant.id, variant.name]));
   const typeVariantById = new Map(project.variants.flatMap((variant) => variant.typeVariants.map((option) => [option.id, option])));
   const unitTypes = project.variants.map((variant) => ({
     id: variant.id,
     name: variant.name,
     imageUrl: project.media.find((media) => media.mediaType === "IMAGE" && media.variantId === variant.id)?.fileUrl,
-    buildingArea: attributeValue(variant.id, "building_area"),
-    surfaceArea: attributeValue(variant.id, "surface_area"),
-    floors: attributeValue(variant.id, "floors"),
-    bedroom: attributeValue(variant.id, "bedroom"),
-    bathroom: attributeValue(variant.id, "bathroom"),
-    carport: attributeValue(variant.id, "carport"),
     variants: variant.typeVariants.map((option) => ({
       id: option.id,
       key: option.id,
@@ -27,6 +20,7 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
       code: option.code ?? "",
       stock: String(option.stock),
       basePrice: String(option.basePrice),
+      specs: specsOfVariant(project.attributes, option.id),
     })),
   }));
   return {

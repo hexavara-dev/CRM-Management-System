@@ -369,7 +369,7 @@ export async function seedReservationData(
           where: {
             tenantId,
             productId: product.id,
-            variantId: variant.id,
+            typeVariantId: typeVariant.id,
             attributeId: attribute.id,
           },
         });
@@ -384,6 +384,7 @@ export async function seedReservationData(
               tenantId,
               productId: product.id,
               variantId: variant.id,
+              typeVariantId: typeVariant.id,
               attributeId: attribute.id,
               value,
             },

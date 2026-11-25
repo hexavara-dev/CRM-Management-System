@@ -79,16 +79,22 @@ describe('ProductUseCase', () => {
     await expect(useCase.removeVariant('p-1', 'v-1', 't-1')).rejects.toThrow(/at least one variant/);
   });
 
-  it('rejects an attribute for a variant of another product', async () => {
-    const prisma = productPrisma({ product: { findFirst: fn({ id: 'p-1', media: [] }) } });
+  it('rejects a specification for a type variant of another product', async () => {
+    const prisma = productPrisma({
+      product: { findFirst: fn({ id: 'p-1', media: [] }) },
+      productTypeVariant: { findFirst: fn(null) },
+    });
     const useCase = new ProductUseCase(prisma as never);
     await expect(
       useCase.addAttribute('p-1', 't-1', {
-        variantId: 'v-other',
+        typeVariantId: 'tv-other',
         attributeId: 'a-1',
         value: 72,
       })
-    ).rejects.toThrow('Variant not found');
+    ).rejects.toThrow('Type variant not found');
+    expect(prisma.productTypeVariant.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'tv-other', tenantId: 't-1', productVariant: { productId: 'p-1', tenantId: 't-1' } } })
+    );
   });
 });
 

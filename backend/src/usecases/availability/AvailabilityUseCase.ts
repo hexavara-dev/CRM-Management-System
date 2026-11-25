@@ -13,14 +13,19 @@ const unitInclude = (tenantId: string) =>
       select: {
         id: true,
         name: true,
+      },
+    },
+    typeVariant: {
+      select: {
+        id: true,
+        name: true,
+        basePrice: true,
+        currentPrice: true,
         attributes: {
           where: { tenantId, attribute: { tenantId } },
           include: { attribute: { select: { code: true, name: true, unit: true } } },
         },
       },
-    },
-    typeVariant: {
-      select: { id: true, name: true, basePrice: true, currentPrice: true },
     },
     media: {
       where: { tenantId, mediaType: 'IMAGE' as const },
@@ -540,8 +545,10 @@ export class AvailabilityUseCase {
     if (!unit) return null;
 
     const block = nearestCategory(unit.categoryId, 'BLOCK', data.categories);
+    // Spesifikasi mengikuti varian unit, bukan tipenya.
+    const unitAttributes = unit.typeVariant?.attributes ?? [];
     const attributes = new Map(
-      unit.variant.attributes.map(({ attribute, value }) => [attribute.code, { attribute, value }])
+      unitAttributes.map(({ attribute, value }) => [attribute.code, { attribute, value }])
     );
     const attributeLabel = (code: string) => {
       const item = attributes.get(code);
@@ -550,7 +557,7 @@ export class AvailabilityUseCase {
       return `${item.value}${suffix}`;
     };
     const price = priceOf(unit);
-    const specifications = unit.variant.attributes.map(({ attribute, value }) => ({
+    const specifications = unitAttributes.map(({ attribute, value }) => ({
       key: attribute.code,
       label: `${attribute.name}: ${value}${attribute.unit ? ` ${attribute.unit}` : ''}`,
     }));

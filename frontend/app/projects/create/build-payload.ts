@@ -1,4 +1,5 @@
 import type { CreateProjectPayload } from "@/hooks/use-projects";
+import { specPayload } from "../../../lib/unit-specs";
 import type { LocationNode, UnitItem } from "./hierarchy-step";
 import type { ProjectInfo } from "./preview-step";
 import type { UnitType } from "./unit-type-step";
@@ -21,16 +22,6 @@ const UNIT_STATUS: Record<string, NonNullable<CreateProjectPayload["units"][numb
   booked: "BOOKED",
   blocked: "BLOCKED",
 };
-
-/** Field unit type -> `product_attributes` (INT; kosong dikirim 0, luas dibulatkan). */
-const ATTRIBUTES: { key: keyof UnitType; name: string; code: string; unit?: string }[] = [
-  { key: "buildingArea", name: "Building Area", code: "building_area", unit: "m²" },
-  { key: "surfaceArea", name: "Surface Area", code: "surface_area", unit: "m²" },
-  { key: "floors", name: "Floors", code: "floors" },
-  { key: "bedroom", name: "Bedroom", code: "bedroom" },
-  { key: "bathroom", name: "Bathroom", code: "bathroom" },
-  { key: "carport", name: "Carport", code: "carport" },
-];
 
 /** Isian lokasi step 1 -> kolom `products`; yang kosong tidak dikirim. */
 const LOCATION_FIELDS = ["province", "city", "subdistrict", "village", "address", "postalCode", "mapsUrl"] as const;
@@ -58,13 +49,7 @@ export function buildProjectPayload(input: {
       ...(option.code.trim() ? { code: option.code.trim() } : {}),
       basePrice: Math.round(Number(option.basePrice) || 0),
       stock: Math.round(Number(option.stock) || 0),
-    })),
-    attributes: ATTRIBUTES.map((a) => ({
-      name: a.name,
-      code: a.code,
-      dataType: "NUMBER" as const,
-      value: Math.round(Number(t[a.key]) || 0),
-      ...(a.unit ? { unit: a.unit } : {}),
+      attributes: specPayload(option.specs),
     })),
   }));
 
