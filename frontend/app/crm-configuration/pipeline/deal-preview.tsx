@@ -3,6 +3,7 @@
 import { Paperclip, Phone } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PipelineStage } from "@/hooks/use-pipeline-stages";
+import { pipelineTextColor, resolvePipelineColor } from "@/lib/pipeline-color";
 
 const FALLBACK = "#94A3B8";
 
@@ -78,7 +79,7 @@ export function DealPreviewDialog({
           <div className="overflow-x-auto pb-2">
             <div className="flex min-w-max gap-3">
               {active.map((stage) => {
-                const color = stage.color ?? FALLBACK;
+                const color = resolvePipelineColor(stage.color, FALLBACK);
                 const shown = Math.min(SAMPLES.length, Math.max(stage.itemCount, 1));
                 const samples = SAMPLES.slice(0, shown);
                 const more = stage.itemCount - shown;
@@ -86,11 +87,11 @@ export function DealPreviewDialog({
                   <div
                     key={stage.id}
                     className="flex w-80 flex-col rounded-2xl border border-[#EDEDED]"
-                    style={{ backgroundColor: `${color}0D` }}
+                    style={{ backgroundColor: color }}
                   >
-                    <div className="rounded-t-2xl" style={{ backgroundColor: `${color}26` }}>
+                    <div className="rounded-t-2xl" style={{ backgroundColor: color, color: pipelineTextColor(color) }}>
                       <div className="flex items-center justify-between gap-2 px-4 py-3">
-                        <p className="flex min-w-0 items-center gap-2 text-lg font-semibold" style={{ color }}>
+                        <p className="flex min-w-0 items-center gap-2 text-lg font-semibold" style={{ color: pipelineTextColor(color) }}>
                           <span className="truncate">{stage.name}</span>
                           {stage.isWonStage && (
                             <span className="shrink-0 rounded bg-[#FEF3C7] px-1.5 py-0.5 text-xs font-medium text-[#B45309]">

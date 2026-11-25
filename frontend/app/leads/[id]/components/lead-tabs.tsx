@@ -11,14 +11,11 @@ import { ActivitiesTab } from "./tabs/activities-tab";
 import { AttachmentsTab } from "./tabs/attachments-tab";
 import { OverviewTab } from "./tabs/overview-tab";
 
-type AttachmentFormData = { name: string; file: FileList };
-
-export function LeadTabs({ lead, stages, attachments, onAddActivity, onAddAttachment }: {
+export function LeadTabs({ lead, stages, attachments, onAddActivity }: {
   lead: Lead;
   stages: PipelineStage[];
   attachments: Attachment[];
-  onAddActivity: (data: { type: string; description: string }) => Promise<void>;
-  onAddAttachment: (data: AttachmentFormData) => void;
+  onAddActivity: (data: { type: string; description: string; activityDate: string }) => Promise<{ id?: string } | void>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -34,6 +31,6 @@ export function LeadTabs({ lead, stages, attachments, onAddActivity, onAddAttach
     </TabsList>
     <TabsContent value="overview" className="mt-0"><OverviewTab lead={lead} stages={stages} /></TabsContent>
     <TabsContent value="activities" className="mt-0"><ActivitiesTab lead={lead} stages={stages} onAddActivity={onAddActivity} /></TabsContent>
-    <TabsContent value="documents" className="mt-0"><AttachmentsTab attachments={attachments} onAddAttachment={onAddAttachment} entityLabel="Lead" /></TabsContent>
+    <TabsContent value="documents" className="mt-0"><AttachmentsTab attachments={attachments} entityLabel="Lead" /></TabsContent>
   </Tabs>;
 }

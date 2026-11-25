@@ -45,7 +45,9 @@ export type ApiError = {
 };
 
 export type UninterceptedApiError = {
-  code: number;
-  status: boolean;
-  message: string | Record<string, string[]>;
+  code?: number | string;
+  status?: boolean;
+  error?: string;
+  message?: string | Record<string, string[]>;
+  requestId?: string;
 };

@@ -30,12 +30,18 @@ export class UploadController {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      const tenantId = (req as any).user.tenantId;
+      const { tenantId, userId } = (req as any).user;
+      const activityId =
+        typeof req.body?.activityId === 'string' && req.body.activityId.trim()
+          ? req.body.activityId.trim()
+          : undefined;
       const result = await this.uploadUseCases.uploadAttachment(
         req.params.id as string,
         entityType,
         req.file,
-        tenantId
+        tenantId,
+        userId,
+        activityId
       );
 
       return res.status(200).json(result);

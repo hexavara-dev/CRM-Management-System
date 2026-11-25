@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
@@ -18,15 +19,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import type { PipelineStage } from "@/hooks/use-pipeline-stages";
+import { pipelineTextColor, resolvePipelineColor } from "@/lib/pipeline-color";
 import { useLeads } from "@/hooks/use-leads";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/api-error";
 import type { Lead } from "@/types/lead";
 import {
+  Check,
   CalendarDays,
   ChevronDown,
   ClipboardList,
+  Eye,
   FileText,
   Info,
   Layers3,
@@ -37,9 +47,12 @@ import {
   Phone,
   Plus,
   RefreshCw,
+  Trash2,
+  Upload,
   UserRound,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -51,6 +64,22 @@ const formatDate = (value?: string) =>
         year: "numeric",
       }).format(new Date(value))
     : "-";
+
+const ACTIVITY_FILE_TYPES = ["image/jpeg", "image/png", "application/pdf"];
+const ACTIVITY_FILE_MAX_BYTES = 10 * 1024 * 1024;
+
+const formatFileSize = (bytes: number) =>
+  bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+/** Tanggal aktivitas yang dipilih user; data lama (tanpa activityDate) memakai waktu input. */
+function activityEffectiveDate(activity: {
+  activityDate?: string | null;
+  createdAt: string;
+}) {
+  return new Date(activity.activityDate ?? activity.createdAt);
+}
 
 function description(activity: NonNullable<Lead["activities"]>[number]) {
   if (activity.notes?.[0]?.content) return activity.notes[0].content;
@@ -65,6 +94,11 @@ function description(activity: NonNullable<Lead["activities"]>[number]) {
   return activity.activityType;
 }
 
+/** Label ringkas jenis aktivitas, dipakai juga oleh kolom "Aktivitas" di tab Documents. */
+export function activityTypeLabel(type: string) {
+  return activityPresentation(type).label;
+}
+
 function activityPresentation(type: string) {
   const normalized = type.toLowerCase();
   if (
@@ -73,7 +107,7 @@ function activityPresentation(type: string) {
     normalized.includes("meeting")
   ) {
     return {
-      label: normalized.includes("survey") ? "Visit / Survey" : type,
+      label: "Visit / Survey",
       icon: MapPin,
       iconClass: "bg-[#E8F8EE] text-[#16A34A]",
     };
@@ -95,7 +129,7 @@ function activityPresentation(type: string) {
     normalized.includes("task")
   ) {
     return {
-      label: normalized.includes("task") ? "Follow Up (FU)" : type,
+      label: "Follow Up (FU)",
       icon: Phone,
       iconClass: "bg-[#E9F2FF] text-[#1769FF]",
     };
@@ -137,7 +171,8 @@ export function ActivitiesTab({
   onAddActivity: (data: {
     type: string;
     description: string;
-  }) => Promise<void>;
+    activityDate: string;
+  }) => Promise<{ id?: string } | void>;
 }) {
   const [filter, setFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
@@ -148,36 +183,44 @@ export function ActivitiesTab({
   const [pendingStage, setPendingStage] = useState<PipelineStage>();
   const [evidenceFiles, setEvidenceFiles] = useState<Record<string, File>>({});
   const [saving, setSaving] = useState(false);
+  const [activityDate, setActivityDate] = useState<Date>(() => new Date());
+  const [activityStageId, setActivityStageId] = useState("");
+  const [activityFiles, setActivityFiles] = useState<File[]>([]);
+  const activityFileInput = useRef<HTMLInputElement>(null);
+  const [previewFile, setPreviewFile] = useState<{
+    name: string;
+    type: string;
+    url: string;
+  } | null>(null);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { setLeadStage } = useLeads();
 
   const activities = useMemo(
     () =>
       [...(lead.activities ?? [])].sort(
-        (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt),
+        (a, b) => +activityEffectiveDate(b) - +activityEffectiveDate(a),
       ),
     [lead.activities],
   );
   const filtered =
     filter === "all"
       ? activities
-      : activities.filter((activity) => activity.activityType === filter);
+      : activities.filter(
+          (activity) => activityTypeLabel(activity.activityType) === filter,
+        );
   const shown = showAll ? filtered : filtered.slice(0, 4);
   const count = (types: string[]) =>
     activities.filter((activity) =>
       types.some((type) => activity.activityType.toLowerCase().includes(type)),
     ).length;
-  const tasks = activities
-    .flatMap((activity) => activity.tasks ?? [])
-    .filter((task) => task.dueDate)
-    .sort((a, b) => +new Date(a.dueDate!) - +new Date(b.dueDate!));
-  const nextTask = tasks.find((task) => +new Date(task.dueDate!) >= Date.now()) ?? tasks[0];
+  const viewingsByDate = [...(lead.viewings ?? [])].sort(
+    (a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt),
+  );
   const nextVisit =
-    lead.viewings
-      ?.filter((viewing) => +new Date(viewing.scheduledAt) >= Date.now())
-      .sort(
-        (a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt),
-      )[0] ?? lead.viewings?.[0];
+    viewingsByDate.find(
+      (viewing) => +new Date(viewing.scheduledAt) >= Date.now(),
+    ) ?? viewingsByDate[viewingsByDate.length - 1];
   const latestNoteActivity = activities.find(
     (activity) => activity.notes?.length,
   );
@@ -188,16 +231,117 @@ export function ActivitiesTab({
   const requiredEvidence =
     pendingStage?.evidences.filter((item) => item.isRequired) ?? [];
 
+  const resetActivityForm = () => {
+    setActivityType("follow-up");
+    setActivityDescription("");
+    setActivityDate(new Date());
+    setActivityStageId("");
+    setActivityFiles([]);
+  };
+
+  const addActivityFiles = (incoming: FileList | File[] | null) => {
+    if (!incoming) return;
+    const accepted: File[] = [];
+    for (const file of Array.from(incoming)) {
+      if (!ACTIVITY_FILE_TYPES.includes(file.type)) {
+        toast.error(`${file.name}: format file tidak didukung.`);
+      } else if (file.size > ACTIVITY_FILE_MAX_BYTES) {
+        toast.error(`${file.name}: ukuran file maksimal 10 MB.`);
+      } else {
+        accepted.push(file);
+      }
+    }
+    if (accepted.length)
+      setActivityFiles((current) => [...current, ...accepted]);
+  };
+
+  const previewActivityFile = (file: File) => {
+    if (previewFile) URL.revokeObjectURL(previewFile.url);
+    setPreviewFile({
+      name: file.name,
+      type: file.type,
+      url: URL.createObjectURL(file),
+    });
+  };
+
+  const closeFilePreview = () => {
+    if (previewFile) URL.revokeObjectURL(previewFile.url);
+    setPreviewFile(null);
+  };
+
   const submitActivity = async () => {
     if (!activityDescription.trim()) return;
+    const selectedStage = activityStageId
+      ? activeStages.find((item) => item.id === activityStageId)
+      : undefined;
+    if (selectedStage?.evidences.some((item) => item.isRequired)) {
+      toast.error(
+        `${selectedStage.name} membutuhkan evidence. Pindahkan fase lewat panel Fase di samping.`,
+      );
+      return;
+    }
     setSaving(true);
+    const uploadedIds: string[] = [];
+    let createdActivityId: string | undefined;
+    let uploading = false;
     try {
-      await onAddActivity({
+      const created = await onAddActivity({
         type: activityType,
         description: activityDescription.trim(),
+        activityDate: activityDate.toISOString(),
       });
-      setActivityDescription("");
+      createdActivityId = created?.id;
+      uploading = true;
+      for (const file of activityFiles) {
+        const form = new FormData();
+        form.append("name", file.name);
+        if (createdActivityId) form.append("activityId", createdActivityId);
+        form.append("document", file);
+        const response = await api.post<{ attachment?: { id: string } }>(
+          `/api/lead/${lead.id}/upload`,
+          form,
+        );
+        if (response.data.attachment?.id) {
+          uploadedIds.push(response.data.attachment.id);
+        }
+      }
+      if (selectedStage && selectedStage.id !== lead.stageId) {
+        await setLeadStage({
+          id: lead.id,
+          stageName: selectedStage.name,
+          evidenceAttachmentIds: [],
+        });
+        await queryClient.invalidateQueries({ queryKey: ["lead", lead.id] });
+        toast.success(`Fase Lead diubah ke ${selectedStage.name}.`);
+      }
+      if (uploadedIds.length) {
+        await queryClient.invalidateQueries({ queryKey: ["lead"] });
+        toast.success(
+          `${uploadedIds.length} dokumen ditambahkan ke tab Documents.`,
+        );
+      }
+      resetActivityForm();
       setAddOpen(false);
+    } catch (error) {
+      await Promise.all(
+        uploadedIds.map((id) =>
+          api.delete(`/api/attachment/${id}`).catch(() => undefined),
+        ),
+      );
+      if (uploading) {
+        if (createdActivityId) {
+          await api
+            .delete(`/api/leadactivity/${createdActivityId}`)
+            .catch(() => undefined);
+        }
+        await queryClient.invalidateQueries({ queryKey: ["lead"] });
+        toast.error(
+          apiErrorMessage(
+            error,
+            "Gagal mengunggah dokumen. Aktivitas dibatalkan.",
+          ),
+        );
+      }
     } finally {
       setSaving(false);
     }
@@ -220,10 +364,7 @@ export function ActivitiesTab({
     void changeStage(stage, []).catch(() => undefined);
   };
 
-  const changeStage = async (
-    stage: PipelineStage,
-    attachmentIds: string[],
-  ) => {
+  const changeStage = async (stage: PipelineStage, attachmentIds: string[]) => {
     setSaving(true);
     try {
       await setLeadStage({
@@ -250,9 +391,7 @@ export function ActivitiesTab({
   const uploadEvidenceAndMove = async () => {
     if (
       !pendingStage ||
-      requiredEvidence.some(
-        (item) => !evidenceFiles[item.id ?? item.name],
-      )
+      requiredEvidence.some((item) => !evidenceFiles[item.id ?? item.name])
     )
       return;
     setSaving(true);
@@ -274,10 +413,7 @@ export function ActivitiesTab({
           api.delete(`/api/attachment/${id}`).catch(() => undefined),
         ),
       );
-      toast.error(
-        (error as { response?: { data?: { error?: string } } }).response?.data
-          ?.error || "Gagal mengubah fase Lead.",
-      );
+      toast.error(apiErrorMessage(error, "Gagal mengubah fase Lead."));
       setSaving(false);
     }
   };
@@ -304,8 +440,7 @@ export function ActivitiesTab({
     {
       label: "Visit / Survey",
       value:
-        count(["visit", "survey", "meeting"]) +
-        (lead.viewings?.length ?? 0),
+        count(["visit", "survey", "meeting"]) + (lead.viewings?.length ?? 0),
       icon: MapPin,
       tone: "bg-[#E8F8EE] text-[#16A34A]",
     },
@@ -351,26 +486,36 @@ export function ActivitiesTab({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Aktivitas</SelectItem>
-                {[...new Set(activities.map((item) => item.activityType))].map(
-                  (type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
+                {[
+                  ...new Set(
+                    activities.map((item) =>
+                      activityTypeLabel(item.activityType),
+                    ),
                   ),
-                )}
+                ].map((label) => (
+                  <SelectItem key={label} value={label}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
-            <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <Dialog
+              open={addOpen}
+              onOpenChange={(open) => {
+                setAddOpen(open);
+                if (!open) resetActivityForm();
+              }}
+            >
               <DialogTrigger asChild>
                 <Button size="sm" className="h-8 text-[10px]">
                   <Plus className="size-3.5" />
                   Tambah Aktivitas
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
+              <DialogContent className="flex max-h-[94vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+                <DialogHeader className="shrink-0 border-b px-6 py-3">
+                  <DialogTitle className="flex items-center gap-2.5 text-base text-[#102A56]">
                     <CalendarDays className="size-5 text-[#1769FF]" />
                     Tambah Aktivitas
                   </DialogTitle>
@@ -378,46 +523,130 @@ export function ActivitiesTab({
                     Catat interaksi atau perkembangan terbaru dengan Lead.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <p className="mb-2 text-xs font-semibold">
+
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                  <section>
+                    <p className="mb-2 text-xs font-semibold text-[#102A56]">
                       Jenis Aktivitas <span className="text-red-500">*</span>
                     </p>
                     <div className="grid grid-cols-4 gap-2">
                       {[
-                        { value: "follow-up", label: "Follow Up", icon: Phone },
+                        {
+                          value: "follow-up",
+                          label: "Follow Up (FU)",
+                          icon: Phone,
+                        },
                         {
                           value: "penawaran",
                           label: "Penawaran",
                           icon: FileText,
                         },
-                        { value: "visit", label: "Visit / Survey", icon: MapPin },
+                        {
+                          value: "visit",
+                          label: "Visit / Survey",
+                          icon: MapPin,
+                        },
                         {
                           value: "note",
                           label: "Catatan",
                           icon: ClipboardList,
                         },
-                      ].map(({ value, label, icon: Icon }) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setActivityType(value)}
-                          className={`flex min-h-16 flex-col items-center justify-center gap-1 rounded-md border text-[10px] font-medium ${
-                            activityType === value
-                              ? "border-[#1769FF] bg-[#EFF6FF] text-[#1769FF]"
-                              : "border-[#D9E2F2] text-[#344054]"
-                          }`}
-                        >
-                          <Icon className="size-4" />
-                          {label}
-                        </button>
-                      ))}
+                      ].map(({ value, label, icon: Icon }) => {
+                        const selected = activityType === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => setActivityType(value)}
+                            className={`relative flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-lg border px-2 text-center text-xs font-medium transition-colors ${
+                              selected
+                                ? "border-[#1769FF] bg-[#EFF6FF] text-[#1769FF]"
+                                : "border-[#D9E2F2] bg-white text-[#344054] hover:bg-[#F8FAFC]"
+                            }`}
+                          >
+                            {selected && (
+                              <span className="absolute top-1.5 right-1.5 flex size-4 items-center justify-center rounded-full bg-[#1769FF] text-white">
+                                <Check className="size-2.5" strokeWidth={3} />
+                              </span>
+                            )}
+                            <Icon className="size-5" />
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
+                  </section>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <section>
+                      <p className="mb-2 text-xs font-semibold text-[#102A56]">
+                        Tanggal Aktivitas{" "}
+                        <span className="text-red-500">*</span>
+                      </p>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10 w-full justify-start gap-2 font-normal"
+                          >
+                            <CalendarDays className="size-4 text-[#667085]" />
+                            {formatDate(activityDate.toISOString())}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={activityDate}
+                            onSelect={(date) => date && setActivityDate(date)}
+                            defaultMonth={activityDate}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </section>
+
+                    <section>
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[#102A56]">
+                        Ubah Fase Leads
+                        <span className="font-normal text-[#667085]">
+                          (Opsional)
+                        </span>
+                        <Info className="size-3.5 text-[#1769FF]" />
+                      </p>
+                      <Select
+                        value={activityStageId}
+                        onValueChange={setActivityStageId}
+                      >
+                        <SelectTrigger className="h-10 w-full">
+                          <SelectValue placeholder="Tetap di fase saat ini" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {activeStages
+                            .filter((stage) => stage.id !== lead.stageId)
+                            .map((stage) => (
+                              <SelectItem key={stage.id} value={stage.id}>
+                                {stage.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      {activityStageId && (
+                        <p className="mt-1 text-[10px] text-[#667085]">
+                          {`${lead.stage?.name ?? "-"} → ${
+                            activeStages.find(
+                              (stage) => stage.id === activityStageId,
+                            )?.name ?? ""
+                          }`}
+                        </p>
+                      )}
+                    </section>
                   </div>
-                  <div>
+
+                  <section>
                     <label
                       htmlFor="activity-detail"
-                      className="mb-1.5 block text-xs font-semibold"
+                      className="mb-2 block text-xs font-semibold text-[#102A56]"
                     >
                       Detail Aktivitas <span className="text-red-500">*</span>
                     </label>
@@ -428,27 +657,123 @@ export function ActivitiesTab({
                         setActivityDescription(event.target.value)
                       }
                       placeholder="Tuliskan detail aktivitas..."
-                      rows={5}
+                      rows={3}
                       maxLength={500}
                     />
                     <p className="mt-1 text-right text-[10px] text-[#667085]">
                       {activityDescription.length} / 500
                     </p>
-                  </div>
+                  </section>
+
+                  <section>
+                    <p className="mb-2 text-xs font-semibold text-[#102A56]">
+                      Evidence / Upload
+                    </p>
+                    <input
+                      ref={activityFileInput}
+                      type="file"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.pdf"
+                      className="hidden"
+                      onChange={(event) => {
+                        addActivityFiles(event.target.files);
+                        event.target.value = "";
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => activityFileInput.current?.click()}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        addActivityFiles(event.dataTransfer.files);
+                      }}
+                      className="flex w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[#1769FF]/50 bg-[#F5F9FF] px-4 py-4 text-center transition-colors hover:bg-[#EFF6FF]"
+                    >
+                      <Upload className="size-6 text-[#1769FF]" />
+                      <span className="text-xs font-semibold text-[#102A56]">
+                        Klik untuk upload atau tarik file ke sini
+                      </span>
+                      <span className="text-[10px] text-[#667085]">
+                        Unggah foto atau dokumen pendukung (JPG, PNG, PDF,
+                        maksimal 10 MB)
+                      </span>
+                    </button>
+
+                    {activityFiles.length > 0 && (
+                      <ul className="mt-2 space-y-2">
+                        {activityFiles.map((file, index) => (
+                          <li
+                            key={`${file.name}-${index}`}
+                            className="flex items-center gap-3 rounded-md border border-[#E4E7EC] px-3 py-2"
+                          >
+                            <span
+                              className={`flex size-8 shrink-0 items-center justify-center rounded ${
+                                file.type === "application/pdf"
+                                  ? "bg-[#FEE4E2] text-[#D92D20]"
+                                  : "bg-[#EFF6FF] text-[#1769FF]"
+                              }`}
+                            >
+                              {file.type === "application/pdf" ? (
+                                <FileText className="size-4" />
+                              ) : (
+                                <Paperclip className="size-4" />
+                              )}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-medium text-[#102A56]">
+                                {file.name}
+                              </p>
+                              <p className="text-[10px] text-[#667085]">
+                                {formatFileSize(file.size)}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              aria-label={`Lihat ${file.name}`}
+                              onClick={() => previewActivityFile(file)}
+                            >
+                              <Eye className="size-4 text-[#344054]" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              aria-label={`Hapus ${file.name}`}
+                              onClick={() =>
+                                setActivityFiles((current) =>
+                                  current.filter(
+                                    (_, itemIndex) => itemIndex !== index,
+                                  ),
+                                )
+                              }
+                            >
+                              <Trash2 className="size-4 text-[#D92D20]" />
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
                 </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setAddOpen(false)}
-                  >
+
+                <DialogFooter className="shrink-0 border-t px-6 py-4 sm:justify-between">
+                  <Button variant="outline" onClick={() => setAddOpen(false)}>
                     Batal
                   </Button>
                   <Button
                     disabled={saving || !activityDescription.trim()}
                     onClick={submitActivity}
                   >
-                    {saving && <Loader2 className="size-4 animate-spin" />}
-                    <Plus className="size-4" />
+                    {saving ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Plus className="size-4" />
+                    )}
                     Simpan Aktivitas
                   </Button>
                 </DialogFooter>
@@ -456,6 +781,39 @@ export function ActivitiesTab({
             </Dialog>
           </div>
         </div>
+
+        <Dialog
+          open={previewFile !== null}
+          onOpenChange={(open) => {
+            if (!open) closeFilePreview();
+          }}
+        >
+          <DialogContent className="flex h-[85vh] flex-col gap-0 p-0 sm:max-w-4xl">
+            <DialogHeader className="border-b px-6 py-4">
+              <DialogTitle className="truncate text-base text-[#102A56]">
+                {previewFile?.name}
+              </DialogTitle>
+              <DialogDescription>
+                Pratinjau evidence aktivitas
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-0 flex-1 items-center justify-center bg-[#F6F8FC] p-4">
+              {previewFile?.type === "application/pdf" ? (
+                <iframe
+                  title={previewFile.name}
+                  src={previewFile.url}
+                  className="size-full rounded-md bg-white"
+                />
+              ) : previewFile ? (
+                <img
+                  src={previewFile.url}
+                  alt={previewFile.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              ) : null}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <div className="relative mt-2.5 pl-4">
           {shown.length > 0 && (
@@ -476,7 +834,9 @@ export function ActivitiesTab({
                   <div key={activity.id} className="relative">
                     <span className="absolute top-5 -left-[15px] z-10 size-2 rounded-full border-2 border-white bg-[#1769FF]" />
                     <p className="mb-1 text-[9px] font-medium text-[#667085]">
-                      {formatDate(activity.createdAt)}
+                      {formatDate(
+                        activityEffectiveDate(activity).toISOString(),
+                      )}
                     </p>
                     <details className="group rounded-md border border-[#D9E2F2] bg-white">
                       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-3 py-2">
@@ -488,9 +848,6 @@ export function ActivitiesTab({
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[11px] font-semibold text-[#102A56]">
                             {presentation.label}
-                          </p>
-                          <p className="truncate text-[10px] leading-4 text-[#475467]">
-                            {description(activity)}
                           </p>
                         </div>
                         <ChevronDown className="size-3.5 text-[#102A56] transition-transform group-open:rotate-180" />
@@ -532,33 +889,6 @@ export function ActivitiesTab({
       <aside className="space-y-3 xl:col-span-4">
         <section className="rounded-lg border border-[#E4E7EC] bg-white p-3">
           <PanelTitle
-            icon={CalendarDays}
-            title="Next Follow-up"
-            action={<Info className="size-3.5 text-[#1769FF]" />}
-          />
-          {nextTask ? (
-            <div className="text-[10px] leading-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-[#102A56]">
-                  {formatDate(nextTask.dueDate)}
-                </p>
-                <span className="rounded bg-[#DDF8E4] px-1.5 py-0.5 text-[9px] font-semibold text-[#16803A]">
-                  Terjadwal
-                </span>
-              </div>
-              <p className="mt-1 text-[#475467]">
-                {nextTask.description || nextTask.title}
-              </p>
-            </div>
-          ) : (
-            <p className="text-[10px] text-[#667085]">
-              Belum ada follow-up berikutnya.
-            </p>
-          )}
-        </section>
-
-        <section className="rounded-lg border border-[#E4E7EC] bg-white p-3">
-          <PanelTitle
             icon={RefreshCw}
             title="Ubah Fase Leads"
             action={<Info className="size-3.5 text-[#1769FF]" />}
@@ -590,9 +920,7 @@ export function ActivitiesTab({
             <Button
               className="h-8 px-3 text-[10px]"
               disabled={
-                !targetStageId ||
-                targetStageId === lead.stageId ||
-                saving
+                !targetStageId || targetStageId === lead.stageId || saving
               }
               onClick={requestStageChange}
             >
@@ -632,7 +960,8 @@ export function ActivitiesTab({
               </p>
               <p className="flex items-center gap-1 text-[#475467]">
                 <UserRound className="size-3" />
-                {lead.customer.firstName} {lead.customer.lastName || ""} (1 orang)
+                {lead.customer.firstName} {lead.customer.lastName || ""} (1
+                orang)
               </p>
             </div>
           ) : (
@@ -665,9 +994,7 @@ export function ActivitiesTab({
 
       <Dialog
         open={!!pendingStage}
-        onOpenChange={(open) =>
-          !open && !saving && setPendingStage(undefined)
-        }
+        onOpenChange={(open) => !open && !saving && setPendingStage(undefined)}
       >
         <DialogContent>
           <DialogHeader>
@@ -741,10 +1068,14 @@ export function ActivitiesTab({
 }
 
 function BadgeLike({ label, color }: { label: string; color: string }) {
+  const exactColor = resolvePipelineColor(color, "#667085");
   return (
     <span
       className="rounded px-1.5 py-0.5 text-[9px] font-semibold"
-      style={{ color, backgroundColor: `${color}18` }}
+      style={{
+        color: pipelineTextColor(exactColor),
+        backgroundColor: exactColor,
+      }}
     >
       {label}
     </span>

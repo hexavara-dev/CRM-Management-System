@@ -35,6 +35,8 @@ export interface AttachmentRecord {
   fileType?: string;
   fileSize?: number;
   createdAt: string;
+  uploadedBy?: { id: string; name?: string | null } | null;
+  leadActivityId?: string | null;
 }
 
 export interface CallLog {
@@ -59,6 +61,7 @@ export interface LeadActivity {
   customerId?: string;
   actorId?: string;
   activityType: "call" | "task" | "note" | "registration" | string;
+  activityDate?: string | null;
   createdAt: string;
   notes?: Note[];
   tasks?: Task[];

@@ -94,6 +94,7 @@ model User {
   recordedDealPayments      DealPayment[]              @relation("DealPaymentRecorder")
   requestedDealLosses       DealLostRequest[]          @relation("DealLostRequester")
   reviewedDealLosses        DealLostRequest[]          @relation("DealLostReviewer")
+  uploadedAttachments       Attachment[]               @relation("AttachmentUploader")
 
   @@map("user")
 }
@@ -423,6 +424,7 @@ model LeadActivity {
   customerId   String?   @map("customer_id") @db.VarChar(36)
   actorId      String?   @map("actor_id") @db.VarChar(36)
   activityType String    @map("activity_type") @db.VarChar(30)
+  activityDate DateTime? @map("activity_date") @db.DateTime(6)
   createdAt    DateTime  @default(now()) @map("created_at") @db.DateTime(6)
   callLogs     CallLog[]
   actor        User?     @relation(fields: [actorId], references: [id])
@@ -431,6 +433,7 @@ model LeadActivity {
   tenant       Company   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   notes        Note[]
   tasks        Task[]
+  attachments  Attachment[]
 
   @@map("lead_activity")
 }
@@ -700,6 +703,10 @@ model Attachment {
   tenant    Company  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   Viewing   Viewing? @relation(fields: [viewingId], references: [id])
   viewingId String?  @db.VarChar(36)
+  uploadedById String? @map("uploaded_by_id") @db.VarChar(36)
+  uploadedBy   User?   @relation("AttachmentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  leadActivityId String? @map("lead_activity_id") @db.VarChar(36)
+  leadActivity   LeadActivity? @relation(fields: [leadActivityId], references: [id], onDelete: SetNull)
 
   @@map("attachment")
 }

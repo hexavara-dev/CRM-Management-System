@@ -2,6 +2,7 @@
 
 import type { PipelineStage } from "@/hooks/use-pipeline-stages";
 import { cn } from "@/lib/utils";
+import { resolvePipelineColor } from "@/lib/pipeline-color";
 import { Check, FileCheck2, Flag, LockKeyhole } from "lucide-react";
 
 export function PipelineStageCards({
@@ -34,7 +35,7 @@ export function PipelineStageCards({
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {ordered.map((stage) => {
-        const color = stage.color || "#667085";
+        const color = resolvePipelineColor(stage.color, "#667085");
         const isCurrent = stage.id === currentStageId;
         const isSelected = stage.id === selectedStageId;
         const Tag = onSelect ? "button" : "article";
@@ -55,7 +56,7 @@ export function PipelineStageCards({
               (isCurrent || isSelected) && "ring-2 ring-offset-1",
             )}
             style={{
-              borderColor: `${color}55`,
+              borderColor: color,
               ...(isCurrent || isSelected
                 ? { boxShadow: `0 0 0 2px ${color}` }
                 : {}),

@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import type { Pagination } from "@/types/api";
 import { ChevronLeft, ChevronRight, Settings2 } from "lucide-react";
 
@@ -52,6 +53,11 @@ interface DataTableProps<TData, TValue> {
   serverPagination?: ServerPaginationOptions;
   showColumnSelector?: boolean;
   tableHeaderClassName?: string;
+  className?: string;
+  tableContainerClassName?: string;
+  compact?: boolean;
+  useColumnSizing?: boolean;
+  fillAvailableWidth?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -62,6 +68,11 @@ export function DataTable<TData, TValue>({
   serverPagination,
   showColumnSelector = true,
   tableHeaderClassName,
+  className,
+  tableContainerClassName,
+  compact = false,
+  useColumnSizing = false,
+  fillAvailableWidth = false,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -93,7 +104,7 @@ export function DataTable<TData, TValue>({
   });
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", className)}>
       {(searchKey || showColumnSelector) && (
         <div className="flex items-center justify-between">
           <div className="flex flex-1 items-center space-x-2">
@@ -145,14 +156,14 @@ export function DataTable<TData, TValue>({
           )}
         </div>
       )}
-      <div className="rounded-md border">
-        <Table>
+      <div className={cn("overflow-auto rounded-md border", tableContainerClassName)}>
+        <Table className={useColumnSizing ? "table-fixed" : undefined} style={useColumnSizing ? (fillAvailableWidth ? { width: "100%", minWidth: table.getTotalSize() } : { width: table.getTotalSize() }) : undefined}>
           <TableHeader className={tableHeaderClassName}>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className={compact ? "py-2 text-xs" : undefined} style={useColumnSizing ? { width: header.getSize() } : undefined}>
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -170,7 +181,7 @@ export function DataTable<TData, TValue>({
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={`loading-${i}`}>
                   {columns.map((_, j) => (
-                    <TableCell key={`loading-cell-${j}`}>
+                    <TableCell key={`loading-cell-${j}`} className={compact ? "py-2" : undefined}>
                       <Skeleton className="h-6 w-full" />
                     </TableCell>
                   ))}
@@ -183,7 +194,7 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className={compact ? "py-2 text-xs" : undefined} style={useColumnSizing ? { width: cell.column.getSize() } : undefined}>
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext(),
