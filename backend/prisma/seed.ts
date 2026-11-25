@@ -6,6 +6,7 @@ import { seedReservationData } from './seed/reservationSeed.js';
 import { seedAttributeCatalog } from './seed/attributeCatalog.js';
 import { seedViewingSchedule } from './seed/viewingScheduleSeed.js';
 import { seedDealsData } from './seed/dealsSeed.js';
+import { seedCompleteLeadData } from './seed/completeLeadData.js';
 
 const TENANT_NAME = 'Demo Organization';
 // Hanya untuk akun demo lokal. Jangan dipakai di server yang bisa diakses orang lain.
@@ -84,6 +85,7 @@ async function main() {
   await seedReservationData(prisma, owner!.tenantId, salesUsers);
   await seedViewingSchedule(prisma, owner!.tenantId, salesUsers);
   await seedDealsData(prisma, owner!.tenantId, salesUsers);
+  await seedCompleteLeadData(prisma, owner!.tenantId, salesUsers);
 }
 
 main()

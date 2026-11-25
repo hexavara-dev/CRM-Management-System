@@ -63,6 +63,23 @@ async function seedDefaultDealPipeline(prisma: PrismaClient, tenantId: string) {
   });
 }
 
+// Master bank pembiayaan: dibutuhkan form Convert to Deal (KPR / KPR Syariah wajib memilih bank aktif).
+const FINANCING_BANKS = ['BRI', 'BNI', 'BTN', 'Mandiri', 'BCA', 'BSI', 'BCA Syariah', 'Muamalat'] as const;
+
+async function seedFinancingBanks(prisma: PrismaClient, tenantId: string) {
+  const banks = new Map<string, string>();
+  for (const name of FINANCING_BANKS) {
+    const bank = await prisma.financingBank.upsert({
+      where: { tenantId_name: { tenantId, name } },
+      update: {},
+      create: { tenantId, name, isActive: true },
+      select: { id: true },
+    });
+    banks.set(name, bank.id);
+  }
+  return banks;
+}
+
 async function seedDealStatuses(prisma: PrismaClient, tenantId: string) {
   const definitions = [
     { name: 'Open', isDefaultStatus: true, isClosingStatus: false, isFailedStatus: false, priority: 1 },
@@ -100,6 +117,7 @@ async function seedDealStatuses(prisma: PrismaClient, tenantId: string) {
 export async function seedDealsData(prisma: PrismaClient, tenantId: string, salesUsers: SeedSalesUser[]) {
   if (salesUsers.length === 0) throw new Error('At least one sales user is required for Deal seed data.');
 
+  const financingBanks = await seedFinancingBanks(prisma, tenantId);
   const [stages, units, statuses] = await Promise.all([
     seedDefaultDealPipeline(prisma, tenantId),
     prisma.productUnit.findMany({
@@ -126,7 +144,8 @@ export async function seedDealsData(prisma: PrismaClient, tenantId: string, sale
         select: { id: true },
       });
     const lead = await prisma.lead.findFirst({
-      where: { tenantId, customerId: customer.id, type: 'DEAL_DEMO' },
+      where: { tenantId, customerId: customer.id, isDeleted: false },
+      orderBy: { createdAt: 'asc' },
       select: { id: true },
     }) ?? await prisma.lead.create({
       data: { tenantId, customerId: customer.id, assignedUserId: salesUsers[index % salesUsers.length]!.id, type: 'DEAL_DEMO', converted: true, convertedDate: daysBeforeToday(definition.daysAgo) },
@@ -148,6 +167,7 @@ export async function seedDealsData(prisma: PrismaClient, tenantId: string, sale
         currency: 'IDR',
         paymentMethod: definition.paymentMethod,
         bankName: definition.bankName,
+        financingBankId: definition.bankName ? financingBanks.get(definition.bankName) ?? null : null,
       },
       create: {
         tenantId,
@@ -165,6 +185,7 @@ export async function seedDealsData(prisma: PrismaClient, tenantId: string, sale
         closingDate: definition.status === 'Open' ? null : activityAt,
         paymentMethod: definition.paymentMethod,
         bankName: definition.bankName,
+        financingBankId: definition.bankName ? financingBanks.get(definition.bankName) ?? null : null,
         createdAt: daysBeforeToday(definition.daysAgo + 10),
       },
     });
