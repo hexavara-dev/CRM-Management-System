@@ -25,18 +25,32 @@ export class LeadUseCases {
     private prisma?: PrismaClient
   ) {}
 
-  private async validateRelations(
-    dto: CreateLeadDTO | UpdateLeadDTO,
-    tenantId: string
-  ) {
+  private async validateRelations(dto: CreateLeadDTO | UpdateLeadDTO, tenantId: string) {
     if (!this.prisma) return;
 
-    const [assignedUser, sourceUser, stage, status, source, location, project, productVariant, campaign, labels] = await Promise.all([
+    const [
+      assignedUser,
+      sourceUser,
+      stage,
+      status,
+      source,
+      location,
+      project,
+      productVariant,
+      campaign,
+      labels,
+    ] = await Promise.all([
       dto.assignedUserId
-        ? this.prisma.user.findFirst({ where: { id: dto.assignedUserId, tenantId }, select: { id: true } })
+        ? this.prisma.user.findFirst({
+            where: { id: dto.assignedUserId, tenantId },
+            select: { id: true },
+          })
         : undefined,
       'sourceUserId' in dto && dto.sourceUserId
-        ? this.prisma.user.findFirst({ where: { id: dto.sourceUserId, tenantId }, select: { id: true } })
+        ? this.prisma.user.findFirst({
+            where: { id: dto.sourceUserId, tenantId },
+            select: { id: true },
+          })
         : undefined,
       'stageId' in dto && dto.stageId
         ? this.prisma.stage.findFirst({
@@ -57,7 +71,10 @@ export class LeadUseCases {
           })
         : undefined,
       dto.locationId
-        ? this.prisma.location.findFirst({ where: { id: dto.locationId, tenantId }, select: { id: true } })
+        ? this.prisma.location.findFirst({
+            where: { id: dto.locationId, tenantId },
+            select: { id: true },
+          })
         : undefined,
       dto.projectId
         ? this.prisma.product.findFirst({
@@ -181,9 +198,7 @@ export class LeadUseCases {
       source: dto.sourceId ? { connect: { id: dto.sourceId } } : undefined,
       location: dto.locationId ? { connect: { id: dto.locationId } } : undefined,
       project: dto.projectId ? { connect: { id: dto.projectId } } : undefined,
-      productVariant: dto.productVariantId
-        ? { connect: { id: dto.productVariantId } }
-        : undefined,
+      productVariant: dto.productVariantId ? { connect: { id: dto.productVariantId } } : undefined,
       campaign: dto.campaignId ? { connect: { id: dto.campaignId } } : undefined,
       labelAssignments: dto.labelIds?.length
         ? {
@@ -245,50 +260,66 @@ export class LeadUseCases {
 
   async getLead(id: string, tenantId?: string, role?: string, currentUserId?: string) {
     if (!tenantId) throw new Error('Tenant context missing');
-    const lead = await this.leadRepository.findOne({ id, tenantId, isDeleted: false }, {
-      customer: {
-        include: {
-          organization: true,
+    const lead = await this.leadRepository.findOne(
+      { id, tenantId, isDeleted: false },
+      {
+        customer: {
+          include: {
+            organization: true,
+          },
         },
-      },
-      status: true,
-      stage: true,
-      activities: {
-        include: {
-          notes: true,
-          tasks: {
-            include: {
-              assignedUser: { select: USER_PUBLIC_FIELDS },
+        status: true,
+        stage: true,
+        activities: {
+          include: {
+            notes: true,
+            tasks: {
+              include: {
+                assignedUser: { select: USER_PUBLIC_FIELDS },
+              },
+            },
+            callLogs: true,
+            actor: { select: USER_PUBLIC_FIELDS },
+          },
+        },
+        attachments: {
+          include: { uploadedBy: { select: { id: true, name: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        location: true,
+        assignedUser: { select: USER_PUBLIC_FIELDS },
+        sourceUser: { select: USER_PUBLIC_FIELDS },
+        source: true,
+        project: true,
+        productVariant: {
+          include: {
+            // Foto tipe rumah (gambar utama) untuk Informasi Survey di Detail Lead.
+            media: {
+              where: { mediaType: 'IMAGE' },
+              orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+              take: 1,
+              select: { id: true, fileUrl: true, title: true },
             },
           },
-          callLogs: true,
-          actor: { select: USER_PUBLIC_FIELDS },
         },
-      },
-      attachments: true,
-      location: true,
-      assignedUser: { select: USER_PUBLIC_FIELDS },
-      sourceUser: { select: USER_PUBLIC_FIELDS },
-      source: true,
-      project: true,
-      productVariant: true,
-      campaign: true,
-      labelAssignments: {
-        include: { label: true },
-        orderBy: { createdAt: 'asc' },
-      },
-      viewings: {
-        include: {
-          status: true,
-          location: true,
-          source: true,
-          actor: { select: USER_PUBLIC_FIELDS },
-          attachments: true,
-          slot: true,
+        campaign: true,
+        labelAssignments: {
+          include: { label: true },
+          orderBy: { createdAt: 'asc' },
         },
-        orderBy: { scheduledAt: 'desc' },
-      },
-    });
+        viewings: {
+          include: {
+            status: true,
+            location: true,
+            source: true,
+            actor: { select: USER_PUBLIC_FIELDS },
+            attachments: true,
+            slot: true,
+          },
+          orderBy: { scheduledAt: 'desc' },
+        },
+      }
+    );
     if (!lead) {
       throw new Error('Lead not found');
     }
@@ -316,7 +347,13 @@ export class LeadUseCases {
     };
   }
 
-  async updateLead(id: string, dto: UpdateLeadDTO, role: string, currentUserId?: string, tenantId?: string) {
+  async updateLead(
+    id: string,
+    dto: UpdateLeadDTO,
+    role: string,
+    currentUserId?: string,
+    tenantId?: string
+  ) {
     if (role !== 'owner') {
       delete dto.assignedUserId;
     }
@@ -452,16 +489,8 @@ export class LeadUseCases {
   }
 
   async deleteLead(id: string, tenantId?: string, role?: string, currentUserId?: string) {
-    const lead: any = await this.getLead(id, tenantId, role, currentUserId);
-    const archived = await this.leadRepository.update(id, { isDeleted: true });
-    await this.logAudit({
-      tenantId: lead.tenantId,
-      entityId: id,
-      entityType: 'lead',
-      actorId: currentUserId,
-      action: 'archive',
-    });
-    return archived;
+    await this.getLead(id, tenantId, role, currentUserId);
+    throw new Error('Conflict: Lead harus diarsipkan dengan kategori melalui aksi Arsipkan Lead.');
   }
 
   async getAllLeads(
@@ -476,7 +505,10 @@ export class LeadUseCases {
     const skip = (page - 1) * limit;
     const take = limit;
     const { labelId, ...directFilters } = filters;
-    if (labelId !== undefined && (typeof labelId !== 'string' || !/^[0-9a-f-]{36}$/i.test(labelId))) {
+    if (
+      labelId !== undefined &&
+      (typeof labelId !== 'string' || !/^[0-9a-f-]{36}$/i.test(labelId))
+    ) {
       throw new Error('labelId must be a valid ID');
     }
     const where: Prisma.LeadWhereInput = {
@@ -593,7 +625,8 @@ export class LeadUseCases {
 
     if (!dealData.unitId) throw new Error('Unit is required');
     const paymentMethod = dealData.paymentMethod ?? 'CASH';
-    if (!['CASH', 'KPR', 'KPR_SHARIA'].includes(paymentMethod)) throw new Error('Invalid payment method');
+    if (!['CASH', 'KPR', 'KPR_SHARIA'].includes(paymentMethod))
+      throw new Error('Invalid payment method');
 
     const [unit, financingBank, defaultStage] = this.prisma
       ? await Promise.all([
@@ -608,7 +641,12 @@ export class LeadUseCases {
               })
             : null,
           this.prisma.stage.findFirst({
-            where: { tenantId: lead.tenantId, entityType: 'deal', isDefaultStage: true, isActive: true },
+            where: {
+              tenantId: lead.tenantId,
+              entityType: 'deal',
+              isDefaultStage: true,
+              isActive: true,
+            },
             select: { id: true },
           }),
         ])
@@ -617,7 +655,8 @@ export class LeadUseCases {
     if (lead.projectId && unit && unit.variant.productId !== lead.projectId) {
       throw new Error('Unit must belong to the Lead project');
     }
-    if (paymentMethod !== 'CASH' && !financingBank) throw new Error('Financing bank is required for KPR payment');
+    if (paymentMethod !== 'CASH' && !financingBank)
+      throw new Error('Financing bank is required for KPR payment');
 
     const dealPayload = {
       tenant: { connect: { id: lead.tenantId } },
@@ -631,7 +670,7 @@ export class LeadUseCases {
       amount: dealData.expectedAmount || 0,
       currency: dealData.currency || 'USD',
       paymentMethod,
-      bankName: paymentMethod === 'CASH' ? null : financingBank?.name ?? null,
+      bankName: paymentMethod === 'CASH' ? null : (financingBank?.name ?? null),
       ...(financingBank ? { financingBank: { connect: { id: financingBank.id } } } : {}),
       notes: dealData.notes || null,
       refCode: `DEAL-${Date.now()}`,
@@ -799,15 +838,17 @@ export class LeadUseCases {
           return false;
         });
       };
-      requiredEvidence.forEach((requirement: { name: string; fileTypes: unknown }, index: number) => {
-        const attachmentId = evidenceAttachmentIds[index];
-        if (!attachmentId) throw new Error(`Required evidence "${requirement.name}" is missing`);
-        const attachment = byId.get(attachmentId);
-        if (!attachment) throw new Error(`Required evidence "${requirement.name}" is missing`);
-        if (!matchesType(attachment.fileType ?? '', requirement.fileTypes)) {
-          throw new Error(`Evidence "${requirement.name}" has an unsupported file type`);
+      requiredEvidence.forEach(
+        (requirement: { name: string; fileTypes: unknown }, index: number) => {
+          const attachmentId = evidenceAttachmentIds[index];
+          if (!attachmentId) throw new Error(`Required evidence "${requirement.name}" is missing`);
+          const attachment = byId.get(attachmentId);
+          if (!attachment) throw new Error(`Required evidence "${requirement.name}" is missing`);
+          if (!matchesType(attachment.fileType ?? '', requirement.fileTypes)) {
+            throw new Error(`Evidence "${requirement.name}" has an unsupported file type`);
+          }
         }
-      });
+      );
     }
 
     const updated = await this.leadRepository.update(id, {

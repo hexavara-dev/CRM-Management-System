@@ -15,6 +15,8 @@
     "db:seed:projects": "tsx prisma/seed-realistic-projects.ts",
     "db:seed:visit-schedule": "tsx prisma/seed-visit-schedule.ts",
     "db:seed:lead-archive": "tsx prisma/seed-lead-archive.ts",
+    "db:seed:leads": "tsx prisma/seed-complete-leads.ts",
+    "db:seed:survey-demo": "tsx prisma/seed-survey-demo.ts",
     "api:dev": "dotenv -e .env -- npm run dev",
     "api:prod": "dotenv -e .env.prod -- npm run dev",
     "generate": "prisma generate",

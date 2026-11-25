@@ -15,13 +15,13 @@ const STATUS_DEFINITIONS = [
 ] as const;
 
 const CUSTOMERS = [
-  ['Siti', 'Rahmawati'],
-  ['Budi', 'Santoso'],
+  ['Ratna', 'Kusumawati'],
+  ['Bambang', 'Hartono'],
   ['Andi', 'Setiawan'],
   ['Rina', 'Amelia'],
   ['Faisal', 'Hidayat'],
   ['Novi', 'Lestari'],
-  ['Hendra', 'Wijaya'],
+  ['Teguh', 'Wibowo'],
   ['Dewi', 'Kartika'],
   ['Agus', 'Pratama'],
   ['Sari', 'Wulandari'],
@@ -38,7 +38,7 @@ const CUSTOMERS = [
   ['Putri', 'Handayani'],
   ['Yoga', 'Permana'],
   ['Citra', 'Ayu'],
-  ['Fajar', 'Ramadhan'],
+  ['Gilang', 'Ramadhan'],
   ['Nanda', 'Kusuma'],
 ] as const;
 
@@ -102,6 +102,25 @@ export async function seedViewingSchedule(
     }),
   ]);
 
+  // Lokasi + unit untuk tiap visit, supaya Jadwal Visit / Informasi Survey di Detail Lead terisi.
+  let places = await prisma.inventorySlot.findMany({
+    where: { tenantId },
+    orderBy: [{ locationId: 'asc' }, { label: 'asc' }],
+    take: 12,
+    select: { id: true, locationId: true },
+  });
+  if (places.length === 0) {
+    const location = await prisma.location.create({
+      data: { tenantId, name: 'Green Sukun' },
+      select: { id: true },
+    });
+    const slot = await prisma.inventorySlot.create({
+      data: { tenantId, locationId: location.id, label: 'Tipe 45 (GS-07)' },
+      select: { id: true, locationId: true },
+    });
+    places = [slot];
+  }
+
   const now = new Date();
   let created = 0;
 
@@ -111,7 +130,15 @@ export async function seedViewingSchedule(
       where: { tenantId, notes: { startsWith: marker } },
       select: { id: true },
     });
-    if (alreadySeeded) continue;
+    const place = places[index % places.length]!;
+    if (alreadySeeded) {
+      // Data lama tanpa lokasi/unit dilengkapi (idempotent, hanya yang masih kosong).
+      await prisma.viewing.updateMany({
+        where: { id: alreadySeeded.id, locationId: null },
+        data: { locationId: place.locationId, slotId: place.id },
+      });
+      continue;
+    }
 
     const email = `visit-demo-${String(index + 1).padStart(2, '0')}@example.com`;
     const customer =
@@ -150,6 +177,8 @@ export async function seedViewingSchedule(
         tenantId,
         leadId: lead.id,
         actorId: sales.id,
+        locationId: place.locationId,
+        slotId: place.id,
         statusId: statusIds[STATUS_ROTATION[index % STATUS_ROTATION.length]!]!,
         name: `${firstName} ${lastName}`,
         email,

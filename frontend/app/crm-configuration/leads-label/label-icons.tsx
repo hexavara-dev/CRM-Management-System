@@ -183,11 +183,11 @@ export function LabelIcon({ icon, color, className }: { icon: string; color: str
   );
 }
 
-export function LabelBadge({ name, color, icon }: { name: string; color: string; icon?: string }) {
+export function LabelBadge({ name, color, icon, className }: { name: string; color: string; icon?: string; className?: string }) {
   const Icon = icon ? (LEAD_LABEL_ICONS[icon] ?? Tag) : null;
   return (
     <span
-      className="inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2.5 py-1 text-sm font-medium"
+      className={`inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2.5 py-1 text-sm font-medium ${className ?? ""}`}
       style={{ backgroundColor: tint(color), color }}
     >
       {Icon && <Icon className="size-3.5 shrink-0" />}

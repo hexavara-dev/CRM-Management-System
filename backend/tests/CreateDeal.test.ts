@@ -61,7 +61,7 @@ describe('CreateDealUseCase', () => {
       where: { id: 'u-1', tenantId: 't-1', status: 'AVAILABLE' }, data: { status: 'RESERVED' },
     });
     expect(tx.attachment.createMany.mock.calls[0]![0].data[0]).toMatchObject({
-      tenantId: 't-1', dealId: deal.id, documentName: 'KTP', documentStageId: 'st-1',
+      tenantId: 't-1', dealId: deal.id, documentName: 'KTP', documentStageId: 'st-1', uploadedById: 'o-1',
     });
     expect(storage.upload.mock.calls[0]![0]).toMatch(/^t-1\/deal\/.+\.pdf$/);
     expect(storage.remove).not.toHaveBeenCalled();

@@ -1,4 +1,5 @@
 import type { Response } from 'express';
+import { safeErrorText, type RequestFailureDetails } from './LogSanitizer.js';
 
 export type MappedHttpError = {
   status: 400 | 401 | 403 | 404 | 409 | 500 | 503;
@@ -19,11 +20,13 @@ const validationPatterns = [
   /tidak boleh lebih rendah/i,
 ];
 
-const SCHEMA_MISMATCH = 'Struktur database belum sesuai dengan aplikasi. Jalankan migrasi (prisma migrate deploy) lalu restart server.';
+const SCHEMA_MISMATCH =
+  'Struktur database belum sesuai dengan aplikasi. Jalankan migrasi (prisma migrate deploy) lalu restart server.';
 
 /** Nama kolom dari pesan Prisma, mis. "fields: (`company_id`)". */
 function prismaFieldOf(message: string): string | null {
-  const match = message.match(/fields?:?\s*\(`([^`]+)`/i) ?? message.match(/Unknown argument `([^`]+)`/i);
+  const match =
+    message.match(/fields?:?\s*\(`([^`]+)`/i) ?? message.match(/Unknown argument `([^`]+)`/i);
   return match?.[1] ?? null;
 }
 
@@ -45,7 +48,11 @@ function uniqueViolationMessage(meta: { modelName?: unknown } | undefined): stri
   }
 }
 
-function mapPrismaError(code: string | undefined, name: string | undefined, message: string): MappedHttpError {
+function mapPrismaError(
+  code: string | undefined,
+  name: string | undefined,
+  message: string
+): MappedHttpError {
   const field = prismaFieldOf(message);
   const where = field ? ` "${field}"` : '';
   switch (code) {
@@ -58,14 +65,20 @@ function mapPrismaError(code: string | undefined, name: string | undefined, mess
     case 'P2022':
       return { status: 500, message: SCHEMA_MISMATCH };
   }
-  if (name === 'PrismaClientValidationError' || /Unknown argument|Argument `\w+` is missing|Invalid value for argument/i.test(message)) {
+  if (
+    name === 'PrismaClientValidationError' ||
+    /Unknown argument|Argument `\w+` is missing|Invalid value for argument/i.test(message)
+  ) {
     return { status: 500, message: SCHEMA_MISMATCH };
   }
   if (/Null constraint violation/i.test(message)) {
     return { status: 400, message: `Field${where} wajib diisi.` };
   }
   if (/Foreign key constraint violated/i.test(message)) {
-    return { status: 409, message: 'Data terkait tidak ditemukan atau masih dipakai di tempat lain.' };
+    return {
+      status: 409,
+      message: 'Data terkait tidak ditemukan atau masih dipakai di tempat lain.',
+    };
   }
   return { status: 500, message: 'A database operation failed.' };
 }
@@ -89,9 +102,15 @@ export function mapHttpError(error: unknown): MappedHttpError {
 
   switch (candidate?.code) {
     case 'P1000':
-      return { status: 500, message: 'Koneksi database gagal karena konfigurasi server. Hubungi administrator.' };
+      return {
+        status: 500,
+        message: 'Koneksi database gagal karena konfigurasi server. Hubungi administrator.',
+      };
     case 'P1001':
-      return { status: 503, message: 'Database tidak dapat diakses. Pastikan layanan MySQL aktif, lalu coba lagi.' };
+      return {
+        status: 503,
+        message: 'Database tidak dapat diakses. Pastikan layanan MySQL aktif, lalu coba lagi.',
+      };
     case 'P2002':
       return { status: 409, message: uniqueViolationMessage(candidate.meta) };
     case 'P2025':
@@ -102,7 +121,10 @@ export function mapHttpError(error: unknown): MappedHttpError {
   }
 
   if (/ECONNREFUSED|ETIMEDOUT|pool timeout|Can't connect to MySQL server/i.test(message)) {
-    return { status: 503, message: 'Database tidak dapat diakses. Pastikan layanan MySQL aktif, lalu coba lagi.' };
+    return {
+      status: 503,
+      message: 'Database tidak dapat diakses. Pastikan layanan MySQL aktif, lalu coba lagi.',
+    };
   }
 
   const isPrismaError =
@@ -148,12 +170,37 @@ export function mapHttpError(error: unknown): MappedHttpError {
 export function respondWithError(res: Response, error: unknown) {
   const mapped = mapHttpError(error);
   const requestId = typeof res.locals?.requestId === 'string' ? res.locals.requestId : undefined;
-  if (mapped.status >= 500) {
-    const candidate = error as { name?: unknown; code?: unknown } | null;
-    const errorType = typeof candidate?.name === 'string' && /^[\w-]{1,60}$/.test(candidate.name) ? candidate.name : 'UnknownError';
-    const errorCode = typeof candidate?.code === 'string' && /^[\w-]{1,30}$/.test(candidate.code) ? candidate.code : undefined;
-    console.error('[Request failure]', JSON.stringify({ requestId, status: mapped.status, errorType, errorCode }));
-  }
-  const message = requestId && mapped.status >= 500 ? `${mapped.message} Kode laporan: ${requestId}` : mapped.message;
-  return res.status(mapped.status).json({ error: message, ...(requestId ? { requestId } : {}) });
+  const candidate = error as {
+    name?: unknown;
+    code?: unknown;
+    message?: unknown;
+    stack?: unknown;
+  } | null;
+  const errorType =
+    typeof candidate?.name === 'string' && /^[\w-]{1,60}$/.test(candidate.name)
+      ? candidate.name
+      : 'UnknownError';
+  const errorCode =
+    typeof candidate?.code === 'string' && /^[\w-]{1,30}$/.test(candidate.code)
+      ? candidate.code
+      : `HTTP_${mapped.status}`;
+  const internalMessage = safeErrorText(candidate?.message);
+  const stack = safeErrorText(candidate?.stack);
+  const failure: RequestFailureDetails = {
+    clientMessage: mapped.message,
+    errorType,
+    errorCode,
+    ...(internalMessage ? { internalMessage } : {}),
+    ...(stack ? { stack } : {}),
+  };
+  res.locals.requestFailure = failure;
+  const message =
+    requestId && mapped.status >= 500
+      ? `${mapped.message} Kode laporan: ${requestId}`
+      : mapped.message;
+  return res.status(mapped.status).json({
+    error: message,
+    code: errorCode,
+    ...(requestId ? { requestId } : {}),
+  });
 }

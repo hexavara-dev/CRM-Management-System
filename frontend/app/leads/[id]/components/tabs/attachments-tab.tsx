@@ -29,8 +29,10 @@ import {
 } from "@/components/ui/table";
 import type { Attachment } from "@/lib/data";
 import { formatDate } from "@/lib/helper";
-import { Download, Eye, FileText, Paperclip, Upload } from "lucide-react";
-import { useState } from "react";
+import api from "@/lib/api";
+import { Download, Eye, FileText, Loader2, Paperclip, Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { FormProvider, useForm } from "react-hook-form";
 
 type AttachmentFormData = {
@@ -40,9 +42,17 @@ type AttachmentFormData = {
 
 interface AttachmentsTabProps {
   attachments: Attachment[];
-  onAddAttachment: (data: AttachmentFormData) => void;
+  /** Bila tidak diisi, tombol upload disembunyikan (dokumen hanya datang dari fitur lain). */
+  onAddAttachment?: (data: AttachmentFormData) => void;
   entityLabel?: string;
 }
+
+type PreviewState = {
+  name: string;
+  type: string;
+  url?: string;
+  status: "loading" | "ready" | "error";
+};
 
 export function AttachmentsTab({
   attachments,
@@ -50,6 +60,52 @@ export function AttachmentsTab({
   entityLabel = "lead",
 }: AttachmentsTabProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [preview, setPreview] = useState<PreviewState | null>(null);
+  const previewToken = useRef(0);
+
+  // File diambil lewat API (membawa cookie login) lalu ditampilkan dari blob:
+  // backend memaksa download untuk selain gambar, sehingga URL langsung tidak bisa ditampilkan inline.
+  const openPreview = async (attachment: Attachment) => {
+    const token = ++previewToken.current;
+    setPreview({ name: attachment.name, type: attachment.fileType, status: "loading" });
+    try {
+      const response = await api.get<Blob>(attachment.fileUrl, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([response.data], { type: attachment.fileType }));
+      if (token !== previewToken.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      setPreview({ name: attachment.name, type: attachment.fileType, url, status: "ready" });
+    } catch {
+      if (token === previewToken.current) {
+        setPreview({ name: attachment.name, type: attachment.fileType, status: "error" });
+      }
+    }
+  };
+
+  // Download sungguhan: <a download> diabaikan browser untuk URL lintas-origin,
+  // sehingga file diambil lewat API lalu disimpan dari blob.
+  const downloadAttachment = async (attachment: Attachment) => {
+    try {
+      const response = await api.get<Blob>(attachment.fileUrl, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([response.data], { type: attachment.fileType }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = attachment.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      toast.error("Gagal mengunduh dokumen.");
+    }
+  };
+
+  const closePreview = () => {
+    previewToken.current += 1;
+    if (preview?.url) URL.revokeObjectURL(preview.url);
+    setPreview(null);
+  };
 
   const form = useForm<AttachmentFormData>({
     defaultValues: {
@@ -58,7 +114,7 @@ export function AttachmentsTab({
   });
 
   const handleSubmit = (data: AttachmentFormData) => {
-    onAddAttachment(data);
+    onAddAttachment?.(data);
     form.reset();
     setIsDialogOpen(false);
   };
@@ -74,6 +130,7 @@ export function AttachmentsTab({
             Kelola dokumen, proposal, dan evidence yang berkaitan dengan Lead.
           </p>
         </div>
+        {onAddAttachment && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="h-8">
@@ -128,6 +185,7 @@ export function AttachmentsTab({
             </FormProvider>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {attachments.length === 0 ? (
@@ -138,17 +196,20 @@ export function AttachmentsTab({
             </EmptyMedia>
             <EmptyTitle>No files attached</EmptyTitle>
             <EmptyDescription>
-              Upload important documents related to this {entityLabel} for easy
-              access.
+              {onAddAttachment
+                ? `Upload important documents related to this ${entityLabel} for easy access.`
+                : "Belum ada dokumen. Dokumen yang diunggah saat menambah aktivitas akan muncul di sini."}
             </EmptyDescription>
           </EmptyHeader>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsDialogOpen(true)}
-          >
-            Upload first file
-          </Button>
+          {onAddAttachment && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDialogOpen(true)}
+            >
+              Upload first file
+            </Button>
+          )}
         </Empty>
       ) : (
         <div className="rounded-lg border bg-background overflow-hidden">
@@ -158,6 +219,7 @@ export function AttachmentsTab({
                 <TableHead className="w-[35%]">Nama Dokumen</TableHead>
                 <TableHead>Kategori</TableHead>
                 <TableHead>Tipe</TableHead>
+                <TableHead>Aktivitas</TableHead>
                 <TableHead>Tanggal Upload</TableHead>
                 <TableHead>Pengunggah</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -185,14 +247,45 @@ export function AttachmentsTab({
                       {attachment.fileType.split("/").pop()}
                     </Badge>
                   </TableCell>
+                  <TableCell
+                    className="text-xs text-muted-foreground"
+                    title={attachment.activityLabel ?? "Tidak terkait aktivitas"}
+                  >
+                    {attachment.activityLabel ?? "-"}
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {formatDate(attachment.uploadedAt)}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">-</TableCell>
+                  <TableCell
+                    className="text-xs text-muted-foreground"
+                    title={attachment.uploadedByName ?? "Pengunggah tidak tercatat"}
+                  >
+                    {attachment.uploadedByName ?? "-"}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button asChild variant="ghost" size="icon" className="size-8"><a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer" aria-label={`Preview ${attachment.name}`}><Eye className="size-3.5" /></a></Button>
-                      <Button asChild variant="ghost" size="icon" className="size-8"><a href={attachment.fileUrl} download={attachment.name} aria-label={`Download ${attachment.name}`}><Download className="size-3.5" /></a></Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        aria-label={`Preview ${attachment.name}`}
+                        title={`Preview ${attachment.name}`}
+                        onClick={() => void openPreview(attachment)}
+                      >
+                        <Eye className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        aria-label={`Download ${attachment.name}`}
+                        title={`Download ${attachment.name}`}
+                        onClick={() => void downloadAttachment(attachment)}
+                      >
+                        <Download className="size-3.5" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -201,6 +294,41 @@ export function AttachmentsTab({
           </Table>
         </div>
       )}
+
+      <Dialog
+        open={preview !== null}
+        onOpenChange={(open) => {
+          if (!open) closePreview();
+        }}
+      >
+        <DialogContent className="flex h-[85vh] flex-col gap-0 p-0 sm:max-w-4xl">
+          <DialogHeader className="shrink-0 border-b px-6 py-4">
+            <DialogTitle className="truncate text-base">{preview?.name}</DialogTitle>
+            <DialogDescription>Pratinjau dokumen</DialogDescription>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-1 items-center justify-center bg-muted/30 p-4">
+            {preview?.status === "loading" && (
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            )}
+            {preview?.status === "error" && (
+              <p className="text-sm text-muted-foreground">
+                Dokumen tidak dapat dimuat. Coba lagi atau gunakan tombol download.
+              </p>
+            )}
+            {preview?.status === "ready" && preview.url && (
+              preview.type === "application/pdf" ? (
+                <iframe title={preview.name} src={preview.url} className="size-full rounded-md bg-white" />
+              ) : preview.type.startsWith("image/") ? (
+                <img src={preview.url} alt={preview.name} className="max-h-full max-w-full object-contain" />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Pratinjau tidak tersedia untuk tipe file ini. Gunakan tombol download.
+                </p>
+              )
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/api-error";
 import { LeadActivity } from "@/types/activity";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ export function useActivities() {
       leadId?: string;
       dealId?: string;
       activityType: string;
+      activityDate?: string;
       callLogs?: { create: Record<string, unknown> };
       tasks?: { create: Record<string, unknown> };
       notes?: { create: Record<string, unknown> };
@@ -28,8 +30,6 @@ export function useActivities() {
         ? "/api/dealactivity"
         : "/api/leadactivity";
 
-      // Send relation IDs as scalars. The backend supplies the authoritative
-      // tenantId from the JWT, avoiding a Prisma checked/unchecked input mix.
       const response = await api.post<LeadActivity>(endpoint, data);
       return response.data;
     },
@@ -55,8 +55,7 @@ export function useActivities() {
       toast.success(`${type} added successfully`);
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to add activity");
+      toast.error(apiErrorMessage(error, "Gagal menambahkan aktivitas."));
     },
   });
 

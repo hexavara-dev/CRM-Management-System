@@ -3,6 +3,7 @@
 import { CalendarDays, CircleCheck, Flame, MoreVertical, Paperclip, Phone, Snowflake } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PipelineStage } from "@/hooks/use-pipeline-stages";
+import { pipelineTextColor, resolvePipelineColor } from "@/lib/pipeline-color";
 
 const FALLBACK = "#94A3B8";
 
@@ -76,23 +77,23 @@ export function LeadPreviewDialog({
           <div className="overflow-x-auto pb-2">
             <div className="flex min-w-max gap-3">
               {active.map((stage) => {
-                const color = stage.color ?? FALLBACK;
+                const color = resolvePipelineColor(stage.color, FALLBACK);
                 const shown = Math.min(SAMPLES.length, Math.max(stage.itemCount, 1));
                 const more = stage.itemCount - shown;
                 return (
                   <div
                     key={stage.id}
                     className="flex w-72 flex-col rounded-2xl border border-[#EDEDED]"
-                    style={{ backgroundColor: `${color}0D` }}
+                    style={{ backgroundColor: color }}
                   >
                     <div
                       className="flex items-center justify-between gap-2 rounded-t-2xl px-4 py-3"
-                      style={{ backgroundColor: `${color}26` }}
+                      style={{ backgroundColor: color, color: pipelineTextColor(color) }}
                     >
-                      <p className="truncate text-lg font-semibold" style={{ color }}>
+                      <p className="truncate text-lg font-semibold" style={{ color: pipelineTextColor(color) }}>
                         {stage.name}
                       </p>
-                      <span className="flex items-center gap-1 text-sm font-medium" style={{ color }}>
+                      <span className="flex items-center gap-1 text-sm font-medium" style={{ color: pipelineTextColor(color) }}>
                         {stage.itemCount}
                         <MoreVertical className="size-4" />
                       </span>

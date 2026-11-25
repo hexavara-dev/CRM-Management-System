@@ -179,6 +179,7 @@ export class CreateDealUseCase {
               fileUrl: this.storage.getPublicUrl(path).publicUrl,
               fileType: file.mimetype,
               fileSize: file.size,
+              uploadedById: userId,
             })),
           });
         }

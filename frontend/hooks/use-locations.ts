@@ -1,22 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/api-error";
+import { normalizeCollection } from "@/lib/api-response";
 import { toast } from "sonner";
-
-function normalizeCollection<T>(payload: unknown): T[] {
-  if (Array.isArray(payload)) return payload as T[];
-
-  const data = (payload as { data?: unknown } | undefined)?.data;
-  if (Array.isArray(data)) return data as T[];
-
-  const nestedData = (data as { data?: unknown } | undefined)?.data;
-  if (Array.isArray(nestedData)) return nestedData as T[];
-
-  const dataPerPage = (data as { data_per_page?: unknown } | undefined)
-    ?.data_per_page;
-  if (Array.isArray(dataPerPage)) return dataPerPage as T[];
-
-  return [];
-}
 
 export interface Location {
   id: string;
@@ -54,8 +40,7 @@ export function useLocations() {
       toast.success("Location created successfully");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to create location");
+      toast.error(apiErrorMessage(error, "Gagal membuat lokasi."));
     },
   });
 
@@ -75,8 +60,7 @@ export function useLocations() {
       toast.success("Location updated successfully");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to update location");
+      toast.error(apiErrorMessage(error, "Gagal memperbarui lokasi."));
     },
   });
 
@@ -90,8 +74,7 @@ export function useLocations() {
       toast.success("Location deleted");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to delete location");
+      toast.error(apiErrorMessage(error, "Gagal menghapus lokasi."));
     },
   });
 

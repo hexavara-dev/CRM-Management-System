@@ -30,7 +30,11 @@ export interface Lead {
   projectId?: string;
   project?: { id: string; name: string; code: string };
   productVariantId?: string;
-  productVariant?: { id: string; name: string };
+  productVariant?: {
+    id: string;
+    name: string;
+    media?: { id: string; fileUrl: string; title?: string | null }[];
+  };
   campaignId?: string;
   campaign?: { id: string; name: string };
   budget?: string | number;

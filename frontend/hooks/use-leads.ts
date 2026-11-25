@@ -1,26 +1,12 @@
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/api-error";
+import { normalizeCollection } from "@/lib/api-response";
 import { LeadFormData } from "@/schemas/lead.schema";
 import { Lead } from "@/types/lead";
 import { useAuth } from "@/components/auth/auth-provider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { PaginatedResponse } from "@/types/api";
-
-function normalizeCollection<T>(payload: unknown): T[] {
-  if (Array.isArray(payload)) return payload as T[];
-
-  const data = (payload as { data?: unknown } | undefined)?.data;
-  if (Array.isArray(data)) return data as T[];
-
-  const nestedData = (data as { data?: unknown } | undefined)?.data;
-  if (Array.isArray(nestedData)) return nestedData as T[];
-
-  const dataPerPage = (data as { data_per_page?: unknown } | undefined)
-    ?.data_per_page;
-  if (Array.isArray(dataPerPage)) return dataPerPage as T[];
-
-  return [];
-}
 
 type UseLeadsOptions = {
   page?: number;
@@ -121,8 +107,7 @@ export function useLeads(options: UseLeadsOptions = {}) {
       toast.success("Lead created successfully");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to create lead");
+      toast.error(apiErrorMessage(error, "Gagal membuat Lead."));
     },
   });
 
@@ -147,8 +132,7 @@ export function useLeads(options: UseLeadsOptions = {}) {
       toast.success("Lead updated successfully");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to update lead");
+      toast.error(apiErrorMessage(error, "Gagal memperbarui Lead."));
     },
   });
 
@@ -172,23 +156,7 @@ export function useLeads(options: UseLeadsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to update lead stage");
-    },
-  });
-
-  const deleteLeadMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await api.delete(`/api/lead/${id}`);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast.success("Lead deleted successfully");
-    },
-    onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to delete lead");
+      toast.error(apiErrorMessage(error, "Gagal memperbarui fase Lead."));
     },
   });
 
@@ -203,8 +171,9 @@ export function useLeads(options: UseLeadsOptions = {}) {
       toast.success("Lead converted to deal successfully");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to convert lead");
+      toast.error(
+        apiErrorMessage(error, "Gagal mengonversi Lead menjadi Deal."),
+      );
     },
   });
 
@@ -219,11 +188,9 @@ export function useLeads(options: UseLeadsOptions = {}) {
     createLead: createLeadMutation.mutateAsync,
     updateLead: updateLeadMutation.mutateAsync,
     setLeadStage: setLeadStageMutation.mutateAsync,
-    deleteLead: deleteLeadMutation.mutateAsync,
     convertToDeal: convertToDealMutation.mutateAsync,
     isCreating: createLeadMutation.isPending,
     isUpdating: updateLeadMutation.isPending,
-    isDeleting: deleteLeadMutation.isPending,
     isConverting: convertToDealMutation.isPending,
   };
 }

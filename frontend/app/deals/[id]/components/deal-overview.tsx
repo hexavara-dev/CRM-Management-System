@@ -2,29 +2,32 @@
 
 import { Button } from "@/components/ui/button";
 import type { PipelineStage } from "@/hooks/use-pipeline-stages";
+import { formatRupiah, formatRupiahCompact } from "@/lib/helper";
+import { pipelineTextColor, resolvePipelineColor } from "@/lib/pipeline-color";
 import { cn } from "@/lib/utils";
 import type { Deal, DealHistory, DealPayment } from "@/types/deal";
 import {
   BadgeInfo,
-  Banknote,
+  Building2,
+  CalendarDays,
   Check,
   Circle,
+  CreditCard,
   Download,
   ExternalLink,
   FileText,
+  Flag,
+  Hourglass,
+  KeyRound,
+  Landmark,
+  Link2,
   Phone,
+  Tag,
   TrendingUp,
   UserRound,
-  WalletCards,
 } from "lucide-react";
 import Link from "next/link";
-
-const rupiah = (value: number) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(value);
+import { DealPaymentSummary } from "./deal-payment-summary";
 
 const date = (value?: string | Date | null) =>
   value
@@ -46,28 +49,39 @@ function stageDates(
   stages: PipelineStage[],
   deal: Deal,
 ) {
+  // Riwayat berurut terbaru→terlama; dibalik agar masuk terakhir ke sebuah fase menang
+  // (Deal yang dipindah mundur lalu maju lagi memakai tanggal masuk terbaru).
   const byId = new Map<string, string>();
   for (const row of [...history].reverse()) {
     if (row.action !== "stage_changed") continue;
     const stageChange = row.changes?.stageId;
     if (!stageChange || typeof stageChange !== "object") continue;
     const next = (stageChange as { new?: unknown }).new;
-    if (typeof next === "string" && !byId.has(next))
-      byId.set(next, row.createdAt);
+    if (typeof next === "string") byId.set(next, row.createdAt);
   }
   const first = stages[0];
   if (first && !byId.has(first.id)) byId.set(first.id, deal.createdAt);
+  if (deal.stageId && !byId.has(deal.stageId))
+    byId.set(deal.stageId, deal.createdAt);
   return byId;
 }
 
 function InfoRow({
   label,
+  icon: Icon,
   children,
-}: { label: string; children: React.ReactNode }) {
+}: {
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="grid grid-cols-[120px_1fr] items-start gap-3 py-1.5 text-sm">
-      <span className="text-[#667085]">{label}</span>
-      <div className="min-w-0 font-medium text-[#101828]">
+    <div className="grid grid-cols-[120px_minmax(0,1fr)] items-start gap-2 py-1.5 text-sm">
+      <span className="flex items-center gap-2 text-xs text-[#667085]">
+        {Icon && <Icon className="size-3.5 shrink-0" />}
+        {label}
+      </span>
+      <div className="min-w-0 break-words font-medium text-[#101828]">
         {children || "—"}
       </div>
     </div>
@@ -112,12 +126,14 @@ export function DealOverview({
   history,
   payments,
   onAddPayment,
+  onOpenDocuments,
 }: {
   deal: Deal;
   stages: PipelineStage[];
   history: DealHistory[];
   payments: DealPayment[];
   onAddPayment: () => void;
+  onOpenDocuments: () => void;
 }) {
   const sortedStages = [...stages]
     .filter((stage) => stage.isActive !== false)
@@ -144,55 +160,50 @@ export function DealOverview({
   );
   const currentStage = sortedStages[activeIndex] ?? deal.stage;
   const configuredStageColor = currentStage?.color;
-  const stageColor =
-    configuredStageColor && /^#[0-9a-f]{6}$/i.test(configuredStageColor)
-      ? configuredStageColor
-      : "#F79009";
-  const rgb = [1, 3, 5].map((offset) =>
-    Number.parseInt(stageColor.slice(offset, offset + 2), 16),
-  );
-  const readableStageColor =
-    (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 255000 > 0.82
-      ? "#B54708"
-      : stageColor;
+  const stageColor = resolvePipelineColor(configuredStageColor, "#F79009");
   const project = deal.unit?.variant.product;
   const documents = deal.attachments ?? [];
-  const groupedPayments = new Map<string, DealPayment[]>();
-  for (const payment of payments) {
-    groupedPayments.set(payment.type, [
-      ...(groupedPayments.get(payment.type) ?? []),
-      payment,
-    ]);
-  }
-  const paymentRows = [
-    ["ITJ", "ITJ"],
-    ["DP", "DP"],
-    ["SETTLEMENT", "Pelunasan"],
-  ] as const;
 
   return (
     <div className="grid gap-3 p-4 lg:grid-cols-[1.2fr_1fr]">
       <div className="space-y-3">
         <SectionCard title="Informasi Deals" icon={BadgeInfo}>
-          <div className="grid gap-x-8 md:grid-cols-2 md:divide-x md:divide-[#EAECF0]">
-            <div className="md:pr-6">
-              <InfoRow label="Project">
+          <div className="grid grid-cols-1 sm:grid-cols-2">
+            <div className="flex flex-col gap-1 sm:pr-6">
+              <InfoRow label="Project" icon={Building2}>
                 {project?.name ? (
-                  <span className="inline-flex rounded-md bg-[#DCFCE7] px-2 py-0.5 text-xs text-[#15803D]">
+                  <span className="inline-flex max-w-full break-words rounded-md bg-[#DCFCE7] px-2 py-0.5 text-xs leading-tight text-[#15803D]">
                     {project.name}
                   </span>
                 ) : (
                   "—"
                 )}
               </InfoRow>
-              <InfoRow label="Unit">{deal.unit?.code || "—"}</InfoRow>
-              <InfoRow label="Harga Deals">
-                {rupiah(Number(deal.amount ?? deal.expectedAmount ?? 0))}
+              <InfoRow label="Unit" icon={KeyRound}>
+                {deal.unit?.code || "—"}
               </InfoRow>
-              <InfoRow label="Jenis Pembayaran">
-                {deal.paymentMethod ? paymentLabels[deal.paymentMethod] : "—"}
+              <InfoRow label="Harga Deals" icon={Tag}>
+                <span
+                  className="whitespace-nowrap"
+                  title={formatRupiah(
+                    Number(deal.amount ?? deal.expectedAmount ?? 0),
+                  )}
+                >
+                  {formatRupiahCompact(
+                    Number(deal.amount ?? deal.expectedAmount ?? 0),
+                  )}
+                </span>
               </InfoRow>
-              <InfoRow label="Bank">
+              <InfoRow label="Jenis Pembayaran" icon={CreditCard}>
+                {deal.paymentMethod ? (
+                  <span className="inline-flex rounded-md bg-[#EFF8FF] px-2 py-0.5 text-xs leading-tight text-[#175CD3]">
+                    {paymentLabels[deal.paymentMethod]}
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </InfoRow>
+              <InfoRow label="Bank" icon={Landmark}>
                 {deal.financingBank ? (
                   <span className="inline-flex items-center gap-2">
                     {deal.financingBank.logoUrl && (
@@ -210,38 +221,42 @@ export function DealOverview({
                 )}
               </InfoRow>
             </div>
-            <div className="md:pl-6">
-              <InfoRow label="Target Closing">
+            <div className="flex flex-col gap-1 sm:border-l sm:border-[#EAECF0] sm:pl-6">
+              <InfoRow label="Target Closing" icon={CalendarDays}>
                 {deal.expectedClosingDate
                   ? date(deal.expectedClosingDate)
                   : "—"}
               </InfoRow>
-              <InfoRow label="Fase Deal">
+              <InfoRow label="Fase Deal" icon={Flag}>
                 <span
-                  className="inline-flex rounded-md px-2 py-0.5 text-xs"
+                  className="inline-flex max-w-full break-words rounded-md px-2 py-0.5 text-xs leading-tight"
                   style={{
-                    backgroundColor: `${readableStageColor}20`,
-                    color: readableStageColor,
+                    backgroundColor: stageColor,
+                    color: pipelineTextColor(stageColor),
                   }}
                 >
                   {currentStage?.name || "Belum ada fase"}
                 </span>
               </InfoRow>
-              <InfoRow label="Last Activity">{date(latestActivity)}</InfoRow>
-              <InfoRow label="Hari">
+              <InfoRow label="Last Activity" icon={CalendarDays}>
+                {date(latestActivity)}
+              </InfoRow>
+              <InfoRow label="Hari" icon={Hourglass}>
                 <span className="rounded-md bg-[#FEF0C7] px-2 py-0.5 text-xs text-[#B54708]">
                   {daysSince} hari
                 </span>
               </InfoRow>
-              <InfoRow label="Assigned Sales">
+              <InfoRow label="Assigned Sales" icon={UserRound}>
                 {deal.assignedUser?.name || "—"}
               </InfoRow>
-              <InfoRow label="Sumber Lead">
+              <InfoRow label="Sumber Lead" icon={Link2}>
                 {deal.lead?.source?.name || "—"}
               </InfoRow>
             </div>
           </div>
         </SectionCard>
+
+        <DealPaymentSummary payments={payments} onAddPayment={onAddPayment} />
 
         <SectionCard
           title="Informasi Customer"
@@ -291,13 +306,16 @@ export function DealOverview({
               Pipeline Deal belum dikonfigurasi.
             </p>
           ) : (
-            <div className="overflow-x-auto pb-2">
-              <div className="flex min-w-max px-2 pt-2">
+            <div className="pb-2">
+              <div className="flex px-2 pt-2">
                 {sortedStages.map((stage, index) => {
                   const completed = activeIndex >= 0 && index < activeIndex;
                   const current = index === activeIndex;
                   return (
-                    <div key={stage.id} className="relative w-32 text-center">
+                    <div
+                      key={stage.id}
+                      className="relative min-w-0 flex-1 text-center"
+                    >
                       {index > 0 && (
                         <div
                           className={cn(
@@ -328,7 +346,7 @@ export function DealOverview({
                         {stage.name}
                       </p>
                       <p className="mt-1 text-[10px] text-[#667085]">
-                        {date(dates.get(stage.id))}
+                        {index <= activeIndex ? date(dates.get(stage.id)) : "—"}
                       </p>
                     </div>
                   );
@@ -350,76 +368,17 @@ export function DealOverview({
         </SectionCard>
 
         <SectionCard
-          title="Ringkasan Transaksi"
-          icon={WalletCards}
-          action={
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onAddPayment}
-              className="h-7 text-xs text-[#1570EF]"
-            >
-              Tambah
-            </Button>
-          }
-        >
-          <div className="space-y-1">
-            {paymentRows.map(([type, label]) => {
-              const rows = groupedPayments.get(type) ?? [];
-              const amount = rows.reduce(
-                (sum, row) => sum + Number(row.amount),
-                0,
-              );
-              const paidRows = rows.filter((row) => row.status === "PAID");
-              const isPaid = rows.length > 0 && paidRows.length === rows.length;
-              const latestPaid = paidRows.sort(
-                (a, b) =>
-                  new Date(b.paidAt || 0).getTime() -
-                  new Date(a.paidAt || 0).getTime(),
-              )[0];
-              return (
-                <div
-                  key={type}
-                  className="grid grid-cols-[90px_1fr_auto_auto] items-center gap-2 py-2 text-xs"
-                >
-                  <span className="flex items-center gap-2 text-[#344054]">
-                    <Banknote className="size-4 text-[#667085]" /> {label}
-                  </span>
-                  <span className="font-semibold text-[#101828]">
-                    {amount ? rupiah(amount) : "—"}
-                  </span>
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5",
-                      isPaid
-                        ? "bg-[#DCFCE7] text-[#15803D]"
-                        : "bg-[#F2F4F7] text-[#667085]",
-                    )}
-                  >
-                    {isPaid ? "Lunas" : "—"}
-                  </span>
-                  <span className="w-20 text-right text-[#667085]">
-                    {date(latestPaid?.paidAt)}
-                  </span>
-                </div>
-              );
-            })}
-            <div className="mt-2 flex items-center justify-between rounded-lg bg-[#EFF8FF] px-3 py-2 text-sm font-semibold text-[#101828]">
-              <span>∑ &nbsp; Total Harga Deals</span>
-              <span>
-                {rupiah(Number(deal.amount ?? deal.expectedAmount ?? 0))}
-              </span>
-            </div>
-          </div>
-        </SectionCard>
-
-        <SectionCard
           title="Dokumen Penting"
           icon={FileText}
           action={
-            <span className="text-xs font-medium text-[#1570EF]">
+            <button
+              type="button"
+              onClick={onOpenDocuments}
+              title="Buka tab Documents"
+              className="text-xs font-medium text-[#1570EF] hover:underline"
+            >
               Lihat Semua ({documents.length})
-            </span>
+            </button>
           }
         >
           {documents.length === 0 ? (

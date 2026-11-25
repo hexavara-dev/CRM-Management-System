@@ -18,6 +18,7 @@ import {
   Pencil,
   Phone,
   TrendingUp,
+  UserRound,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -84,8 +85,10 @@ export function DealHeader({
               {deal.leadId && (
                 <Link
                   href={`/leads/${deal.leadId}`}
-                  className="hover:text-[#1570EF]"
+                  title="Buka Lead asal Deal ini"
+                  className="flex items-center gap-1 hover:text-[#1570EF]"
                 >
+                  <UserRound className="size-3" />
                   Dari Lead
                 </Link>
               )}

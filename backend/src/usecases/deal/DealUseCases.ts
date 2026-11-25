@@ -46,7 +46,7 @@ export class DealUseCases {
       if (!deal) throw new Error('Deal not found');
       return deal;
     }
-    const deal = await this.prisma.deal.findFirst({ where: { id, tenantId }, include: { ...DEAL_INCLUDE, activities: { include: { notes: true, tasks: true, callLogs: true }, orderBy: { createdAt: 'desc' } }, attachments: true, payments: { include: { recordedBy: { select: { id: true, name: true, email: true } } }, orderBy: [{ type: 'asc' }, { createdAt: 'asc' }] }, lostRequests: { include: { requestedBy: { select: { id: true, name: true, email: true } }, reviewedBy: { select: { id: true, name: true, email: true } } }, orderBy: { requestedAt: 'desc' } } } });
+    const deal = await this.prisma.deal.findFirst({ where: { id, tenantId }, include: { ...DEAL_INCLUDE, activities: { include: { notes: true, tasks: true, callLogs: true }, orderBy: { createdAt: 'desc' } }, attachments: { include: { uploadedBy: { select: { id: true, name: true } } } }, payments: { include: { recordedBy: { select: { id: true, name: true, email: true } } }, orderBy: [{ type: 'asc' }, { createdAt: 'asc' }] }, lostRequests: { include: { requestedBy: { select: { id: true, name: true, email: true } }, reviewedBy: { select: { id: true, name: true, email: true } } }, orderBy: { requestedAt: 'desc' } } } });
     if (!deal) throw new Error('Deal not found');
     return { ...deal, payments: deal.payments.map((payment) => ({ ...payment, amount: Number(payment.amount) })) };
   }

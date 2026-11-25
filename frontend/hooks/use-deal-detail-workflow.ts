@@ -1,5 +1,6 @@
 import { invalidateDealData } from "@/hooks/use-create-deal";
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/api-error";
 import type {
   DealHistory,
   DealLostRequest,
@@ -10,13 +11,6 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-function message(error: unknown, fallback: string) {
-  return (
-    (error as { response?: { data?: { error?: string } } }).response?.data
-      ?.error || fallback
-  );
-}
-
 export function useDealDetailWorkflow(dealId: string) {
   const client = useQueryClient();
   const history = useQuery({
@@ -24,6 +18,8 @@ export function useDealDetailWorkflow(dealId: string) {
     queryFn: async () =>
       (await api.get<DealHistory[]>(`/api/deal/${dealId}/history`)).data,
     enabled: !!dealId,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
   const payments = useQuery({
     queryKey: ["deal-payments", dealId],
@@ -61,7 +57,7 @@ export function useDealDetailWorkflow(dealId: string) {
       toast.success("Transaksi berhasil ditambahkan.");
     },
     onError: (error) =>
-      toast.error(message(error, "Gagal menambahkan transaksi.")),
+      toast.error(apiErrorMessage(error, "Gagal menambahkan transaksi.")),
   });
 
   const requestLost = useMutation({
@@ -72,7 +68,7 @@ export function useDealDetailWorkflow(dealId: string) {
       toast.success("Pengajuan Lost dikirim untuk verifikasi.");
     },
     onError: (error) =>
-      toast.error(message(error, "Gagal mengajukan Lost Deal.")),
+      toast.error(apiErrorMessage(error, "Gagal mengajukan Lost Deal.")),
   });
 
   const reviewLost = useMutation({
@@ -96,7 +92,7 @@ export function useDealDetailWorkflow(dealId: string) {
       );
     },
     onError: (error) =>
-      toast.error(message(error, "Gagal memverifikasi Lost Deal.")),
+      toast.error(apiErrorMessage(error, "Gagal memverifikasi Lost Deal.")),
   });
 
   return {
