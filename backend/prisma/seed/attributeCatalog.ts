@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { DEFAULT_PROJECT_FACILITIES } from '../../src/usecases/product/projectFacilities.js';
 
 const unitTypeAttributes = [
   { code: 'building_area', name: 'Luas Bangunan', unit: 'm²' },
@@ -9,16 +10,6 @@ const unitTypeAttributes = [
   { code: 'carport', name: 'Carport', unit: null },
 ] as const;
 
-const projectFacilities = [
-  { code: 'facility_security', name: 'Keamanan 24 Jam', iconKey: 'shield-check' },
-  { code: 'facility_parking', name: 'Area Parkir', iconKey: 'parking-square' },
-  { code: 'facility_park', name: 'Taman', iconKey: 'trees' },
-  { code: 'facility_pool', name: 'Kolam Renang', iconKey: 'waves' },
-  { code: 'facility_playground', name: 'Area Bermain', iconKey: 'shapes' },
-  { code: 'facility_mosque', name: 'Tempat Ibadah', iconKey: 'landmark' },
-  { code: 'facility_smart_home', name: 'Smart Home', iconKey: 'house' },
-] as const;
-
 export async function seedAttributeCatalog(prisma: PrismaClient, tenantId: string) {
   for (const item of unitTypeAttributes) {
     await prisma.attribute.upsert({
@@ -27,11 +18,12 @@ export async function seedAttributeCatalog(prisma: PrismaClient, tenantId: strin
       update: { source: 'UNIT_TYPE' },
     });
   }
-  for (const item of projectFacilities) {
+  for (const item of DEFAULT_PROJECT_FACILITIES) {
     await prisma.attribute.upsert({
       where: { tenantId_code: { tenantId, code: item.code } },
       create: { tenantId, ...item, dataType: 'NUMBER', source: 'PROJECT' },
-      update: { source: 'PROJECT', iconKey: item.iconKey },
+      // Nama, ikon, dan status mengikuti konfigurasi company.
+      update: { source: 'PROJECT' },
     });
   }
 }

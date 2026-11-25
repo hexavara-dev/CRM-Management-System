@@ -921,6 +921,8 @@ model Attribute {
   dataType   AttributeDataType  @map("data_type")
   source     AttributeSource    @default(UNIT_TYPE)
   iconKey    String?            @map("icon_key") @db.VarChar(50)
+  description String?           @db.VarChar(255)
+  isActive   Boolean            @default(true) @map("is_active")
   unit       String?            @db.VarChar(30)
   createdAt  DateTime           @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt  DateTime           @updatedAt @map("updated_at") @db.DateTime(6)

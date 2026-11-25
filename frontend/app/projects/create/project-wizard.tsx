@@ -410,6 +410,7 @@ export function ProjectWizard({
               </h3>
               <FacilityPicker
                 selected={facilityAttributeIds}
+                saved={initial?.facilityAttributeIds}
                 onChange={setFacilityAttributeIds}
               />
             </section>

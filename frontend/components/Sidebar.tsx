@@ -37,6 +37,7 @@ import {
   Handshake,
   ListChecks,
   Settings2,
+  Sparkles,
   Tag,
   Users,
   Building,
@@ -153,11 +154,12 @@ function NavParentItem({
     <Collapsible.Root open={open} onOpenChange={setOpen} asChild>
       <SidebarMenuItem>
         <Collapsible.Trigger asChild>
-          <SidebarMenuButton className={NAV_BUTTON_CLASS}>
+          {/* Judul menu panjang turun baris, tidak terpotong. */}
+          <SidebarMenuButton className={`${NAV_BUTTON_CLASS} h-auto min-h-[31px] whitespace-normal py-1`}>
             <item.icon />
             <span>{item.title}</span>
             <ChevronRight
-              className={`ml-auto transition-transform ${open ? "rotate-90" : ""}`}
+              className={`ml-auto shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
             />
           </SidebarMenuButton>
         </Collapsible.Trigger>
@@ -233,6 +235,15 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
           visible: true,
           children: [
             { title: "Pricing", url: "/pricing", icon: DollarSign },
+          ],
+        },
+        {
+          title: "Product Management Configuration",
+          url: "/product-configuration",
+          icon: Settings2,
+          visible: admin,
+          children: [
+            { title: "Konfigurasi Fasilitas", url: "/product-configuration/facilities", icon: Sparkles },
           ],
         },
       ],
