@@ -318,7 +318,7 @@ export function HierarchyStep({
                       selectedUnits.map((u) => (
                         <TableRow key={u.id}>
                           <TableCell className="whitespace-nowrap">{u.code}</TableCell>
-                          <TableCell>{u.type}</TableCell>
+                          <TableCell>{u.type}{u.typeVariantName && ` (${u.typeVariantName})`}</TableCell>
                           <TableCell>
                             <UnitImageThumbs files={u.images} urls={u.imageUrls} label={u.code} placeholder />
                           </TableCell>
