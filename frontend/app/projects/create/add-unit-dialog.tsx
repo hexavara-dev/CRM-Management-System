@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -18,8 +17,7 @@ import { ImageProcessingOverlay } from "./image-processing-overlay";
 import { UnitImageThumbs } from "./unit-image-thumbs";
 import type { UnitType } from "./unit-type-step";
 
-type UnitRow = { code: string; type: string; typeVariantKey: string; typeVariantName: string; hook: string; status: string; images: File[] };
-const UNIT_STATUS = ["Available", "Reserved", "Sold"];
+type UnitRow = { code: string; type: string; typeVariantKey: string; typeVariantName: string; hook: string; images: File[] };
 
 export function AddUnitDialog({
   onOpenChange,
@@ -57,7 +55,7 @@ export function AddUnitDialog({
       const normalized = normalizeCode(code);
       if (unavailable.has(normalized)) continue;
       unavailable.add(normalized);
-      result.push({ code, type, typeVariantKey, typeVariantName, hook: "Ya", status: "Available", images: [] });
+      result.push({ code, type, typeVariantKey, typeVariantName, hook: "Ya", images: [] });
     }
     return result;
   };
@@ -149,7 +147,7 @@ export function AddUnitDialog({
       fail(<>Nomor unit sudah digunakan: <strong className="font-bold">{usedCodes.join(", ")}</strong>. Ganti dengan nomor lain atau hapus baris tersebut.</>);
       return;
     }
-    onSave(rows.map((r, i) => ({ id: crypto.randomUUID(), locationId: location.id, code: codes[i], type: r.type, typeVariantKey: r.typeVariantKey, typeVariantName: r.typeVariantName, hook: r.hook, status: r.status, images: r.images })));
+    onSave(rows.map((r, i) => ({ id: crypto.randomUUID(), locationId: location.id, code: codes[i], type: r.type, typeVariantKey: r.typeVariantKey, typeVariantName: r.typeVariantName, hook: r.hook, status: "Available", images: r.images })));
     onOpenChange(false);
   };
 
@@ -205,15 +203,14 @@ export function AddUnitDialog({
           <div className="w-full min-w-0 overflow-hidden rounded-lg border border-[#E4E4E7]">
             <Table className="w-full min-w-0 table-fixed text-xs">
               <colgroup>
-                <col className="w-[27%]" />
-                <col className="w-[25%]" />
-                <col className="w-[23%]" />
-                <col className="w-[17%]" />
+                <col className="w-[34%]" />
+                <col className="w-[32%]" />
+                <col className="w-[26%]" />
                 <col className="w-[8%]" />
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  {["No Unit", "Type", "Gambar", "Status", ""].map((h) => (
+                  {["No Unit", "Type", "Gambar", ""].map((h) => (
                     <TableHead key={h || "action"} className="h-9 min-w-0 px-2 text-xs font-medium text-[#1f1f1f] first:pl-3 last:pr-3">{h}</TableHead>
                   ))}
                 </TableRow>
@@ -221,7 +218,7 @@ export function AddUnitDialog({
               <TableBody>
                 {rows.every((row) => row.typeVariantKey !== activeVariant) && (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-5 text-center text-xs text-[#6b6b6b]">Belum ada unit untuk varian ini.</TableCell>
+                    <TableCell colSpan={4} className="py-5 text-center text-xs text-[#6b6b6b]">Belum ada unit untuk varian ini.</TableCell>
                   </TableRow>
                 )}
                 {rows.map((r, i) => ({ r, i })).filter(({ r }) => r.typeVariantKey === activeVariant).map(({ r, i }) => (
@@ -264,18 +261,6 @@ export function AddUnitDialog({
                       </label>
                       </div>
                     </TableCell>
-                    <TableCell className="min-w-0 px-2 first:pl-3 last:pr-3">
-                      <Select value={r.status} onValueChange={(v) => update(i, { status: v })}>
-                        <SelectTrigger className="h-9 w-full min-w-0 px-2 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {UNIT_STATUS.map((s) => (
-                            <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
                     <TableCell className="px-2 text-center first:pl-3 last:pr-3">
                       <button type="button" aria-label="Remove row" onClick={() => removeRow(i)} className="cursor-pointer rounded p-1 text-[#D64545] hover:bg-[#FDECEC]">
                         <Trash2 className="size-3.5" />
@@ -314,6 +299,8 @@ export function AddUnitDialog({
           <div className="rounded-lg bg-[#E8F3FA] p-3 text-[11px] text-[#1980C0]">
             <p className="font-semibold">Format nomor unit</p>
             <p className="mt-0.5">Nomor dibuat otomatis mengikuti kode blok, seperti B1-01, B1-02, dan seterusnya. Kamu bisa mengubahnya langsung di kolom nomor unit.</p>
+            <p className="mt-2 font-semibold">Status unit</p>
+            <p className="mt-0.5">Unit baru selalu Available. Status berubah lewat reservasi.</p>
           </div>
 
           </div>

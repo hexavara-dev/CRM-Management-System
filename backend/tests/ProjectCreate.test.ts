@@ -301,10 +301,18 @@ describe('project request validation', () => {
     const result = validateProduct({
       ...base,
       locations: [{ key: 'a', name: 'Cluster', type: 'CLUSTER' }],
-      units: [{ code: 'U1', variantIndex: 0, locationKey: 'a', status: 'SOLD' }],
+      units: [{ code: 'U1', variantIndex: 0, locationKey: 'a', status: 'AVAILABLE' }],
     });
     expect(result.locations).toHaveLength(1);
-    expect(result.units?.[0]).toMatchObject({ code: 'U1', status: 'SOLD' });
+    expect(result.units?.[0]).toMatchObject({ code: 'U1', status: 'AVAILABLE' });
+  });
+
+  it('only accepts available new units; a fake id does not bypass it on create', () => {
+    const unit = { code: 'U1', variantIndex: 0, status: 'SOLD' };
+    expect(() => validateProduct({ ...base, units: [unit] })).toThrow(/Invalid unit status/);
+    expect(() => validateProduct({ ...base, units: [{ ...unit, id: 'u-1' }] })).toThrow(/Invalid unit status/);
+    expect(() => validateProduct({ units: [unit] }, true)).toThrow(/Invalid unit status/);
+    expect(validateProduct({ units: [{ ...unit, id: 'u-1' }] }, true).units).toHaveLength(1);
   });
 
   it('rejects bad unit status, bad location type and locations on update', () => {

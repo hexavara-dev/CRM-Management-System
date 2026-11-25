@@ -711,7 +711,6 @@ export class ProductUseCase {
         variantIndex: variantIndex.get(unit.variantId) ?? -1,
         typeVariantIndex: typeVariantIndexes.get(unit.typeVariantId)?.[1] ?? 0,
         ...(unit.categoryId === current.category.id ? {} : { locationKey: unit.categoryId }),
-        status: unit.status,
         isHook: unit.isHook,
       }));
       structureInput = {
@@ -1059,6 +1058,9 @@ export class ProductUseCase {
       if (!categoryId) throw new Error('Invalid unit location');
       const old = oldUnits.find((row) => row.id === unit.id);
       if (old) {
+        if (unit.status && unit.status !== old.status) {
+          throw new Error(`Conflict: the status of unit ${old.code} can only change through a reservation. Reload the project.`);
+        }
         if ((old.variantId !== variantId || old.typeVariantId !== typeVariantId || old.categoryId !== categoryId) &&
           await tx.reservation.count({ where: { tenantId, unitId: old.id } })) {
           throw new Error('Conflict: a unit with reservations must keep its type and location');
@@ -1071,7 +1073,7 @@ export class ProductUseCase {
       } else {
         await tx.productUnit.create({
           data: { tenantId, code: unit.code, variantId, typeVariantId, categoryId,
-            status: unit.status ?? 'AVAILABLE', isHook: unit.isHook ?? false },
+            status: 'AVAILABLE', isHook: unit.isHook ?? false },
         });
       }
     }

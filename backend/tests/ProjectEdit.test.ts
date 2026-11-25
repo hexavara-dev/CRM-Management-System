@@ -66,6 +66,20 @@ describe('project edit wizard persistence', () => {
     expect(tx.productUnit.deleteMany).not.toHaveBeenCalled();
   });
 
+  it('rejects a status change of a stored unit instead of ignoring it', async () => {
+    const { tx, prisma } = fixture();
+    await expect(new ProductUseCase(prisma as never).update('p-1', 't-1', {
+      ...baseInput, units: [{ ...baseInput.units[0]!, status: 'SOLD' }],
+    })).rejects.toThrow(/Conflict: the status of unit/);
+    expect(tx.productUnit.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps the stored status when none is sent', async () => {
+    const { prisma } = fixture('RESERVED');
+    const { status: _status, ...unit } = baseInput.units[0]!;
+    await expect(new ProductUseCase(prisma as never).update('p-1', 't-1', { ...baseInput, units: [unit] })).resolves.toBeDefined();
+  });
+
   it('rejects an existing ID from another project', async () => {
     const { tx, prisma } = fixture();
     await expect(new ProductUseCase(prisma as never).update('p-1', 't-1', {

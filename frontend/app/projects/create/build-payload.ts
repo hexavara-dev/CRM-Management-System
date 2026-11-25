@@ -16,14 +16,6 @@ const LEVEL_TYPE: Record<string, CreateProjectPayload["locations"][number]["type
   floor: "FLOOR",
 };
 
-const UNIT_STATUS: Record<string, NonNullable<CreateProjectPayload["units"][number]["status"]>> = {
-  available: "AVAILABLE",
-  reserved: "RESERVED",
-  sold: "SOLD",
-  booked: "BOOKED",
-  blocked: "BLOCKED",
-};
-
 /** Isian lokasi step 1 -> kolom `products`; yang kosong tidak dikirim. */
 const LOCATION_FIELDS = ["province", "city", "subdistrict", "village", "address", "postalCode", "mapsUrl"] as const;
 
@@ -74,7 +66,7 @@ export function buildProjectPayload(input: {
       typeVariantIndex,
       // Unit yang menempel di akar (tanpa node) memakai akar proyek di backend.
       ...(nodes.some((n) => n.id === u.locationId) ? { locationKey: u.locationId } : {}),
-      status: UNIT_STATUS[u.status.trim().toLowerCase()] ?? "AVAILABLE",
+      // Status tidak dikirim: unit baru selalu Available dan status tersimpan berubah lewat reservasi.
       isHook: u.hook === "Ya",
     };
   });

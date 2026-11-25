@@ -178,7 +178,6 @@ export interface CreateProjectPayload {
     variantIndex: number;
     typeVariantIndex: number;
     locationKey?: string;
-    status?: "AVAILABLE" | "RESERVED" | "BOOKED" | "BLOCKED" | "SOLD";
     isHook?: boolean;
   }[];
 }
