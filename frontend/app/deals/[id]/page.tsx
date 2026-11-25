@@ -25,9 +25,9 @@ import { useUpload } from "@/hooks/use-upload";
 import { useUsers } from "@/hooks/use-users";
 import type { Activity, Attachment, Note } from "@/lib/data";
 import type {
-  Note as ActivityNote,
   AttachmentRecord,
   DealActivity,
+  Note as ActivityNote,
 } from "@/types/activity";
 import type {
   DealPaymentMethod,
@@ -252,16 +252,9 @@ export default function DealDetailPage() {
     setLostOpen(false);
   };
 
-  const submitPayment = async () => {
-    const amount = Number(paymentAmount.replace(/\D/g, ""));
-    if (!amount) return;
-    await workflow.addPayment({
-      type: paymentType,
-      amount,
-      status: paymentStatus,
-    });
-    setPaymentAmount("");
-    setPaymentOpen(false);
+  const addAttachment = async (data: { name: string; file: FileList }) => {
+    if (!data.file[0]) return;
+    await uploadFile({ dealId: deal.id, file: data.file[0], name: data.name });
   };
 
   const addNote = async (data: { content: string }) => {
@@ -272,9 +265,16 @@ export default function DealDetailPage() {
     });
   };
 
-  const addAttachment = async (data: { name: string; file: FileList }) => {
-    if (!data.file[0]) return;
-    await uploadFile({ dealId: deal.id, file: data.file[0], name: data.name });
+  const submitPayment = async () => {
+    const amount = Number(paymentAmount.replace(/\D/g, ""));
+    if (!amount) return;
+    await workflow.addPayment({
+      type: paymentType,
+      amount,
+      status: paymentStatus,
+    });
+    setPaymentAmount("");
+    setPaymentOpen(false);
   };
 
   return (
@@ -292,15 +292,16 @@ export default function DealDetailPage() {
           }}
         />
         <DealTabs
-          overview={
+          overview={(openTab) => (
             <DealOverview
               deal={deal}
               stages={stages}
               history={workflow.history}
               payments={workflow.payments}
               onAddPayment={() => setPaymentOpen(true)}
+              onOpenDocuments={() => openTab("documents")}
             />
-          }
+          )}
           activities={mapped.activities}
           attachments={mapped.attachments}
           notes={mapped.notes}
@@ -478,10 +479,10 @@ export default function DealDetailPage() {
               Batal
             </Button>
             <Button
-              onClick={submitPayment}
+              onClick={() => void submitPayment()}
               disabled={!paymentAmount || workflow.isAddingPayment}
             >
-              Simpan Transaksi
+              {workflow.isAddingPayment ? "Menyimpan..." : "Simpan Transaksi"}
             </Button>
           </DialogFooter>
         </DialogContent>

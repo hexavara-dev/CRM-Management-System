@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type DealFilters, useDeals } from "@/hooks/use-deals";
+import { useFinancingBanks } from "@/hooks/use-financing-banks";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useProjects } from "@/hooks/use-projects";
 import { useUsers } from "@/hooks/use-users";
@@ -43,15 +45,19 @@ import {
   List,
   type LucideIcon,
   Pencil,
+  Plus,
   Search,
+  SlidersHorizontal,
   Target,
   Trash2,
   Trophy,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
+
+const HIDDEN_STAGES_KEY = "deals-pipeline-hidden-stages";
 
 const paymentLabels: Record<DealPaymentMethod, string> = {
   CASH: "Tunai",
@@ -60,18 +66,18 @@ const paymentLabels: Record<DealPaymentMethod, string> = {
 };
 
 const dealColumnWidths: Record<string, string> = {
-  "No.": "w-12",
-  "Lead/Customer": "w-52",
-  Project: "w-44",
-  Unit: "w-28",
-  "Harga Deals": "w-44",
-  Pembayaran: "w-36",
-  Bank: "w-32",
-  "Fase Deal": "w-52",
-  "Assigned Sales": "w-48",
-  "Last Activity": "w-32",
-  Hari: "w-20",
-  Actions: "w-28",
+  "No.": "w-9",
+  "Lead/Customer": "w-35",
+  Project: "w-32.5",
+  Unit: "w-20",
+  "Harga Deals": "w-27.5",
+  Pembayaran: "w-25",
+  Bank: "w-25",
+  "Fase Deal": "w-35",
+  "Assigned Sales": "w-28.5",
+  "Last Activity": "w-25",
+  Hari: "w-15",
+  Actions: "w-22.5",
 };
 
 const daysSince = (value?: string) =>
@@ -133,17 +139,17 @@ function Kpi({
   iconClassName: string;
 }) {
   return (
-    <Card className={`min-w-0 overflow-hidden border p-3 ${className}`}>
-      <div className="flex items-start gap-3">
+    <Card className={`min-w-0 overflow-hidden border p-2.5 ${className}`}>
+      <div className="flex items-start gap-2">
         <span
-          className={`flex size-10 shrink-0 items-center justify-center rounded-full ${iconClassName}`}
+          className={`flex size-8 shrink-0 items-center justify-center rounded-full ${iconClassName}`}
         >
-          <Icon className="size-5" aria-hidden="true" />
+          <Icon className="size-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-xs text-muted-foreground">{title}</p>
           <div className="mt-1 flex min-w-0 items-baseline gap-2">
-            <p className="whitespace-nowrap text-xl font-bold leading-tight text-foreground tabular-nums">
+            <p className="whitespace-nowrap text-lg font-bold leading-tight text-foreground tabular-nums">
               {value}
             </p>
             {note && (
@@ -176,6 +182,20 @@ export default function DealsPage() {
   const { data: configuredStages = [] } = usePipelineStages("deal");
   const { data: projects } = useProjects({ page: 1, limit: 100 });
   const { users } = useUsers();
+  const { data: banks = [] } = useFinancingBanks(true);
+  const [hiddenStageIds, setHiddenStageIds] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(HIDDEN_STAGES_KEY);
+      if (saved) setHiddenStageIds(JSON.parse(saved) as string[]);
+    } catch {
+      // abaikan data tersimpan yang rusak
+    }
+  }, []);
+  const updateHiddenStages = (next: string[]) => {
+    setHiddenStageIds(next);
+    window.localStorage.setItem(HIDDEN_STAGES_KEY, JSON.stringify(next));
+  };
   const stages = useMemo(
     () => configuredStages.filter((stage) => stage.isActive),
     [configuredStages],
@@ -204,38 +224,51 @@ export default function DealsPage() {
     deals.length === 0 ? 0 : Math.min(totalDeals, pageStart + deals.length - 1);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="overflow-hidden">
       <AppSidebar />
-      <SidebarInset className="w-0">
+      <SidebarInset className="w-0 min-w-0">
         <header className="flex h-16 items-center gap-3 border-b px-4">
           <SidebarTrigger />
+          <span className="flex size-7 items-center justify-center rounded-md border border-[#B2DDFF] bg-[#EFF8FF] text-[#1570EF]">
+            <FileText className="size-4" aria-hidden="true" />
+          </span>
           <h1 className="text-lg font-semibold">Deals</h1>
+          <Button
+            type="button"
+            disabled
+            title="Form Add Deal belum tersedia (dikerjakan di CRM-71)."
+            className="ml-auto"
+          >
+            <Plus className="size-4" />
+            Add Deal
+          </Button>
         </header>
-        <main className="space-y-4 p-4">
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="!h-[52px] gap-2 rounded-xl border border-slate-200 bg-slate-50/90 px-2 py-1.5 shadow-sm">
+        <main className="space-y-3 p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
+          <Tabs value={tab} onValueChange={setTab} className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+            <TabsList className="h-10 w-fit gap-0.5 overflow-hidden rounded-2xl border border-[#E4E7EC] bg-[#F7F8FA] p-1 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
               <TabsTrigger
                 value="list"
-                className="!h-10 gap-2 rounded-lg px-5 text-sm font-medium text-slate-600 transition-all hover:bg-white hover:text-slate-900 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                className="h-8 gap-2 rounded-xl px-4 text-sm font-medium text-[#667085] transition-colors hover:text-[#344054] data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-[#0B63F6] data-[state=active]:shadow-[0_1px_2px_rgba(16,24,40,0.08)]"
               >
                 <List className="size-4" />
                 List Deals
               </TabsTrigger>
               <TabsTrigger
                 value="pipeline"
-                className="!h-10 gap-2 rounded-lg px-5 text-sm font-medium text-slate-600 transition-all hover:bg-white hover:text-slate-900 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                className="h-8 gap-2 rounded-xl px-4 text-sm font-medium text-[#667085] transition-colors hover:text-[#344054] data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-[#0B63F6] data-[state=active]:shadow-[0_1px_2px_rgba(16,24,40,0.08)]"
               >
                 <Columns3 className="size-4" />
                 Pipeline
               </TabsTrigger>
             </TabsList>
-            <section className="mt-4">
-              <h2 className="text-lg font-semibold">
+            <section className="mt-3">
+              <h2 className="text-base font-semibold">
                 {tab === "list" ? "Deals Management" : "Deals Pipeline"}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Kelola dan pantau progres transaksi dari Lead yang telah
-                dikonversi.
+                {tab === "list"
+                  ? "Kelola dan pantau progres transaksi dari Lead yang telah dikonversi."
+                  : "Pantau progres penjualan (deals) berdasarkan fase transaksi."}
               </p>
             </section>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -277,7 +310,13 @@ export default function DealsPage() {
                 iconClassName="bg-rose-100 text-rose-600"
               />
             </div>
-            <div className="grid items-start gap-3 rounded-xl border p-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1.8fr)_minmax(220px,1.5fr)_repeat(4,minmax(140px,1fr))]">
+            <div
+              className={`grid items-start gap-2 rounded-xl border p-2 sm:grid-cols-2 ${
+                tab === "list"
+                  ? "xl:grid-cols-[minmax(190px,1.8fr)_minmax(190px,1.5fr)_repeat(5,minmax(110px,1fr))]"
+                  : "xl:grid-cols-[minmax(190px,1.8fr)_minmax(190px,1.5fr)_repeat(4,minmax(110px,1fr))_auto]"
+              } xl:[&_[data-slot=select-trigger]]:h-8 xl:[&_[data-slot=select-trigger]]:text-xs xl:[&_[data-slot=input]]:h-8 xl:[&_[data-slot=input]]:text-xs`}
+            >
               <div className="relative pt-[21px]">
                 <Search className="absolute left-3 top-[31px] size-4 text-muted-foreground" />
                 <Input
@@ -344,29 +383,31 @@ export default function DealsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <FilterLabel>Fase Deal</FilterLabel>
-                <Select
-                  value={filters.stageId ?? "all"}
-                  onValueChange={(value) =>
-                    updateFilters({
-                      stageId: value === "all" ? undefined : value,
-                    })
-                  }
-                >
-                  <SelectTrigger aria-label="Fase Deal dari konfigurasi pipeline">
-                    <SelectValue placeholder="Semua Fase" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Fase</SelectItem>
-                    {stages.map((stage) => (
-                      <SelectItem key={stage.id} value={stage.id}>
-                        {stage.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {tab === "list" && (
+                <div>
+                  <FilterLabel>Fase Deal</FilterLabel>
+                  <Select
+                    value={filters.stageId ?? "all"}
+                    onValueChange={(value) =>
+                      updateFilters({
+                        stageId: value === "all" ? undefined : value,
+                      })
+                    }
+                  >
+                    <SelectTrigger aria-label="Fase Deal dari konfigurasi pipeline">
+                      <SelectValue placeholder="Semua Fase" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua Fase</SelectItem>
+                      {stages.map((stage) => (
+                        <SelectItem key={stage.id} value={stage.id}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div>
                 <FilterLabel>Jenis Pembayaran</FilterLabel>
                 <Select
@@ -388,6 +429,29 @@ export default function DealsPage() {
                     <SelectItem value="CASH">Tunai</SelectItem>
                     <SelectItem value="KPR">KPR</SelectItem>
                     <SelectItem value="KPR_SHARIA">KPR Syariah</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <FilterLabel>Bank</FilterLabel>
+                <Select
+                  value={filters.bankName ?? "all"}
+                  onValueChange={(value) =>
+                    updateFilters({
+                      bankName: value === "all" ? undefined : value,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Bank" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Bank</SelectItem>
+                    {banks.map((bank) => (
+                      <SelectItem key={bank.id} value={bank.name}>
+                        {bank.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -414,11 +478,57 @@ export default function DealsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {tab === "pipeline" && (
+                <div className="pt-[21px]">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        title="Pilih kolom fase yang ditampilkan"
+                        className="h-8 text-xs"
+                      >
+                        <SlidersHorizontal className="size-4" />
+                        Columns
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-56 space-y-1 p-2">
+                      <p className="px-1 pb-1 text-xs font-medium text-muted-foreground">
+                        Kolom fase yang ditampilkan
+                      </p>
+                      {stages.map((stage) => {
+                        const visible = !hiddenStageIds.includes(stage.id);
+                        const onlyVisible =
+                          visible && stages.length - hiddenStageIds.length <= 1;
+                        return (
+                          <label
+                            key={stage.id}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 text-sm hover:bg-muted"
+                          >
+                            <Checkbox
+                              checked={visible}
+                              disabled={onlyVisible}
+                              onCheckedChange={(checked) =>
+                                updateHiddenStages(
+                                  checked
+                                    ? hiddenStageIds.filter((id) => id !== stage.id)
+                                    : [...hiddenStageIds, stage.id],
+                                )
+                              }
+                            />
+                            {stage.name}
+                          </label>
+                        );
+                      })}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
             </div>
-            <TabsContent value="list" className="mt-4">
-              <Card>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1420px] table-fixed text-sm">
+            <TabsContent value="list" className="mt-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+              <Card className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+                <div className="overflow-auto lg:min-h-0 lg:flex-1">
+                  <table className="w-full min-w-[1160px] table-fixed text-xs">
                     <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                       <tr>
                         {[
@@ -437,7 +547,7 @@ export default function DealsPage() {
                         ].map((title) => (
                           <th
                             key={title}
-                            className={`whitespace-nowrap px-3 py-3 font-medium ${dealColumnWidths[title]}`}
+                            className={`whitespace-nowrap px-1.5 py-1.5 text-[10px] font-medium ${dealColumnWidths[title]}`}
                           >
                             {title}
                           </th>
@@ -469,67 +579,67 @@ export default function DealsPage() {
                               key={deal.id}
                               className="border-b last:border-0 hover:bg-muted/30"
                             >
-                              <td className="px-3 py-3">
+                              <td className="px-1.5 py-1.5 text-[11px]">
                                 {((pagination?.page ?? 1) - 1) *
                                   (pagination?.limit ?? 10) +
                                   index +
                                   1}
                               </td>
-                              <td className="px-3 py-3 align-top">
-                                <p className="font-medium">
+                              <td className="px-1.5 py-1.5 align-top text-[11px]">
+                                <p className="truncate font-medium">
                                   {customer
                                     ? `${customer.firstName} ${customer.lastName ?? ""}`.trim()
                                     : "-"}
                                 </p>
-                                <p className="whitespace-nowrap text-xs text-muted-foreground">
+                                <p className="whitespace-nowrap text-[10px] text-muted-foreground">
                                   {customer?.phoneNumber || "-"}
                                 </p>
                               </td>
-                              <td className="px-3 py-3">
-                                <Badge variant="secondary">
+                              <td className="px-1.5 py-1.5 text-[11px]">
+                                <Badge variant="secondary" className="max-w-full truncate px-1.5 py-0.5 text-[10px]" title={deal.unit?.variant.product.name}>
                                   {deal.unit?.variant.product.name ?? "-"}
                                 </Badge>
                               </td>
-                              <td className="whitespace-nowrap px-3 py-3 align-top">
+                              <td className="whitespace-nowrap px-1.5 py-1.5 align-top text-[11px]">
                                 {deal.unit?.code ?? "-"}
                               </td>
-                              <td className="px-3 py-3 font-medium">
+                              <td className="whitespace-nowrap px-1.5 py-1.5 text-[11px] font-medium">
                                 {formatRupiah(
                                   deal.amount ?? deal.expectedAmount ?? 0,
                                 )}
                               </td>
-                              <td className="px-3 py-3">
-                                <Badge variant="secondary">
+                              <td className="px-1.5 py-1.5">
+                                <Badge variant="secondary" className="px-1.5 py-0.5 text-[10px]">
                                   {paymentLabels[deal.paymentMethod]}
                                 </Badge>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="truncate px-1.5 py-1.5 text-[11px]">
                                 {deal.paymentMethod === "CASH"
                                   ? "-"
                                   : deal.bankName || "-"}
                               </td>
-                              <td className="px-3 py-3">
-                                <Badge>
+                              <td className="px-1.5 py-1.5">
+                                <Badge className="max-w-full truncate rounded-lg px-1 py-0.5 text-[10px]" title={deal.stage?.name}>
                                   {deal.stage?.name || "Belum ditentukan"}
                                 </Badge>
                               </td>
-                              <td className="px-3 py-3 align-top">
+                              <td className="truncate px-1.5 py-1.5 align-top text-[11px]" title={deal.assignedUser?.name || deal.assignedUser?.email}>
                                 {deal.assignedUser?.name ||
                                   deal.assignedUser?.email ||
                                   "-"}
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="whitespace-nowrap px-1.5 py-1.5 text-[11px]">
                                 {deal.lastActivityAt
                                   ? new Date(
                                       deal.lastActivityAt,
                                     ).toLocaleDateString("id-ID")
                                   : "-"}
                               </td>
-                              <td className="whitespace-nowrap px-3 py-3 align-top">
+                              <td className="whitespace-nowrap px-1.5 py-1.5 align-top text-[11px]">
                                 {days === null ? "-" : `${days} hari`}
                               </td>
-                              <td className="px-3 py-3">
-                                <div className="flex gap-1">
+                              <td className="px-1 py-1.5">
+                                <div className="flex gap-0.5">
                                   <Button
                                     size="icon-sm"
                                     variant="ghost"
@@ -646,9 +756,15 @@ export default function DealsPage() {
                 </footer>
               </Card>
             </TabsContent>
-            <TabsContent value="pipeline" className="mt-4">
+            <TabsContent value="pipeline" className="mt-3 lg:min-h-0 lg:flex-1">
               <DealsPipelineTab
-                filters={{ ...filters, page: undefined, limit: undefined }}
+                filters={{
+                  ...filters,
+                  stageId: undefined,
+                  page: undefined,
+                  limit: undefined,
+                }}
+                hiddenStageIds={hiddenStageIds}
               />
             </TabsContent>
           </Tabs>
