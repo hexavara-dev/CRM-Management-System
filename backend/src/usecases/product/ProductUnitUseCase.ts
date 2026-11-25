@@ -13,8 +13,51 @@ export type UnitListFilters = {
   status?: ProductUnitStatus;
 };
 
+export type UnitPhotoFilters = Pick<UnitListFilters, 'page' | 'limit' | 'search' | 'variantId'> & { typeVariantId?: string };
+
 export class ProductUnitUseCase {
   constructor(private prisma: PrismaClient) {}
+
+  /** Units of a project that have photos, one page at a time. */
+  async photos(tenantId: string, productId: string, filters: UnitPhotoFilters) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, tenantId }, select: { id: true } });
+    if (!product) throw new Error('Product not found');
+    const photo = { tenantId, mediaType: 'IMAGE' as const };
+    const where: Prisma.ProductUnitWhereInput = {
+      tenantId,
+      variant: { productId, tenantId },
+      media: { some: photo },
+      ...(filters.search ? { code: { contains: filters.search } } : {}),
+      ...(filters.variantId ? { variantId: filters.variantId } : {}),
+      ...(filters.typeVariantId ? { typeVariantId: filters.typeVariantId } : {}),
+    };
+    const [data, total] = await Promise.all([
+      this.prisma.productUnit.findMany({
+        where,
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit,
+        orderBy: [{ code: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          code: true,
+          variant: { select: { name: true } },
+          typeVariant: { select: { name: true } },
+          media: {
+            where: photo,
+            orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+            select: { id: true, fileUrl: true },
+          },
+        },
+      }),
+      this.prisma.productUnit.count({ where }),
+    ]);
+    return {
+      data: data.map(({ variant, typeVariant, media, ...unit }) => ({
+        ...unit, type: variant.name, variant: typeVariant.name, photos: media,
+      })),
+      meta: { total, page: filters.page, limit: filters.limit, totalPages: Math.ceil(total / filters.limit) },
+    };
+  }
 
   async list(tenantId: string, filters: UnitListFilters) {
     await expireOverdueReservations(this.prisma, tenantId);

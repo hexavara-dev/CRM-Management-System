@@ -369,7 +369,8 @@ export class ProductUseCase {
           orderBy: [{ variantId: 'asc' }, { typeVariantId: 'asc' }, { attribute: { name: 'asc' } }],
           include: { attribute: true },
         },
-        media: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        // Foto unit bisa ribuan; dimuat per halaman lewat ProductUnitUseCase.photos.
+        media: { where: { unitId: null }, orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }] },
       },
     });
     if (!product) throw new Error('Product not found');

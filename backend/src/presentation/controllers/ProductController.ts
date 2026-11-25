@@ -12,6 +12,7 @@ import {
   parseCategoryFilters,
   parseProductFilters,
   parseUnitFilters,
+  parseUnitPhotoFilters,
   validateAttribute,
   validateAttributeDefinition,
   validateCategory,
@@ -283,6 +284,14 @@ export class ProductController {
     const { page, limit } = parsePagination(query, 20);
     res.json(
       await this.units.list(tenantId, { page, limit, search: parseSearch(query), ...parseUnitFilters(query) })
+    );
+  });
+
+  listUnitPhotos = handle(async (req, res, tenantId) => {
+    const query = req.query as Record<string, unknown>;
+    const { page, limit } = parsePagination(query, 20);
+    res.json(
+      await this.units.photos(tenantId, param(req, 'id'), { page, limit, search: parseSearch(query), ...parseUnitPhotoFilters(query) })
     );
   });
 

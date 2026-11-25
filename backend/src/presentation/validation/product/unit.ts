@@ -13,6 +13,14 @@ export const unitRules: Record<string, FieldRule> = {
   isHook: { type: 'boolean' },
 };
 
+export function parseUnitPhotoFilters(query: Record<string, unknown>) {
+  const filters: { variantId?: string; typeVariantId?: string } = {};
+  for (const key of ['variantId', 'typeVariantId'] as const) {
+    if (typeof query[key] === 'string' && query[key]) filters[key] = query[key] as string;
+  }
+  return filters;
+}
+
 export function parseUnitFilters(query: Record<string, unknown>) {
   const filters: {
     productId?: string;

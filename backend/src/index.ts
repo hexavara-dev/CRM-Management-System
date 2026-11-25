@@ -410,6 +410,7 @@ app.delete('/api/products/:id/variants/:variantId', authMiddleware, ownerOnly, p
 app.post('/api/products/:id/attributes', authMiddleware, ownerOnly, pc.createAttribute);
 app.put('/api/products/:id/attributes/:attributeId', authMiddleware, ownerOnly, pc.updateAttribute);
 app.delete('/api/products/:id/attributes/:attributeId', authMiddleware, ownerOnly, pc.deleteAttribute);
+app.get('/api/products/:id/unit-photos', authMiddleware, pc.listUnitPhotos);
 app.get('/api/products/:id/media', authMiddleware, pc.listMedia);
 app.post('/api/products/:id/media', authMiddleware, ownerOnly, upload.single('file'), pc.uploadMedia);
 app.post('/api/products/:id/media-links', authMiddleware, ownerOnly, pc.addMediaLink);

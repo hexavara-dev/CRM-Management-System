@@ -37,6 +37,7 @@ import {
 import { UnitDistribution } from "./unit-distribution";
 import { InfoCard } from "@/components/projects/info-card";
 import { CoverGallery } from "./cover-gallery";
+import { MediaTab } from "./media-tab";
 import { mapsLink, parseMapsInput } from "../create/parse-maps-link";
 import { FacilityIcon } from "@/components/projects/facility-icon";
 import { SoldSummary } from "./sold-summary";
@@ -371,7 +372,9 @@ export default function ProjectDetailPage() {
                     t.value !== "overview" && t.value !== "unit-distribution",
                 ).map(({ value, label }) => (
                   <TabsContent key={value} value={value}>
-                    {value === "siteplan" && project.category.siteplanImg ? (
+                    {value === "media" ? (
+                      <MediaTab project={project} />
+                    ) : value === "siteplan" && project.category.siteplanImg ? (
                       <div className="overflow-hidden rounded-xl border border-[#E4E4E7] bg-[#F8FAFC] p-3">
                         <img src={project.category.siteplanImg} alt={`Siteplan ${project.name}`} className="mx-auto max-h-[70vh] w-full object-contain" />
                       </div>

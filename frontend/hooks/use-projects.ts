@@ -272,6 +272,30 @@ export function useProjectEditData(id: string | undefined) {
   });
 }
 
+export type UnitPhotos = {
+  id: string;
+  code: string;
+  type: string;
+  variant: string;
+  photos: { id: string; fileUrl: string }[];
+};
+
+export function useUnitPhotos(
+  projectId: string,
+  params: { page: number; limit: number; search?: string; variantId?: string; typeVariantId?: string },
+) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["unit-photos", user?.tenantId, projectId, params],
+    queryFn: async () =>
+      (
+        await api.get<{ data: UnitPhotos[]; meta: { total: number } }>(`/api/products/${projectId}/unit-photos`, { params })
+      ).data,
+    enabled: !!user,
+    placeholderData: (previous) => previous,
+  });
+}
+
 /** Simpan seluruh wizard termasuk record cover dalam satu transaksi backend. */
 export function useCreateProject() {
   const queryClient = useQueryClient();
