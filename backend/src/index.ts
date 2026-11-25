@@ -76,7 +76,9 @@ import { FinancingBankController } from './presentation/controllers/FinancingBan
 
 const app = express();
 app.use(requestLogMiddleware);
-app.use(express.json());
+// Proyek besar (sampai 5000 unit) mengirim struktur unit jauh di atas bawaan 100 KB.
+const MAX_PROJECT_PAYLOAD_BYTES = 2 * 1024 * 1024;
+app.use(express.json({ limit: MAX_PROJECT_PAYLOAD_BYTES }));
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
   .split(',')
   .map((origin) => origin.trim());
@@ -99,7 +101,7 @@ app.use(
 // Specialized Upload Setup
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024, fieldSize: MAX_PROJECT_PAYLOAD_BYTES },
   fileFilter: (_req, file, callback) => {
     const allowed = [
       'application/pdf',

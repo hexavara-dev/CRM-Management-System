@@ -13,6 +13,21 @@ const GOOGLE_MAPS_HOST = /^(?:www\.|maps\.)?google\.(?:com|[a-z]{2}|co\.[a-z]{2}
 const COORD_PAIR =/^(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/;
 
 /**
+ * Link untuk dibuka di tab baru. URL /maps/embed hanya boleh tampil di iframe
+ * ("The Google Maps Embed API must be used in an iframe"), jadi diganti link biasa.
+ */
+export function mapsLink(preview: MapPreview, address = ""): string {
+  const search = (q: string) => `https://www.google.com/maps?q=${encodeURIComponent(q)}`;
+  if (preview.lat !== undefined && preview.lng !== undefined) return search(`${preview.lat},${preview.lng}`);
+  const url = new URL(preview.embedUrl);
+  if (url.pathname.startsWith("/maps/embed")) {
+    const name = url.searchParams.get("pb")?.match(/!1s0x[^!]*!2s([^!]+)/)?.[1];
+    return search(url.searchParams.get("q") || name || address || "Indonesia");
+  }
+  return preview.embedUrl.replace("&output=embed", "");
+}
+
+/**
  * Mengubah isian user menjadi URL preview peta tanpa API key.
  * Menerima: URL Google Maps (panjang), kode <iframe> "Sematkan peta", atau "lat, lng".
  * Link pendek (maps.app.goo.gl) tidak bisa diurai dari browser, jadi ditolak dengan petunjuk.

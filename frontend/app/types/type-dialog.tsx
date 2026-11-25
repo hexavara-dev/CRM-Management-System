@@ -12,6 +12,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { RupiahInput } from "@/components/ui/rupiah-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ImageProcessingOverlay } from "@/app/projects/create/image-processing-overlay";
+import { compressImage, PHOTO_MAX_EDGE } from "@/lib/compress-image";
+import { toast } from "sonner";
 import {
   type ProjectTypeRow,
   TYPE_ATTRIBUTES,
@@ -47,7 +50,6 @@ function TypeForm({
   const [projectId, setProjectId] = useState(initial?.projectId ?? "");
   const [name, setName] = useState(initial?.name ?? "");
   const [basePrice] = useState(String(initial?.basePrice ?? ""));
-  const [stock, setStock] = useState(initial ? String(initial.stock) : "");
   const [typeVariants, setTypeVariants] = useState(() =>
     initial?.typeVariants?.map((option) => ({ ...option, key: option.id ?? crypto.randomUUID(), basePriceText: String(option.basePrice), stockText: String(option.stock) }))
     ?? [{ key: crypto.randomUUID(), name: "Default", code: null, basePrice: 0, stock: 0, basePriceText: "", stockText: "", unitCount: 0 }],
@@ -56,6 +58,7 @@ function TypeForm({
     Record<TypeAttributeCode, number>
   >(initial?.attributes ?? EMPTY_ATTRIBUTES);
   const [image, setImage] = useState<File>();
+  const [processing, setProcessing] = useState(false);
   const pending = createType.isPending || updateType.isPending;
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -64,7 +67,7 @@ function TypeForm({
       projectId,
       name,
       basePrice: Number(basePrice),
-      stock: Number(stock),
+      stock: typeVariants.reduce((total, option) => total + (Number(option.stockText) || 0), 0),
       typeVariants: typeVariants.map((option) => ({
         ...(option.id ? { id: option.id } : {}), name: option.name, code: option.code,
         basePrice: Number(option.basePriceText), currentPrice: option.currentPrice ?? Number(option.basePriceText),
@@ -129,34 +132,12 @@ function TypeForm({
           {typeVariants.map((option) => (
             <div key={option.key} className="grid gap-2 rounded-md bg-[#F8FAFC] p-2 sm:grid-cols-[1fr_0.75fr_1fr_auto]">
               <Input required value={option.name} placeholder="Nama varian" className="h-9" onChange={(event) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, name: event.target.value } : item))} />
-              <Input type="number" required min={option.unitCount ?? 0} value={option.stockText} placeholder="Stock" className="h-9" onChange={(event) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, stockText: event.target.value } : item))} />
+              <Input type="number" required min={option.unitCount ?? 0} max={1000} step="1" value={option.stockText} placeholder="Stock" className="h-9" onChange={(event) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, stockText: event.target.value } : item))} />
               <RupiahInput required value={option.basePriceText} placeholder="Harga dasar" className="h-9" onValueChange={(value) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, basePriceText: value } : item))} />
               <Button type="button" variant="ghost" disabled={typeVariants.length === 1 || (option.unitCount ?? 0) > 0} className="h-9 px-2 text-[#D64545]" onClick={() => setTypeVariants((items) => items.filter((item) => item.key !== option.key))}><Trash2 className="size-4" /></Button>
             </div>
           ))}
         </div>
-        <label className="hidden">
-          Total unit
-          <Input
-            type="number"
-            required
-            min={initial?.unitCount ?? 0}
-            max={2147483647}
-            step="1"
-            value={stock}
-            onChange={(event) => setStock(event.target.value)}
-            onFocus={(event) => event.currentTarget.select()}
-            placeholder="0"
-            className="h-9"
-          />
-          <p className="text-[10px] font-normal text-[#667085]">
-            {Number(stock || 0).toLocaleString("id-ID")} slot total ·{" "}
-            {(initial?.unitCount ?? 0).toLocaleString("id-ID")} unit sudah diatur.
-            {initial && Number(stock || 0) < initial.unitCount
-              ? ` Minimal ${initial.unitCount.toLocaleString("id-ID")} unit.`
-              : ""}
-          </p>
-        </label>
         {TYPE_ATTRIBUTES.map((attribute) => (
           <label
             key={attribute.code}
@@ -186,13 +167,28 @@ function TypeForm({
             <ImagePlus className="size-4 shrink-0" />
             <input
               type="file"
-              accept="image/*"
-              onChange={(event) => setImage(event.target.files?.[0])}
+              accept="image/jpeg,image/png,image/webp"
+              onChange={async (event) => {
+                const input = event.target;
+                const file = input.files?.[0];
+                input.value = "";
+                if (!file) return;
+                setProcessing(true);
+                try {
+                  setImage(await compressImage(file, PHOTO_MAX_EDGE));
+                } catch {
+                  toast.error("Gambar tidak dapat diproses. Pilih berkas lain.");
+                } finally {
+                  setProcessing(false);
+                }
+              }}
               className="min-w-0 flex-1 file:mr-2 file:rounded-md file:border-0 file:bg-[#EFF6FF] file:px-2 file:py-1 file:text-xs file:text-[#175CD3]"
             />
           </span>
+          {image && <span className="block font-normal text-[#12833B]">Gambar terpilih: {image.name}</span>}
         </label>
       </div>
+      {processing && <ImageProcessingOverlay />}
       <DialogFooter>
         <Button
           type="button"

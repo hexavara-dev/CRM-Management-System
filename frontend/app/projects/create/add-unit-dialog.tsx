@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { clampAddCount } from "./add-unit-count";
 import { INPUT } from "./form-styles";
 import type { LocationNode, UnitItem } from "./hierarchy-step";
+import { compressImage, PHOTO_MAX_EDGE } from "@/lib/compress-image";
+import { ImageProcessingOverlay } from "./image-processing-overlay";
 import { UnitImageThumbs } from "./unit-image-thumbs";
 import type { UnitType } from "./unit-type-step";
 
@@ -43,6 +45,7 @@ export function AddUnitDialog({
   const options = unitTypes.flatMap((type) => type.variants.map((variant) => ({ type, variant })));
   const assigned = (key: string) => units.filter((u) => u.typeVariantKey === key && u.locationId !== "root").length;
   const firstAvailable = options.find(({ variant }) => Math.max(0, Number(variant.stock) - assigned(variant.key)) > 0);
+  const [processing, setProcessing] = useState(false);
   const [activeVariant, setActiveVariant] = useState(firstAvailable?.variant.key ?? options[0]?.variant.key ?? "");
   // Cari nomor yang benar-benar kosong, bukan sekadar jumlah unit + 1. Dengan begitu gap nomor
   // dan unit pada lokasi lain tidak membuat generator menawarkan kode yang sudah dipakai.
@@ -237,15 +240,25 @@ export function AddUnitDialog({
                           accept="image/jpeg,image/png,image/webp"
                           multiple
                           className="sr-only"
-                          onChange={(event) => {
-                            const files = Array.from(event.target.files ?? []);
+                          onChange={async (event) => {
+                            const input = event.target;
+                            const files = Array.from(input.files ?? []);
                             const invalid = files.find((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024);
                             if (invalid) {
                               setError("Gunakan JPEG, PNG, atau WebP maksimal 10 MB per gambar.");
-                              event.target.value = "";
+                              input.value = "";
                               return;
                             }
-                            update(i, { images: files });
+                            input.value = "";
+                            if (files.length === 0) return;
+                            setProcessing(true);
+                            try {
+                              update(i, { images: await Promise.all(files.map((file) => compressImage(file, PHOTO_MAX_EDGE))) });
+                            } catch {
+                              setError("Gambar tidak dapat diproses. Pilih berkas lain.");
+                            } finally {
+                              setProcessing(false);
+                            }
                           }}
                         />
                       </label>
@@ -310,6 +323,7 @@ export function AddUnitDialog({
             <Button type="submit" className="h-10 bg-[#1980C0] text-xs text-white hover:bg-[#166ea6]">Simpan</Button>
           </DialogFooter>
         </form>
+        {processing && <ImageProcessingOverlay />}
       </DialogContent>
     </Dialog>
   );

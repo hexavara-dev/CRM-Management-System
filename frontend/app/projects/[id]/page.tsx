@@ -37,7 +37,7 @@ import {
 import { UnitDistribution } from "./unit-distribution";
 import { InfoCard } from "@/components/projects/info-card";
 import { CoverGallery } from "./cover-gallery";
-import { parseMapsInput } from "../create/parse-maps-link";
+import { mapsLink, parseMapsInput } from "../create/parse-maps-link";
 import { FacilityIcon } from "@/components/projects/facility-icon";
 import { SoldSummary } from "./sold-summary";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -339,7 +339,7 @@ export default function ProjectDetailPage() {
                                 {/* Klik di dalam iframe akan membuka maps.google.com di frame dan diblokir Google;
                                     lapisan ini membuka Google Maps di tab baru. */}
                                 <a
-                                  href={map.preview.embedUrl.replace("&output=embed", "")}
+                                  href={mapsLink(map.preview, fullAddress(project))}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   aria-label="Buka lokasi di Google Maps"
@@ -347,7 +347,7 @@ export default function ProjectDetailPage() {
                                 />
                               </div>
                               <a
-                                href={map.preview.embedUrl.replace("&output=embed", "")}
+                                href={mapsLink(map.preview, fullAddress(project))}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-[#1980C0] hover:underline"

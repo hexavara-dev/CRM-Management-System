@@ -268,6 +268,11 @@ async function ensureAttributeDefinitions() {
   return byCode;
 }
 
+/** Hanya field yang diterima API; unitCount adalah data tampilan. */
+function typeVariantPayload({ unitCount: _unitCount, ...option }: ProductTypeVariant) {
+  return { ...option, currentPrice: option.currentPrice ?? option.basePrice };
+}
+
 async function uploadTypeImage(
   projectId: string,
   variantId: string,
@@ -297,7 +302,7 @@ export function useCreateProjectType() {
           `/api/products/${form.projectId}/variants`,
           {
             name: form.name.trim(),
-            typeVariants: form.typeVariants?.map((option) => ({ ...option, currentPrice: option.currentPrice ?? option.basePrice })) ?? [{ name: "Default", code: null, basePrice: form.basePrice, currentPrice: form.basePrice, stock: form.stock }],
+            typeVariants: form.typeVariants?.map(typeVariantPayload) ?? [{ name: "Default", code: null, basePrice: form.basePrice, currentPrice: form.basePrice, stock: form.stock }],
           },
         )
       ).data;
@@ -357,7 +362,7 @@ export function useUpdateProjectType() {
         {
           name: form.name.trim(),
           ...(form.typeVariants?.length
-            ? { typeVariants: form.typeVariants.map((option) => ({ ...option, currentPrice: option.currentPrice ?? option.basePrice })) }
+            ? { typeVariants: form.typeVariants.map(typeVariantPayload) }
             : { basePrice: form.basePrice, stock: form.stock }),
         },
       );

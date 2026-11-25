@@ -64,8 +64,15 @@ const locationRules: Record<string, FieldRule> = {
   type: { type: 'string', required: true, values: CATEGORY_TYPES },
 };
 
-export const validateVariant = (body: unknown, partial = false) =>
-  validateBody(body, variantRules, { partial }) as VariantInput;
+export function validateVariant(body: unknown, partial = false) {
+  const variant = validateBody(body, variantRules, { partial }) as VariantInput;
+  if (variant.typeVariants !== undefined) {
+    variant.typeVariants = arrayOf(variant.typeVariants, 100, 'typeVariants', (item) =>
+      validateBody(item, typeVariantRules)
+    );
+  }
+  return variant;
+}
 
 function arrayOf<T>(value: unknown, max: number, field: string, validate: (item: unknown) => T) {
   const items = value as unknown[];

@@ -6,6 +6,13 @@ import { useAuth } from "@/components/auth/auth-provider";
 import { NoImagePlaceholder } from "@/components/projects/no-image-placeholder";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -107,6 +114,7 @@ export default function TypesPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [dialogKey, setDialogKey] = useState(0);
+  const [previewRow, setPreviewRow] = useState<ProjectTypeRow | null>(null);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -595,14 +603,21 @@ export default function TypesPage() {
                             </p>
                           </TableCell>
                           <TableCell className="px-4 py-3">
-                            <div className="h-[72px] w-28 overflow-hidden rounded-xl border border-[#E4EAF2] bg-[#F4F4F5]">
+                            <div className="size-20 overflow-hidden rounded-xl border border-[#E4EAF2] bg-[#F4F4F5]">
                               {row.image ? (
-                                <img
-                                  src={row.image}
-                                  alt={`Tipe ${row.name}`}
-                                  className="size-full object-cover"
-                                  loading="lazy"
-                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewRow(row)}
+                                  aria-label={`Lihat gambar ${row.name}`}
+                                  className="block size-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1980C0]"
+                                >
+                                  <img
+                                    src={row.image}
+                                    alt={`Tipe ${row.name}`}
+                                    className="size-full object-cover transition-transform duration-200 hover:scale-105"
+                                    loading="lazy"
+                                  />
+                                </button>
                               ) : (
                                 <NoImagePlaceholder compact />
                               )}
@@ -719,6 +734,21 @@ export default function TypesPage() {
           </section>
         </main>
       </SidebarInset>
+      <Dialog open={previewRow !== null} onOpenChange={(open) => !open && setPreviewRow(null)}>
+        <DialogContent className="max-h-[92vh] max-w-[calc(100%-1rem)] sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{previewRow?.name}</DialogTitle>
+            <DialogDescription>{previewRow?.projectName}</DialogDescription>
+          </DialogHeader>
+          {previewRow?.image && (
+            <img
+              src={previewRow.image}
+              alt={`Tipe ${previewRow.name}`}
+              className="mx-auto max-h-[72vh] max-w-full rounded-lg object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
       <TypeDialog
         key={dialogKey}
         open={dialogOpen}

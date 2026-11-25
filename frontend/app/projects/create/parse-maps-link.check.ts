@@ -1,6 +1,6 @@
 // Cek cepat parser link Google Maps. Jalankan: npx tsx app/projects/create/parse-maps-link.check.ts
 import assert from "node:assert/strict";
-import { parseMapsInput } from "./parse-maps-link";
+import { mapsLink, parseMapsInput } from "./parse-maps-link";
 
 const coords = (s: string) => {
   const r = parseMapsInput(s);
@@ -20,6 +20,12 @@ assert.deepEqual(coords("-7.98, 112.63"), [-7.98, 112.63]);
 // Kode embed
 const embed = parseMapsInput('<iframe src="https://www.google.com/maps/embed?pb=!1m18!2d112.63!3d-7.98" width="600"></iframe>');
 assert.ok(embed.ok && embed.preview.lat === -7.98 && embed.preview.lng === 112.63);
+
+// Link tab baru tidak boleh memakai URL embed
+assert.equal(mapsLink(embed.preview), "https://www.google.com/maps?q=-7.98%2C112.63");
+const embedNoCoords = parseMapsInput("https://www.google.com/maps/embed?pb=!1m2!1s0x0:0x1!2sAlun%20Alun!3m2!1sid!2sid");
+assert.ok(embedNoCoords.ok);
+assert.equal(mapsLink(embedNoCoords.preview), "https://www.google.com/maps?q=Alun%20Alun");
 
 // Nama tempat tanpa koordinat tetap bisa dipreview
 const named = parseMapsInput("https://www.google.com/maps/place/Alun+Alun+Malang");

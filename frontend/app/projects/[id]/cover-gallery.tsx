@@ -21,6 +21,10 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
   );
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Rasio tiap foto, diketahui setelah foto dimuat.
+  const [ratios, setRatios] = useState<Record<string, number>>({});
+  const active = images[activeIndex];
+  const ratio = active ? (ratios[active.id] ?? (activeIndex === 0 ? 10 / 3 : 1)) : 10 / 3;
   const [main, ...rest] = images;
   const hiddenCount = Math.max(0, images.length - 3);
 
@@ -49,7 +53,7 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
 
   return (
     <>
-      <div className="grid aspect-[10/3] w-full grid-cols-[1fr_28%] gap-1.5 sm:grid-cols-[1fr_21%]">
+      <div className="grid aspect-[10/3] w-full grid-cols-[1fr_15%] gap-1.5">
         <button
           type="button"
           disabled={!main}
@@ -98,7 +102,7 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
                   <NoImagePlaceholder compact className="absolute inset-0" />
                 )}
                 {index === 1 && hiddenCount > 0 && (
-                  <span className="absolute inset-0 grid place-items-center bg-black/55 text-xl font-semibold text-white">
+                  <span className="absolute inset-0 grid place-items-center bg-black/55 text-center text-xs font-semibold text-white md:text-base">
                     +{hiddenCount} lainnya
                   </span>
                 )}
@@ -109,7 +113,7 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex h-[min(92vh,820px)] max-w-[calc(100%-1rem)] flex-col gap-3 overflow-hidden bg-white p-4 text-[#1f1f1f] sm:max-w-5xl">
+        <DialogContent className="flex max-h-[92vh] max-w-[calc(100%-1rem)] flex-col gap-3 overflow-hidden bg-white p-4 text-[#1f1f1f] sm:max-w-5xl">
           <div className="flex items-baseline gap-2 pr-10">
             <DialogTitle>Semua Foto</DialogTitle>
             <DialogDescription className="text-xs text-[#6b6b6b]">
@@ -119,15 +123,35 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
             </DialogDescription>
           </div>
 
-          <div className="relative isolate min-h-0 flex-1 overflow-hidden rounded-lg bg-[#F4F4F5]">
-            {images[activeIndex] && (
-              <Image
-                src={images[activeIndex].fileUrl}
-                alt={`${project.name} ${activeIndex + 1}`}
-                fill
-                unoptimized
-                className="object-contain"
-              />
+          {/* Tinggi bingkai mengikuti rasio foto; sisa ruang di samping diisi foto yang sama (blur). */}
+          <div
+            className="relative isolate max-h-[68vh] min-h-40 w-full shrink overflow-hidden rounded-lg bg-[#F4F4F5]"
+            style={{ aspectRatio: ratio }}
+          >
+            {active && (
+              <>
+                <Image
+                  src={active.fileUrl}
+                  alt=""
+                  aria-hidden
+                  fill
+                  unoptimized
+                  className="scale-110 object-cover opacity-60 blur-2xl"
+                />
+                <Image
+                  key={active.id}
+                  src={active.fileUrl}
+                  alt={`${project.name} ${activeIndex + 1}`}
+                  fill
+                  unoptimized
+                  className="object-contain"
+                  onLoad={(event) => {
+                    const { naturalWidth, naturalHeight } = event.currentTarget;
+                    if (naturalWidth && naturalHeight)
+                      setRatios((prev) => ({ ...prev, [active.id]: naturalWidth / naturalHeight }));
+                  }}
+                />
+              </>
             )}
             {images.length > 1 && (
               <>
@@ -162,7 +186,7 @@ export function CoverGallery({ project }: { project: ProjectDetail }) {
                 key={image.id}
                 onClick={() => setActiveIndex(index)}
                 className={cn(
-                  "relative h-16 w-24 shrink-0 cursor-pointer overflow-hidden rounded-md border-2 bg-[#F4F4F5]",
+                  "relative size-16 shrink-0 cursor-pointer overflow-hidden rounded-md border-2 bg-[#F4F4F5]",
                   index === activeIndex
                     ? "border-[#1980C0]"
                     : "border-transparent opacity-65 hover:opacity-100",

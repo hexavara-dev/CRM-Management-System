@@ -11,18 +11,24 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { CoverCropDialog } from "./cover-crop-dialog";
+import { compressImage, PHOTO_MAX_EDGE } from "@/lib/compress-image";
 import { PROJECT_COVER_HEIGHT, PROJECT_COVER_WIDTH } from "./cover-image";
+import { ImageProcessingOverlay } from "./image-processing-overlay";
 
-type Picked = { id: string; file: File; url: string };
-type Pending = { id: string; file: File; url: string };
+/** `source` disimpan agar foto bisa di-crop ulang saat berganti peran (sampul/foto utuh). */
+type Picked = { id: string; file: File; url: string; source: File; isBanner: boolean };
+/** Foto yang sedang di-crop sebagai sampul; `rest` adalah foto lain yang dipilih bersamaan. */
+type Pending = { id: string; file: File; url: string; replaceId?: string; rest: File[] };
 type DeleteTarget =
   | { kind: "existing"; id: string }
   | { kind: "new"; id: string; name: string };
 
 const MAX_PROJECT_COVERS = 5;
 
-/** Ukuran kotak thumbnail sampul, mengikuti mockup. */
-const TILE = "relative h-[180px] w-[135px] shrink-0 overflow-hidden rounded-lg";
+/** Thumbnail foto selain sampul: kotak 1:1. */
+const TILE = "relative size-[135px] shrink-0 overflow-hidden rounded-lg";
+/** Sampul tampil lebar sesuai rasio 10:3. */
+const COVER_TILE = "relative aspect-[10/3] w-full overflow-hidden rounded-lg";
 
 export function CoverGuide() {
   const [open, setOpen] = useState(false);
@@ -70,8 +76,7 @@ export function CoverGuide() {
         <p className="font-semibold">Gunakan gambar banner lebar</p>
         <p className="leading-4 text-background/85">
           Ukuran yang disarankan {PROJECT_COVER_WIDTH} × {PROJECT_COVER_HEIGHT}
-          px (rasio 10:3) agar cover memenuhi area tanpa banyak bagian
-          terpotong.
+          px (rasio 10:3) untuk foto sampul. Foto lainnya disimpan utuh.
         </p>
       </PopoverContent>
     </Popover>
@@ -94,12 +99,13 @@ export function CoverUpload({
   onDeleteExisting?: (id: string) => void;
 }) {
   const [items, setItems] = useState<Picked[]>([]);
-  const [pending, setPending] = useState<Pending[]>([]);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const itemsRef = useRef<Picked[]>([]);
-  const pendingRef = useRef<Pending[]>([]);
+  const pendingRef = useRef<Pending | null>(null);
   const remainingSlots = Math.max(0, MAX_PROJECT_COVERS - existing.length - items.length);
 
   // Simpan daftar terbaru untuk cleanup, lalu lepas object URL saat unmount agar tidak bocor memori.
@@ -115,7 +121,9 @@ export function CoverUpload({
     pendingRef.current = pending;
   }, [pending]);
   useEffect(() => {
-    return () => pendingRef.current.forEach((i) => URL.revokeObjectURL(i.url));
+    return () => {
+      if (pendingRef.current) URL.revokeObjectURL(pendingRef.current.url);
+    };
   }, []);
 
   const addFiles = (list: FileList | null) => {
@@ -132,32 +140,79 @@ export function CoverUpload({
           ? `Maksimal ${MAX_PROJECT_COVERS} gambar sampul. Hanya ${remainingSlots} gambar tambahan yang dapat dipilih.`
           : null,
     );
-    const next = accepted.map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      url: URL.createObjectURL(file),
-    }));
-    if (next.length) setPending((prev) => [...prev, ...next]);
     if (inputRef.current) inputRef.current.value = "";
+    const [first, ...rest] = accepted;
+    if (!first) return;
+    // Foto pertama menjadi sampul (di-crop); foto berikutnya disimpan utuh.
+    if (existing.length === 0 && items.length === 0) {
+      setPending({ id: crypto.randomUUID(), file: first, url: URL.createObjectURL(first), rest });
+    } else {
+      void addPhotos(accepted);
+    }
   };
 
-  const saveCrop = (file: File) => {
-    const current = pending[0];
-    if (!current) return;
-    const cropped = {
+  const toPhoto = async (source: File, id: string): Promise<Picked> => {
+    const file = await compressImage(source, PHOTO_MAX_EDGE);
+    return { id, file, url: URL.createObjectURL(file), source, isBanner: false };
+  };
+
+  const addPhotos = async (files: File[]) => {
+    if (files.length === 0) return;
+    setProcessing(true);
+    const results = await Promise.allSettled(files.map((file) => toPhoto(file, crypto.randomUUID())));
+    const photos = results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+    setItems((prev) => [...prev, ...photos]);
+    if (photos.length < files.length) setError("Sebagian gambar tidak dapat diproses. Pilih berkas lain.");
+    setProcessing(false);
+  };
+
+  const requestCover = (target: Picked) =>
+    setPending({
       id: crypto.randomUUID(),
+      file: target.source,
+      url: URL.createObjectURL(target.source),
+      replaceId: target.id,
+      rest: [],
+    });
+
+  const saveCrop = async (file: File) => {
+    if (!pending) return;
+    const { replaceId, rest, file: source, url } = pending;
+    const cover: Picked = {
+      id: replaceId ?? crypto.randomUUID(),
       file,
       url: URL.createObjectURL(file),
+      source,
+      isBanner: true,
     };
-    setItems((prev) => [...prev, cropped]);
-    URL.revokeObjectURL(current.url);
-    setPending((prev) => prev.slice(1));
+    URL.revokeObjectURL(url);
+    setPending(null);
     setError(null);
+
+    const replaced = items.find((item) => item.id === cover.id);
+    const oldCover = items.find((item) => item.isBanner && item.id !== cover.id);
+    if (replaced) URL.revokeObjectURL(replaced.url);
+    setItems([cover, ...items.filter((item) => item.id !== cover.id)]);
+
+    // Sampul lama kembali menjadi foto utuh dari gambar aslinya.
+    if (oldCover) {
+      setProcessing(true);
+      try {
+        const photo = await toPhoto(oldCover.source, oldCover.id);
+        URL.revokeObjectURL(oldCover.url);
+        setItems((prev) => prev.map((item) => (item.id === photo.id ? photo : item)));
+      } catch {
+        setError("Sampul lama tidak dapat dikembalikan ke foto utuh.");
+      } finally {
+        setProcessing(false);
+      }
+    }
+    await addPhotos(rest);
   };
 
   const cancelCrop = () => {
-    pending.forEach((item) => URL.revokeObjectURL(item.url));
-    setPending([]);
+    if (pending) URL.revokeObjectURL(pending.url);
+    setPending(null);
   };
 
   const removeItem = (id: string) => {
@@ -175,16 +230,22 @@ export function CoverUpload({
     } else {
       removeItem(deleteTarget.id);
     }
+    // Bila sampul terhapus dan hanya tersisa foto baru, foto pertama di-crop ulang sebagai sampul.
+    const remaining = items.filter((item) => item.id !== deleteTarget.id);
+    const existingLeft = existing.filter((item) => item.id !== deleteTarget.id).length;
+    const nextCover = remaining[0];
+    if (existingLeft === 0 && nextCover && !nextCover.isBanner) requestCover(nextCover);
     setDeleteTarget(null);
   };
 
   return (
     <div className="space-y-2">
-      {pending[0] && (
+      {processing && <ImageProcessingOverlay />}
+      {pending && (
         <CoverCropDialog
-          key={pending[0].id}
-          file={pending[0].file}
-          url={pending[0].url}
+          key={pending.id}
+          file={pending.file}
+          url={pending.url}
           onSave={saveCrop}
           onCancel={cancelCrop}
         />
@@ -193,7 +254,7 @@ export function CoverUpload({
         {existing.slice(0, MAX_PROJECT_COVERS).map((item) => (
           <div
             key={item.id}
-            className={cn(TILE, "bg-[#F6F7F9]")}
+            className={cn(item.isPrimary ? COVER_TILE : TILE, "bg-[#F6F7F9]")}
           >
             <Image
               src={item.fileUrl}
@@ -234,7 +295,7 @@ export function CoverUpload({
         {items.slice(0, remainingSlots + items.length).map((item, idx) => (
           <div
             key={item.id}
-            className={cn(TILE, "bg-[#F6F7F9]")}
+            className={cn(idx === 0 && existing.length === 0 ? COVER_TILE : TILE, "bg-[#F6F7F9]")}
           >
             <Image
               src={item.url}
@@ -248,22 +309,10 @@ export function CoverUpload({
                 Cover
               </span>
             )}
-            {idx > 0 && (
+            {idx > 0 && existing.length === 0 && (
               <button
                 type="button"
-                onClick={() =>
-                  setItems((current) => {
-                    const chosen = current.find(
-                      (entry) => entry.id === item.id,
-                    );
-                    return chosen
-                      ? [
-                          chosen,
-                          ...current.filter((entry) => entry.id !== item.id),
-                        ]
-                      : current;
-                  })
-                }
+                onClick={() => requestCover(item)}
                 className="absolute bottom-1.5 left-1.5 cursor-pointer rounded bg-white/95 px-2 py-1 text-[10px] font-medium"
               >
                 Jadikan cover

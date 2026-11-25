@@ -34,7 +34,7 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
         <img
           src={unit.images[activeIndex]}
           alt={`Unit ${unit.number}`}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain"
         />
         <button
           type="button"
@@ -62,7 +62,7 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
             key={image}
             type="button"
             onClick={() => setActiveIndex(index)}
-            className={`h-20 overflow-hidden rounded-xl border-2 transition ${activeIndex === index ? "border-[#1684ff]" : "border-transparent"}`}
+            className={`aspect-square overflow-hidden rounded-xl border-2 transition ${activeIndex === index ? "border-[#1684ff]" : "border-transparent"}`}
           >
             <img
               src={image}

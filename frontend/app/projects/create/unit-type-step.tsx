@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { FIELD_LABEL, INPUT } from "./form-styles";
+import { compressImage, PHOTO_MAX_EDGE } from "@/lib/compress-image";
+import { ImageProcessingOverlay } from "./image-processing-overlay";
 import type { UnitItem } from "./hierarchy-step";
 
 /** Batas stok per varian, sama dengan validasi backend. */
@@ -67,6 +69,7 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
   const [editing, setEditing] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
   const [draft, setDraft] = useState<UnitType>(() => emptyType());
+  const [processing, setProcessing] = useState(false);
   const previewUrls = useRef<string[]>([]);
   useEffect(() => () => previewUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
@@ -320,29 +323,40 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
             <div className="space-y-2">
               <label className="block text-xs font-medium text-[#1f1f1f]">Gambar tipe (opsional)</label>
               <div>
-                <label htmlFor="unit-type-image-upload" className={cn("group relative flex h-28 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#8FC9E8] bg-[#E8F3FA] text-[#1980C0] transition hover:bg-[#D9EEF9]", (draft.imagePreviewUrl || draft.imageUrl) && "bg-[#E8F3FA]")}>
+                <label htmlFor="unit-type-image-upload" className={cn("group relative flex size-40 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#8FC9E8] bg-[#E8F3FA] text-[#1980C0] transition hover:bg-[#D9EEF9]", (draft.imagePreviewUrl || draft.imageUrl) && "bg-[#E8F3FA]")}>
                   {draft.imagePreviewUrl || draft.imageUrl ? (
                     <Image src={draft.imagePreviewUrl ?? draft.imageUrl ?? ""} alt={`Preview ${draft.name || "tipe"}`} fill unoptimized className="object-cover" />
                   ) : (
-                    <span className="flex items-center gap-2 text-sm font-medium">
+                    <span className="flex flex-col items-center gap-2 text-center text-xs font-medium">
                       <ImagePlus className="size-5" />
                       Upload gambar tipe
                     </span>
                   )}
                   {(draft.imagePreviewUrl || draft.imageUrl) && <span className="absolute inset-x-0 bottom-0 bg-black/55 px-3 py-2 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">Ganti gambar</span>}
                 </label>
-                <input id="unit-type-image-upload" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => {
-                  const file = event.target.files?.[0];
+                <input id="unit-type-image-upload" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={async (event) => {
+                  const input = event.target;
+                  const file = input.files?.[0];
                   if (!file) return;
                   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
                     toast.error("Gunakan JPEG, PNG, atau WebP maksimal 10 MB.");
-                    event.target.value = "";
+                    input.value = "";
                     return;
                   }
-                  const imagePreviewUrl = URL.createObjectURL(file);
-                  previewUrls.current.push(imagePreviewUrl);
-                  setDraft((current) => ({ ...current, image: file, imagePreviewUrl }));
+                  input.value = "";
+                  setProcessing(true);
+                  try {
+                    const image = await compressImage(file, PHOTO_MAX_EDGE);
+                    const imagePreviewUrl = URL.createObjectURL(image);
+                    previewUrls.current.push(imagePreviewUrl);
+                    setDraft((current) => ({ ...current, image, imagePreviewUrl }));
+                  } catch {
+                    toast.error("Gambar tidak dapat diproses. Pilih berkas lain.");
+                  } finally {
+                    setProcessing(false);
+                  }
                 }} />
+                {processing && <ImageProcessingOverlay />}
               </div>
               <p className="text-[10px] text-[#6b6b6b]">JPEG, PNG, atau WebP; maksimal 10 MB.</p>
             </div>
