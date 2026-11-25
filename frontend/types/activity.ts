@@ -30,6 +30,8 @@ export interface Task {
 export interface AttachmentRecord {
   id: string;
   fileName?: string;
+  /** Nama dokumen persyaratan Deal, mis. KTP Customer. */
+  documentName?: string | null;
   name?: string;
   fileUrl: string;
   fileType?: string;

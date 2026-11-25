@@ -4,9 +4,11 @@ import { DealDetailUseCase } from '../src/usecases/deal/DealDetailUseCase.js';
 function database(overrides: Record<string, unknown> = {}) {
   const db: Record<string, any> = {
     deal: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'deal-1', statusId: 'open', status: null }),
+      findFirst: jest.fn().mockResolvedValue({ id: 'deal-1', statusId: 'open', status: null, unitId: 'unit-1', unitClaimed: true }),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({ id: 'deal-1' }),
     },
+    productUnit: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     dealPayment: {
       create: jest.fn().mockResolvedValue({ id: 'payment-1', type: 'ITJ', amount: 10n, status: 'PAID' }),
       findFirst: jest.fn(),
@@ -90,6 +92,9 @@ describe('DealDetailUseCase Lost workflow', () => {
         lostNotes: 'Customer batal',
       }),
     });
+    expect(db.productUnit.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'AVAILABLE' } })
+    );
     expect(db.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'lost_approved' }) })
     );

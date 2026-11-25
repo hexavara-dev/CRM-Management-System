@@ -78,6 +78,7 @@ export default function DealDetailPage() {
   const [editPaymentMethod, setEditPaymentMethod] =
     useState<DealPaymentMethod>("CASH");
   const [editBankId, setEditBankId] = useState("");
+  const [editClosingDate, setEditClosingDate] = useState("");
   const [editStageId, setEditStageId] = useState("");
   const [editAssignedUserId, setEditAssignedUserId] = useState("");
   const [stageOpen, setStageOpen] = useState(false);
@@ -94,7 +95,8 @@ export default function DealDetailPage() {
     !!editUnitId &&
     !!editStageId &&
     !!editAssignedUserId &&
-    (!editNeedsBank || !!editBankId);
+    (!editNeedsBank || !!editBankId) &&
+    (!deal?.expectedClosingDate || !!editClosingDate);
 
   const populateEditForm = () => {
     setEditAmount(String(deal?.amount ?? deal?.expectedAmount ?? ""));
@@ -103,6 +105,7 @@ export default function DealDetailPage() {
     setEditUnitId(deal?.unitId || "");
     setEditPaymentMethod(deal?.paymentMethod || "CASH");
     setEditBankId(deal?.financingBankId || "");
+    setEditClosingDate(deal?.expectedClosingDate?.slice(0, 10) ?? "");
     setEditStageId(deal?.stageId || "");
     setEditAssignedUserId(deal?.assignedUserId || "");
   };
@@ -150,7 +153,10 @@ export default function DealDetailPage() {
         id: attachment.id,
         entityType: "deal" as const,
         entityId: deal.id,
-        name: attachment.fileName || attachment.name || "Dokumen",
+        name:
+          [attachment.documentName, attachment.fileName || attachment.name]
+            .filter(Boolean)
+            .join(" - ") || "Dokumen",
         fileUrl: attachment.fileUrl,
         fileType: attachment.fileType || "application/octet-stream",
         fileSize: attachment.fileSize || 0,
@@ -204,6 +210,11 @@ export default function DealDetailPage() {
         unitId: editUnitId,
         paymentMethod: editPaymentMethod,
         financingBankId: editNeedsBank ? editBankId : null,
+        // Hanya dikirim bila berubah agar riwayat tidak mencatat perubahan palsu.
+        ...(editClosingDate &&
+        editClosingDate !== deal.expectedClosingDate?.slice(0, 10)
+          ? { expectedClosingDate: editClosingDate }
+          : {}),
         stageId: editStageId,
         assignedUserId: editAssignedUserId,
       },
@@ -520,13 +531,32 @@ export default function DealDetailPage() {
               <select
                 className={selectClass}
                 value={editUnitId}
-                onChange={(event) => setEditUnitId(event.target.value)}
+                onChange={(event) => {
+                  const unit = editUnitsQuery.data?.find(
+                    (item) => item.id === event.target.value,
+                  );
+                  setEditUnitId(event.target.value);
+                  // Unit lain mengikuti harga jual resminya; unit semula kembali ke harga Deal.
+                  if (unit)
+                    setEditAmount(
+                      String(
+                        unit.id === deal.unitId
+                          ? (deal.amount ?? deal.expectedAmount ?? "")
+                          : unit.typeVariant.currentPrice,
+                      ),
+                    );
+                }}
                 disabled={!editProjectId || editUnitsQuery.isLoading}
               >
                 <option value="">
                   {editUnitsQuery.isLoading ? "Memuat unit..." : "Pilih unit"}
                 </option>
-                {(editUnitsQuery.data ?? []).map((unit) => (
+                {(editUnitsQuery.data ?? [])
+                  .filter(
+                    (unit) =>
+                      unit.status === "AVAILABLE" || unit.id === deal.unitId,
+                  )
+                  .map((unit) => (
                   <option key={unit.id} value={unit.id}>
                     {unit.code} — {unit.variant.name} / {unit.typeVariant.name}
                   </option>
@@ -541,6 +571,16 @@ export default function DealDetailPage() {
                 inputMode="numeric"
                 value={editAmount}
                 onChange={(event) => setEditAmount(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editClosingDate">Target Closing</Label>
+              <Input
+                id="editClosingDate"
+                type="date"
+                className={inputClass}
+                value={editClosingDate}
+                onChange={(event) => setEditClosingDate(event.target.value)}
               />
             </div>
             <div className="space-y-1.5">

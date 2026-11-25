@@ -4,6 +4,7 @@ import type {
   DealPaymentType,
   PrismaClient,
 } from '@prisma/client';
+import { lockDeal, syncDealUnit } from './dealUnit.js';
 
 export type DealActor = { tenantId: string; userId: string };
 
@@ -222,6 +223,8 @@ export class DealDetailUseCase {
       if (claimed.count !== 1) throw new Error('Lost request conflict');
 
       if (decision === 'APPROVED') {
+        // Deal Lost tidak lagi memegang unit.
+        await syncDealUnit(tx, actor.tenantId, await lockDeal(tx, dealId, actor.tenantId), null);
         await tx.deal.update({
           where: { id: dealId },
           data: {
@@ -265,6 +268,6 @@ export class DealDetailUseCase {
         where: { id: requestId },
         include: { requestedBy: { select: publicUser }, reviewedBy: { select: publicUser } },
       });
-    });
+    }, { isolationLevel: 'ReadCommitted' });
   }
 }

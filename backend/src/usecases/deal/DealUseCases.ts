@@ -1,4 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { expireOverdueReservations } from '../reservation/reservationStatus.js';
+import { assertDealPrice, lockDeal, syncDealUnit } from './dealUnit.js';
 import type { IRepository } from '../../domain/repositories/IRepository.js';
 import type { CreateDealDTO, UpdateDealDTO } from '../../presentation/dtos/DealDTO.js';
 
@@ -37,19 +39,6 @@ export class DealUseCases {
     this.assertPayment(dto);
   }
 
-  async createDeal(dto: CreateDealDTO) {
-    if (!dto.tenantId || !this.prisma) throw new Error('Tenant context missing');
-    await this.validateRelations(dto, dto.tenantId);
-    const defaultStage = dto.stageId || !this.prisma.stage?.findFirst ? null : await this.prisma.stage.findFirst({ where: { tenantId: dto.tenantId, entityType: 'deal', isDefaultStage: true, isActive: true }, select: { id: true } });
-    const financingBank = dto.financingBankId ? await this.prisma.financingBank.findFirst({ where: { id: dto.financingBankId, tenantId: dto.tenantId }, select: { name: true } }) : null;
-    return this.prisma.$transaction(async (tx) => {
-      const deal = await tx.deal.create({ data: { tenantId: dto.tenantId, leadId: dto.leadId ?? null, assignedUserId: dto.assignedUserId ?? null, stageId: dto.stageId ?? defaultStage?.id ?? null, statusId: dto.statusId ?? null, refCode: dto.refCode ?? null, dealType: dto.dealType ?? null, expectedAmount: dto.expectedAmount ?? null, amount: dto.expectedAmount ?? null, currency: dto.currency || 'IDR', expectedClosingDate: dto.expectedClosingDate ?? null, unitId: dto.unitId ?? null, paymentMethod: dto.paymentMethod ?? 'CASH', bankName: dto.paymentMethod === 'CASH' ? null : financingBank?.name ?? dto.bankName?.trim() ?? null, notes: dto.notes ?? null, financingBankId: dto.financingBankId ?? null } });
-      await tx.dealActivity.create({ data: { tenantId: dto.tenantId, dealId: deal.id, activityType: 'deal_created' } });
-      await tx.auditLog.create({ data: { tenantId: dto.tenantId, entityId: deal.id, entityType: 'deal', action: 'deal_created', changes: { leadId: dto.leadId ?? null, stageId: deal.stageId } } });
-      return deal;
-    });
-  }
-
   async getDeal(id: string, tenantId?: string) {
     if (!tenantId) throw new Error('Tenant context missing');
     if (!this.prisma) {
@@ -77,6 +66,7 @@ export class DealUseCases {
 
   async updateDeal(id: string, dto: UpdateDealDTO, tenantId?: string, actorId?: string) {
     const before = await this.getDeal(id, tenantId); if (!tenantId) throw new Error('Tenant context missing'); await this.validateRelations(dto, tenantId);
+    if (dto.leadId !== undefined && dto.leadId !== (before.leadId ?? null)) throw new Error('Invalid leadId: a Deal cannot move to another Lead');
     const data: Prisma.DealUncheckedUpdateInput = {}; const fields: (keyof UpdateDealDTO)[] = ['amount', 'leadId', 'assignedUserId', 'stageId', 'statusId', 'dealType', 'expectedAmount', 'currency', 'expectedClosingDate', 'closingDate', 'lostReason', 'lostNotes', 'unitId', 'paymentMethod', 'bankName', 'notes', 'financingBankId'];
     for (const key of fields) if (dto[key] !== undefined) (data as Record<string, unknown>)[key] = dto[key];
     if (dto.paymentMethod === 'CASH') { data.bankName = null; data.financingBankId = null; }
@@ -94,14 +84,22 @@ export class DealUseCases {
       const newValue = (data as Record<string, unknown>)[key];
       if (oldValue !== newValue) changes[key] = { old: oldValue ?? null, new: newValue ?? null };
     }
+    if (dto.unitId) await expireOverdueReservations(this.prisma, tenantId);
     return this.prisma.$transaction(async (tx) => {
+      const current = await lockDeal(tx, id, tenantId);
       const updated = await tx.deal.update({ where: { id }, data, include: DEAL_INCLUDE });
+      // Harga yang sudah disepakati tetap berlaku; diperiksa hanya bila harga atau unit berubah.
+      if (current.unitClaimed && updated.unitId &&
+        (updated.unitId !== current.unitId || Number(updated.amount ?? 0) !== Number(current.amount ?? 0))) {
+        await assertDealPrice(tx, tenantId, updated.unitId, Number(updated.amount ?? 0));
+      }
+      await syncDealUnit(tx, tenantId, current, updated);
       if (dto.stageId !== undefined && dto.stageId !== before.stageId) {
         await tx.dealActivity.create({ data: { tenantId, dealId: id, actorId: actorId ?? null, activityType: 'stage_changed', notes: { create: { content: `Fase Deal diubah dari ${before.stage?.name ?? '-'} ke ${updated.stage?.name ?? '-'}.` } } } });
       }
       if (Object.keys(changes).length > 0) await tx.auditLog.create({ data: { tenantId, entityId: id, entityType: 'deal', actorId: actorId ?? null, action: dto.stageId !== undefined && dto.stageId !== before.stageId ? 'stage_changed' : 'update', changes: changes as Prisma.InputJsonValue } });
       return updated;
-    });
+    }, { isolationLevel: 'ReadCommitted' });
   }
 
   async deleteDeal(id: string, tenantId?: string) {
@@ -110,6 +108,8 @@ export class DealUseCases {
     if (!this.prisma) return this.dealRepository.delete(id);
 
     await this.prisma.$transaction(async (tx) => {
+      const current = await lockDeal(tx, id, tenantId);
+      await syncDealUnit(tx, tenantId, current, null);
       // Inventory records are historical evidence and must survive a Deal deletion.
       await tx.record.updateMany({ where: { dealId: id, deal: { tenantId } }, data: { dealId: null } });
       // Attachment rows are owned by the Deal. File lifecycle cleanup remains the
@@ -117,7 +117,11 @@ export class DealUseCases {
       await tx.attachment.deleteMany({ where: { dealId: id, tenantId } });
       const removed = await tx.deal.deleteMany({ where: { id, tenantId } });
       if (removed.count !== 1) throw new Error('Deal not found');
-    });
+      // Lead tanpa Deal dapat dibuatkan Deal lagi.
+      if (current.leadId && (await tx.deal.count({ where: { tenantId, leadId: current.leadId } })) === 0) {
+        await tx.lead.updateMany({ where: { id: current.leadId, tenantId }, data: { converted: false, convertedDate: null } });
+      }
+    }, { isolationLevel: 'ReadCommitted' });
 
     return deal;
   }

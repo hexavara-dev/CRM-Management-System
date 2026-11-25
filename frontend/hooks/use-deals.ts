@@ -1,3 +1,4 @@
+import { invalidateDealData } from "@/hooks/use-create-deal";
 import api from "@/lib/api";
 import type { Deal, DealPaymentMethod, DealSummary } from "@/types/deal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -57,10 +58,7 @@ export function useDeals(filters: DealFilters = {}, enabled = true) {
       (await api.get<DealResponse>("/api/deal", { params: filters })).data,
     enabled,
   });
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["deals"] });
-    queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
-  };
+  const invalidate = () => invalidateDealData(queryClient);
   const update = useMutation({
     mutationFn: async ({
       id,

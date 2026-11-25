@@ -211,6 +211,11 @@ export function DealOverview({
               </InfoRow>
             </div>
             <div className="md:pl-6">
+              <InfoRow label="Target Closing">
+                {deal.expectedClosingDate
+                  ? date(deal.expectedClosingDate)
+                  : "—"}
+              </InfoRow>
               <InfoRow label="Fase Deal">
                 <span
                   className="inline-flex rounded-md px-2 py-0.5 text-xs"
@@ -430,9 +435,16 @@ export function DealOverview({
                 >
                   <FileText className="size-5 text-[#F04438]" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium text-[#101828]">
-                      {document.fileName || document.name}
+                    <p className="break-words text-xs font-medium text-[#101828]">
+                      {document.documentName ||
+                        document.fileName ||
+                        document.name}
                     </p>
+                    {document.documentName && (
+                      <p className="break-all text-[11px] text-[#475467]">
+                        {document.fileName}
+                      </p>
+                    )}
                     <p className="text-[10px] text-[#667085]">
                       {document.fileSize
                         ? `${Math.round(document.fileSize / 1024)} KB`
@@ -450,7 +462,7 @@ export function DealOverview({
                       href={document.fileUrl}
                       target="_blank"
                       rel="noreferrer"
-                      aria-label={`Download ${document.fileName || document.name}`}
+                      aria-label={`Download ${document.documentName || document.fileName || document.name}`}
                     >
                       <Download className="size-3.5" />
                     </a>

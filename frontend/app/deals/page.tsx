@@ -1,5 +1,6 @@
 "use client";
 
+import { AddDealDialog } from "@/app/deals/components/add-deal-dialog";
 import { DealsPipelineTab } from "@/app/deals/components/deals-pipeline-tab";
 import { AppSidebar } from "@/components/Sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ import {
   List,
   type LucideIcon,
   Pencil,
+  Plus,
   Search,
   Target,
   Trash2,
@@ -169,6 +171,7 @@ export default function DealsPage() {
   const [tab, setTab] = useState("list");
   const [filters, setFilters] = useState<DealFilters>({ page: 1, limit: 10 });
   const [search, setSearch] = useState("");
+  const [isAddOpen, setIsAddOpen] = useState(false);
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const { deals, pagination, summary, isLoading, deleteDeal, isDeleting } =
@@ -229,7 +232,8 @@ export default function DealsPage() {
                 Pipeline
               </TabsTrigger>
             </TabsList>
-            <section className="mt-4">
+            <section className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
               <h2 className="text-lg font-semibold">
                 {tab === "list" ? "Deals Management" : "Deals Pipeline"}
               </h2>
@@ -237,6 +241,15 @@ export default function DealsPage() {
                 Kelola dan pantau progres transaksi dari Lead yang telah
                 dikonversi.
               </p>
+              </div>
+              <Button
+                type="button"
+                className="bg-[#1980C0] text-white hover:bg-[#166ea6]"
+                onClick={() => setIsAddOpen(true)}
+              >
+                <Plus className="size-4" />
+                Tambah Deal
+              </Button>
             </section>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Kpi
@@ -654,6 +667,12 @@ export default function DealsPage() {
           </Tabs>
         </main>
       </SidebarInset>
+      {isAddOpen && (
+        <AddDealDialog
+          onClose={() => setIsAddOpen(false)}
+          onCreated={(deal) => router.push(`/deals/${deal.id}`)}
+        />
+      )}
       <ConfirmModal
         isOpen={!!removeId}
         onClose={() => setRemoveId(null)}
