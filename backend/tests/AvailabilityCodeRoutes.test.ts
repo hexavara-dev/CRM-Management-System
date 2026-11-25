@@ -46,6 +46,7 @@ function setup(foundProject: typeof project | null = project) {
     productCategory: { findMany: categoryFindMany },
     productUnit: { findMany: unitFindMany },
     reservation: { findMany: jest.fn().mockResolvedValue([]) },
+    productMedia: { findMany: jest.fn().mockResolvedValue([] as never) },
   } as never);
   return { useCase, findUnique, findFirst, categoryFindMany, unitFindMany };
 }

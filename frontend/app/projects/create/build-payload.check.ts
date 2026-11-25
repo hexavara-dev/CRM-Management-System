@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { buildProjectPayload } from "./build-payload";
 
 const info = { code: "CL", name: " Citraland ", status: "Inactive", description: "", province: "Jawa Timur", city: "Malang", subdistrict: " Bululawang ", village: "", address: "", postalCode: "", mapsUrl: "", siteplanImg: "" };
-const type36 = { name: "Type 36", variants: [{ key: "standard", name: "Standard", code: "", stock: "3", basePrice: "350000000", specs: { building_area: "36.4", surface_area: "", floors: "1", bedroom: "2", bathroom: "1", carport: "" } }] };
+const type36 = { name: "Type 36", photos: [{ key: "a", id: "m-1", url: "x" }, { key: "b", url: "y", file: {} as File }], variants: [{ key: "standard", name: "Standard", code: "", stock: "3", basePrice: "350000000", specs: { building_area: "36.4", surface_area: "", floors: "1", bedroom: "2", bathroom: "1", carport: "" }, photos: [{ key: "c", url: "z", file: {} as File }, { key: "d", id: "m-2", url: "x" }] }] };
 const nodes = [
   { id: "n1", parentId: "root", name: "Cluster A", level: "Cluster" },
   { id: "n2", parentId: "n1", name: "Block A", level: "Block" },
@@ -24,6 +24,8 @@ assert.deepEqual(payload.variants[0].typeVariants[0].attributes.map((a) => [a.co
   ["bathroom", 1],
   ["carport", 0],
 ]);
+assert.deepEqual(payload.variants[0].mediaOrder, ["m-1", "new:0"]);
+assert.deepEqual(payload.variants[0].typeVariants[0].mediaOrder, ["new:0", "m-2"]);
 assert.equal("attributes" in payload.variants[0], false); // spesifikasi hanya di varian
 assert.deepEqual(payload.locations, [
   { key: "n1", parentKey: null, name: "Cluster A", type: "CLUSTER" },

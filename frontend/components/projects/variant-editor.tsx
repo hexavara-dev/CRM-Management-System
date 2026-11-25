@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { FIELD_LABEL, INPUT } from "@/app/projects/create/form-styles";
+import { PhotoPicker } from "@/components/projects/photo-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RupiahInput } from "@/components/ui/rupiah-input";
@@ -30,7 +31,7 @@ export function VariantEditor({
   children,
 }: {
   variants: VariantDraft[];
-  onChange: (variants: VariantDraft[]) => void;
+  onChange: (update: (variants: VariantDraft[]) => VariantDraft[]) => void;
   /** Jumlah unit yang sudah dibuat; varian yang punya unit tidak dapat dihapus. */
   createdUnits: (variant: VariantDraft) => number;
   /** Info tipe (nama, gambar) di atas daftar varian. */
@@ -53,16 +54,16 @@ export function VariantEditor({
   }, [activeKey]);
 
   const update = (key: string, patch: Partial<VariantDraft>) =>
-    onChange(variants.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+    onChange((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
   const add = () => {
     const variant = newVariant("", active);
-    onChange([...variants, variant]);
+    onChange((current) => [...current, variant]);
     setSelectedKey(variant.key);
   };
   const remove = (key: string) => {
     const index = variants.findIndex((item) => item.key === key);
     if (key === active?.key) setSelectedKey((variants[index + 1] ?? variants[index - 1])?.key);
-    onChange(variants.filter((item) => item.key !== key));
+    onChange((current) => current.filter((item) => item.key !== key));
   };
 
   // Browser tidak dapat menampilkan pesan untuk form varian yang tersembunyi, jadi variannya dipilih dulu.
@@ -209,6 +210,17 @@ export function VariantEditor({
                     </label>
                   ))}
                 </div>
+              </div>
+              <div className="border-t border-[#EDEDED] pt-4">
+                <PhotoPicker
+                  label="Foto varian"
+                  photos={variant.photos}
+                  onChange={(change) =>
+                    onChange((current) =>
+                      current.map((item) => (item.key === variant.key ? { ...item, photos: change(item.photos) } : item)),
+                    )
+                  }
+                />
               </div>
             </div>
           );

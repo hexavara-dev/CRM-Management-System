@@ -36,7 +36,7 @@ function fixture(unitStatus = 'AVAILABLE') {
     },
     reservation: { count: fn(0) },
     unitPriceAdjustment: { count: fn(0) },
-    productMedia: { count: fn(0), createMany: fn(), deleteMany: fn(), updateMany: fn(), update: fn(), findFirst: fn(null) },
+    productMedia: { findMany: fn([]), create: fn(), count: fn(0), createMany: fn(), deleteMany: fn(), updateMany: fn(), update: fn(), findFirst: fn(null) },
   };
   const prisma = {
     product: { findFirst: fn(project) },
@@ -127,20 +127,23 @@ describe('project edit wizard persistence', () => {
       getPublicUrl: jest.fn((path: string) => ({ publicUrl: `http://localhost:3000/uploads/${path}` })),
       getFilePathFromPublicUrl: jest.fn(() => 't-1/old-type.jpg'),
     };
+    tx.productMedia.findMany.mockResolvedValue([
+      { id: 'type-image-1', fileUrl: 'http://localhost:3000/uploads/t-1/old-type.jpg', sortOrder: 0, isPrimary: true },
+    ]);
     const image = {
       originalname: 'type.jpg', mimetype: 'image/jpeg',
       buffer: Buffer.from([0xff, 0xd8, 0xff, 0x00]), size: 4,
     } as Express.Multer.File;
 
     await new ProductUseCase(prisma as never, storage as never).update(
-      'p-1', 't-1', baseInput, [], [{ variantIndex: 0, file: image }],
+      'p-1', 't-1', { ...baseInput, variants: [{ ...baseInput.variants[0], mediaOrder: ['new:0'] }] }, [], [{ variantIndex: 0, file: image }],
     );
 
     expect(tx.productMedia.deleteMany).toHaveBeenCalledWith({
-      where: { tenantId: 't-1', productId: 'p-1', variantId: { in: ['v-1'] }, mediaType: 'IMAGE' },
+      where: { tenantId: 't-1', productId: 'p-1', variantId: 'v-1', typeVariantId: null, id: { in: ['type-image-1'] } },
     });
-    expect(tx.productMedia.createMany).toHaveBeenCalledWith({
-      data: [expect.objectContaining({ productId: 'p-1', variantId: 'v-1', mediaType: 'IMAGE', isPrimary: true })],
+    expect(tx.productMedia.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: 'p-1', variantId: 'v-1', typeVariantId: null, isPrimary: true }),
     });
     expect(storage.remove).toHaveBeenCalledWith(['t-1/old-type.jpg']);
   });

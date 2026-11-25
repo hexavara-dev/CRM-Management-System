@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { compressImage } from "@/lib/compress-image";
+import { newPhotoFiles } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 import { CoverGuide, CoverUpload } from "./cover-upload";
 import { LocationPicker } from "./location-picker";
@@ -107,6 +108,17 @@ export function ProjectWizard({
     return nextInfo;
   };
 
+  const typePhotoUploads = () => ({
+    typeImages: unitTypes.flatMap((type, variantIndex) =>
+      newPhotoFiles(type.photos).map((file) => ({ variantIndex, file })),
+    ),
+    typeVariantImages: unitTypes.flatMap((type, variantIndex) =>
+      type.variants.flatMap((variant, typeVariantIndex) =>
+        newPhotoFiles(variant.photos).map((file) => ({ variantIndex, typeVariantIndex, file })),
+      ),
+    ),
+  });
+
   const buildPayload = (infoOverride: ProjectInfo = info) => {
     let payload;
     try {
@@ -140,9 +152,6 @@ export function ProjectWizard({
   const save = () => {
     const payload = buildPayload();
     if (!payload) return;
-    const typeImages = unitTypes.flatMap((type, variantIndex) =>
-      type.image ? [{ variantIndex, file: type.image }] : [],
-    );
     const unitImages = units.flatMap((unit, unitIndex) =>
       (unit.images ?? []).map((file) => ({ unitIndex, file })),
     );
@@ -161,14 +170,14 @@ export function ProjectWizard({
               : {}),
           },
           covers: coverFiles,
-          typeImages,
+          ...typePhotoUploads(),
           siteplan: siteplanFile,
           unitImages,
         },
       );
     } else {
       createProject.mutate(
-        { payload, covers: coverFiles, typeImages, siteplan: siteplanFile, unitImages },
+        { payload, covers: coverFiles, ...typePhotoUploads(), siteplan: siteplanFile, unitImages },
         { onSuccess: (project) => router.push(`/projects/${project.id}`) },
       );
     }
@@ -194,7 +203,7 @@ export function ProjectWizard({
           ...(structureChanged ? { locations: payload.locations, units: payload.units } : {}),
         },
         covers: coverFiles,
-        typeImages: typesChanged ? unitTypes.flatMap((type, variantIndex) => type.image ? [{ variantIndex, file: type.image }] : []) : [],
+        ...(typesChanged ? typePhotoUploads() : { typeImages: [], typeVariantImages: [] }),
         siteplan: siteplanFile,
         unitImages: structureChanged ? units.flatMap((unit, unitIndex) => (unit.images ?? []).map((file) => ({ unitIndex, file }))) : [],
       },

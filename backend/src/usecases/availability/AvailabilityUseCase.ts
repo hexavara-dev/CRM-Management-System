@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient, ProductCategoryType, ProductUnitStatus } from '@prisma/client';
+import { byLocationName } from '../product/catalogStructure.js';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 import {
   availabilityIntegrity,
@@ -220,7 +221,7 @@ export class AvailabilityUseCase {
     const hierarchyByProduct = new Map(
       products.map((product) => [
         product.id,
-        buildSafeAvailabilityHierarchy(product.categoryId, categoryRows),
+        buildSafeAvailabilityHierarchy(product.categoryId, [...categoryRows].sort(byLocationName)),
       ])
     );
     const ignoredUnitsByProduct = new Map(products.map((product) => [product.id, 0]));
@@ -328,7 +329,8 @@ export class AvailabilityUseCase {
       where: { tenantId },
       select: { id: true, code: true, parentId: true, name: true, type: true },
     });
-    const hierarchy = buildSafeAvailabilityHierarchy(product.categoryId, categoryRows);
+    // Urutan di sini menentukan urutan lokasi di semua halaman Availability dan Unit Distribution.
+    const hierarchy = buildSafeAvailabilityHierarchy(product.categoryId, [...categoryRows].sort(byLocationName));
     if (!hierarchy) return null;
 
     const projectUnits = await this.prisma.productUnit.findMany({
@@ -411,6 +413,24 @@ export class AvailabilityUseCase {
     };
   }
 
+  /** Foto pengganti unit tanpa foto: foto varian, lalu foto tipe, lalu sampul proyek. */
+  private async fallbackImages(tenantId: string, productId: string, variantId: string, typeVariantId: string) {
+    const media = await this.prisma.productMedia.findMany({
+      where: {
+        tenantId, productId, unitId: null, mediaType: 'IMAGE',
+        OR: [{ typeVariantId }, { variantId, typeVariantId: null }, { variantId: null, typeVariantId: null }],
+      },
+      orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: { fileUrl: true, variantId: true, typeVariantId: true },
+    });
+    const groups = [
+      media.filter((item) => item.typeVariantId),
+      media.filter((item) => item.variantId && !item.typeVariantId),
+      media.filter((item) => !item.variantId),
+    ];
+    return (groups.find((group) => group.length) ?? []).map((item) => item.fileUrl);
+  }
+
   private mapUnits(units: AvailabilityUnit[], categories: Map<string, AvailabilityCategory>) {
     return units.map((unit) => {
       const location = categories.get(unit.categoryId);
@@ -478,7 +498,6 @@ export class AvailabilityUseCase {
     const siblings = node.parentId
       ? childCategories(node.parentId, data.categories)
           .map((item) => ({ code: item.code, name: item.name }))
-          .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true }))
       : [];
     const blocks = [
       ...new Set(
@@ -486,7 +505,7 @@ export class AvailabilityUseCase {
           .map((unit) => nearestCategory(unit.categoryId, 'BLOCK', data.categories)?.name)
           .filter((name): name is string => Boolean(name))
       ),
-    ];
+    ].sort((a, b) => byLocationName({ name: a }, { name: b }));
 
     return {
       project: {
@@ -557,6 +576,9 @@ export class AvailabilityUseCase {
       return `${item.value}${suffix}`;
     };
     const price = priceOf(unit);
+    const images = unit.media.length
+      ? unit.media.map((media) => media.fileUrl)
+      : await this.fallbackImages(tenantId, data.product.id, unit.variantId, unit.typeVariantId);
     const specifications = unitAttributes.map(({ attribute, value }) => ({
       key: attribute.code,
       label: `${attribute.name}: ${value}${attribute.unit ? ` ${attribute.unit}` : ''}`,
@@ -583,7 +605,7 @@ export class AvailabilityUseCase {
       basePrice: Number(unit.typeVariant?.basePrice ?? 0),
       promo: 0,
       finalPrice: price,
-      images: unit.media.map((media) => media.fileUrl),
+      images,
       floorPlan: null,
       specifications,
     };

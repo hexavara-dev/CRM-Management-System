@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { localStorage } from '../../infrastructure/storage/localStorage.js';
+import { MAX_TYPE_IMAGES } from './typeImages.js';
 
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const DOCUMENT_TYPES = ['application/pdf'];
@@ -86,10 +87,11 @@ export class ProductMediaUseCase {
     productId: string,
     variantId: string | null,
     unitId: string | null,
-    exceptId?: string
+    exceptId?: string,
+    typeVariantId: string | null = null
   ) {
     await tx.productMedia.updateMany({
-      where: { tenantId, productId, variantId, unitId, isPrimary: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+      where: { tenantId, productId, variantId, typeVariantId, unitId, isPrimary: true, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
       data: { isPrimary: false },
     });
   }
@@ -122,6 +124,14 @@ export class ProductMediaUseCase {
     else throw new Error('Unsupported file type');
 
     if (!matchesSignature(file.mimetype, file.buffer)) throw new Error('Unsupported file type');
+    if (variantId && mediaType === 'IMAGE') {
+      const count = await this.prisma.productMedia.count({
+        where: { tenantId, productId, variantId, typeVariantId: null, unitId: null, mediaType: 'IMAGE' },
+      });
+      if (count >= MAX_TYPE_IMAGES) {
+        throw new Error(`Invalid photos: at most ${MAX_TYPE_IMAGES} photos are allowed per type or variant`);
+      }
+    }
 
     const ext = EXT_BY_MIME[file.mimetype];
     const filePath = `${tenantId}/product/${productId}/${randomUUID()}.${ext}`;
@@ -197,12 +207,15 @@ export class ProductMediaUseCase {
     const media = await this.find(id, tenantId);
     const variantId = input.variantId !== undefined ? input.variantId : media.variantId;
     const unitId = input.unitId !== undefined ? input.unitId : media.unitId;
+    if (media.typeVariantId && (variantId !== media.variantId || unitId)) {
+      throw new Error('Invalid media target: a variant photo cannot move');
+    }
     if (variantId && unitId) throw new Error('Media cannot target both a variant and a unit');
     if (variantId) await this.assertVariant(media.productId, variantId, tenantId);
     if (unitId) await this.assertUnit(media.productId, unitId, tenantId);
 
     return this.prisma.$transaction(async (tx) => {
-      if (input.isPrimary) await this.clearPrimary(tx, tenantId, media.productId, variantId, unitId, id);
+      if (input.isPrimary) await this.clearPrimary(tx, tenantId, media.productId, variantId, unitId, id, media.typeVariantId);
       const data: Prisma.ProductMediaUncheckedUpdateInput = { variantId, unitId };
       if (input.title !== undefined) data.title = input.title;
       if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;

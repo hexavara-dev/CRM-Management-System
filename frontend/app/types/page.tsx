@@ -3,15 +3,9 @@
 import { PageHeading } from "@/components/PageHeading";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
+import { TypeGallery, typeGalleryPhotos } from "@/components/projects/type-gallery";
 import { NoImagePlaceholder } from "@/components/projects/no-image-placeholder";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -526,19 +520,25 @@ export default function TypesPage() {
                           </TableCell>
                           <TableCell className="px-4 py-3">
                             <div className="size-20 overflow-hidden rounded-xl border border-[#E4EAF2] bg-[#F4F4F5]">
-                              {row.image ? (
+                              {typeGalleryPhotos(row)[0] ? (
                                 <button
                                   type="button"
                                   onClick={() => setPreviewRow(row)}
-                                  aria-label={`Lihat gambar ${row.name}`}
-                                  className="block size-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1980C0]"
+                                  aria-label={`Lihat foto ${row.name}`}
+                                  className="relative block size-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1980C0]"
                                 >
+                                  {/* Foto utama tipe; bila tidak ada, foto varian pertama. */}
                                   <img
-                                    src={row.image}
+                                    src={typeGalleryPhotos(row)[0].url}
                                     alt={`Tipe ${row.name}`}
                                     className="size-full object-cover transition-transform duration-200 hover:scale-105"
                                     loading="lazy"
                                   />
+                                  {typeGalleryPhotos(row).length > 1 && (
+                                    <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/65 px-1.5 text-[10px] font-medium text-white">
+                                      +{typeGalleryPhotos(row).length - 1}
+                                    </span>
+                                  )}
                                 </button>
                               ) : (
                                 <NoImagePlaceholder compact />
@@ -656,21 +656,7 @@ export default function TypesPage() {
           </section>
         </main>
       </SidebarInset>
-      <Dialog open={previewRow !== null} onOpenChange={(open) => !open && setPreviewRow(null)}>
-        <DialogContent className="max-h-[92vh] max-w-[calc(100%-1rem)] sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{previewRow?.name}</DialogTitle>
-            <DialogDescription>{previewRow?.projectName}</DialogDescription>
-          </DialogHeader>
-          {previewRow?.image && (
-            <img
-              src={previewRow.image}
-              alt={`Tipe ${previewRow.name}`}
-              className="mx-auto max-h-[72vh] max-w-full rounded-lg object-contain"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {previewRow && <TypeGallery type={previewRow} onClose={() => setPreviewRow(null)} />}
       <TypeDialog
         key={dialogKey}
         open={dialogOpen}

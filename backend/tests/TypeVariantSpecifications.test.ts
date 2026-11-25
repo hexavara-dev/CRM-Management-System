@@ -135,6 +135,7 @@ describe('type variant specifications', () => {
       ]) },
       productUnit: { findMany: unitFindMany },
       reservation: { findMany: fn([]) },
+      productMedia: { findMany: fn([]) },
     };
     const detail = await new AvailabilityUseCase(prisma as never).unit('t-1', 'PRJ', 'C1', 'A-01');
     expect(detail?.specifications).toEqual([{ key: 'bedroom', label: 'Kamar Tidur: 3' }]);

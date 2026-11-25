@@ -12,8 +12,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { duplicateVariantName, TYPE_DIALOG_CLASS, TYPE_FORM_CLASS, VariantEditor } from "@/components/projects/variant-editor";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { ImageProcessingOverlay } from "@/app/projects/create/image-processing-overlay";
-import { compressImage, PHOTO_MAX_EDGE } from "@/lib/compress-image";
+import { PhotoPicker } from "@/components/projects/photo-picker";
+import type { Photo } from "@/lib/photos";
 import { toast } from "sonner";
 import {
   type ProjectTypeRow,
@@ -21,7 +21,6 @@ import {
   useUpdateProjectType,
 } from "@/hooks/use-project-types";
 import { newVariant, type VariantDraft } from "@/lib/unit-specs";
-import { ImagePlus } from "lucide-react";
 import { useState } from "react";
 
 type ProjectOption = { id: string; name: string };
@@ -49,12 +48,12 @@ function TypeForm({
           stock: String(option.stock),
           basePrice: String(option.basePrice),
           specs: option.specs,
+          photos: option.photos,
         }))
       : [newVariant("Default")],
   );
   const savedVariant = (variant: VariantDraft) => initial?.typeVariants.find((option) => option.id === variant.id);
-  const [image, setImage] = useState<File>();
-  const [processing, setProcessing] = useState(false);
+  const [photos, setPhotos] = useState<Photo[]>(initial?.photos ?? []);
   const pending = createType.isPending || updateType.isPending;
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -79,9 +78,10 @@ function TypeForm({
           minPrice: saved?.minPrice ?? null,
           stock: Number(variant.stock),
           specs: variant.specs,
+          photos: variant.photos,
         };
       }),
-      image,
+      photos,
     };
 
     if (initial) {
@@ -135,35 +135,9 @@ function TypeForm({
             className="h-9"
           />
         </label>
-        <label className="block space-y-1.5 text-xs font-medium text-[#344054]">
-          Gambar tipe (opsional)
-          <span className="flex min-h-10 items-center gap-2 rounded-lg border border-dashed border-[#D0D5DD] px-3 py-2 text-xs font-normal text-[#667085]">
-            <ImagePlus className="size-4 shrink-0" />
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={async (event) => {
-                const input = event.target;
-                const file = input.files?.[0];
-                input.value = "";
-                if (!file) return;
-                setProcessing(true);
-                try {
-                  setImage(await compressImage(file, PHOTO_MAX_EDGE));
-                } catch {
-                  toast.error("Gambar tidak dapat diproses. Pilih berkas lain.");
-                } finally {
-                  setProcessing(false);
-                }
-              }}
-              className="min-w-0 flex-1 file:mr-2 file:rounded-md file:border-0 file:bg-[#EFF6FF] file:px-2 file:py-1 file:text-xs file:text-[#175CD3]"
-            />
-          </span>
-          {image && <span className="block font-normal text-[#12833B]">Gambar terpilih: {image.name}</span>}
-        </label>
+        <PhotoPicker label="Foto tipe" photos={photos} onChange={setPhotos} />
         </div>
       </VariantEditor>
-      {processing && <ImageProcessingOverlay />}
       <DialogFooter>
         <Button
           type="button"

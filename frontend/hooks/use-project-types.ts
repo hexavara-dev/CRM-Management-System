@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { errorMessage } from "@/hooks/use-projects";
 import api from "@/lib/api";
+import { newPhotoFiles, type Photo, photoOrder, typePhotos, typeVariantPhotos } from "@/lib/photos";
 import { specPayload, type SpecValues, specsOfVariant } from "@/lib/unit-specs";
 
 type ProductList = {
@@ -33,6 +34,7 @@ type ProductAttribute = {
 type ProductMedia = {
   id: string;
   variantId: string | null;
+  typeVariantId: string | null;
   fileUrl: string;
   mediaType: string;
   isPrimary: boolean;
@@ -47,7 +49,7 @@ type ProductVariant = {
   minPrice: number | null;
   stock: number;
   unitCount: number;
-  typeVariants: (Omit<ProductTypeVariant, "id" | "specs"> & { id: string })[];
+  typeVariants: (Omit<ProductTypeVariant, "id" | "specs" | "photos"> & { id: string })[];
 };
 
 export type ProductTypeVariant = {
@@ -60,6 +62,7 @@ export type ProductTypeVariant = {
   stock: number;
   unitCount?: number;
   specs: SpecValues;
+  photos: Photo[];
 };
 
 type ProductDetail = {
@@ -88,7 +91,7 @@ export type ProjectTypeRow = {
   currentPrice: number;
   stock: number;
   unitCount: number;
-  image: string | null;
+  photos: Photo[];
   typeVariants: ProductTypeVariant[];
 };
 
@@ -97,7 +100,7 @@ export type ProjectTypeForm = {
   variantId?: string;
   name: string;
   typeVariants: ProductTypeVariant[];
-  image?: File;
+  photos: Photo[];
 };
 
 export type ProjectTypesData = {
@@ -154,17 +157,8 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
         stock: option.stock,
         unitCount: option.unitCount,
         specs: specsOfVariant(product.attributes, option.id),
+        photos: typeVariantPhotos(product.media, option.id),
       }));
-      const media = product.media
-        .filter(
-          (item) => item.mediaType === "IMAGE" && item.variantId === variant.id,
-        )
-        .sort(
-          (left, right) =>
-            Number(right.isPrimary) - Number(left.isPrimary) ||
-            left.sortOrder - right.sortOrder,
-        )[0];
-
       return {
         id: variant.id,
         projectId: product.id,
@@ -182,8 +176,8 @@ async function loadProductTypes(): Promise<ProjectTypesData> {
         currentPrice: Number(variant.currentPrice),
         stock: variant.stock,
         unitCount: variant.unitCount,
-        // Gambar type hanya dari media milik variant ini; gambar proyek (variantId null) tidak dipakai sebagai fallback.
-        image: media?.fileUrl ?? null,
+        // Hanya foto milik tipe ini; foto proyek dan foto varian tidak dipakai sebagai pengganti.
+        photos: typePhotos(product.media, variant.id),
         typeVariants,
       } satisfies ProjectTypeRow;
     }),
@@ -213,56 +207,46 @@ export function useProjectTypes() {
 }
 
 /** Hanya field yang diterima API; unitCount adalah data tampilan. */
-function typeVariantPayload({ unitCount: _unitCount, specs, ...option }: ProductTypeVariant) {
-  return { ...option, currentPrice: option.currentPrice ?? option.basePrice, attributes: specPayload(specs) };
+function typeVariantPayload({ unitCount: _unitCount, specs, photos, ...option }: ProductTypeVariant) {
+  return {
+    ...option,
+    currentPrice: option.currentPrice ?? option.basePrice,
+    attributes: specPayload(specs),
+    mediaOrder: photoOrder(photos),
+  };
 }
 
-async function uploadTypeImage(
-  projectId: string,
-  variantId: string,
-  image?: File,
-) {
-  if (!image) return true;
-  const form = new FormData();
-  form.append("file", image);
-  form.append("variantId", variantId);
-  form.append("isPrimary", "true");
-  form.append("sortOrder", "0");
-  try {
-    await api.post(`/api/products/${projectId}/media`, form);
-    return true;
-  } catch {
-    return false;
-  }
+/** Tipe, varian, spesifikasi, dan foto dikirim dalam satu request. */
+function typeFormData(form: ProjectTypeForm) {
+  const data = new FormData();
+  data.append(
+    "payload",
+    JSON.stringify({
+      name: form.name.trim(),
+      mediaOrder: photoOrder(form.photos),
+      typeVariants: form.typeVariants.map(typeVariantPayload),
+    }),
+  );
+  for (const file of newPhotoFiles(form.photos)) data.append("typeImages", file);
+  const variantFiles = form.typeVariants.flatMap((variant, index) =>
+    newPhotoFiles(variant.photos).map((file) => ({ index, file })),
+  );
+  data.append("typeVariantImageIndexes", JSON.stringify(variantFiles.map(({ index }) => index)));
+  for (const { file } of variantFiles) data.append("typeVariantImages", file);
+  return data;
 }
 
 export function useCreateProjectType() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (form: ProjectTypeForm) => {
-      const variant = (
-        await api.post<{ id: string }>(`/api/products/${form.projectId}/variants`, {
-          name: form.name.trim(),
-          typeVariants: form.typeVariants.map(typeVariantPayload),
-        })
-      ).data;
-      const imageUploaded = await uploadTypeImage(
-        form.projectId,
-        variant.id,
-        form.image,
-      );
-      return { partial: !imageUploaded };
-    },
-    onSuccess: async ({ partial }) => {
+    mutationFn: (form: ProjectTypeForm) =>
+      api.post(`/api/products/${form.projectId}/variants`, typeFormData(form)),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["project-types"] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       await queryClient.invalidateQueries({ queryKey: ["project"] });
       await queryClient.invalidateQueries({ queryKey: ["project-edit"] });
-      toast[partial ? "warning" : "success"](
-        partial
-          ? "Tipe tersimpan, tetapi gambar gagal disimpan."
-          : "Tipe berhasil ditambahkan.",
-      );
+      toast.success("Tipe berhasil ditambahkan.");
     },
     onError: (error) =>
       toast.error(errorMessage(error, "Gagal menambahkan tipe.")),
@@ -272,32 +256,14 @@ export function useCreateProjectType() {
 export function useUpdateProjectType() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (
-      form: ProjectTypeForm & {
-        variantId: string;
-      },
-    ) => {
-      await api.put(`/api/products/${form.projectId}/variants/${form.variantId}`, {
-        name: form.name.trim(),
-        typeVariants: form.typeVariants.map(typeVariantPayload),
-      });
-      const imageUploaded = await uploadTypeImage(
-        form.projectId,
-        form.variantId,
-        form.image,
-      );
-      return { partial: !imageUploaded };
-    },
-    onSuccess: async ({ partial }) => {
+    mutationFn: (form: ProjectTypeForm & { variantId: string }) =>
+      api.put(`/api/products/${form.projectId}/variants/${form.variantId}`, typeFormData(form)),
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["project-types"] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       await queryClient.invalidateQueries({ queryKey: ["project"] });
       await queryClient.invalidateQueries({ queryKey: ["project-edit"] });
-      toast[partial ? "warning" : "success"](
-        partial
-          ? "Tipe diperbarui, tetapi gambar gagal disimpan."
-          : "Tipe berhasil diperbarui.",
-      );
+      toast.success("Tipe berhasil diperbarui.");
     },
     onError: (error) =>
       toast.error(errorMessage(error, "Gagal memperbarui tipe.")),

@@ -1,3 +1,5 @@
+import type { Photo } from "./photos";
+
 /** Spesifikasi unit yang disimpan per varian (`product_attributes`, nilai INT). */
 export const SPEC_FIELDS = [
   { code: "building_area", name: "Building Area", short: "LB", unit: "m²" },
@@ -20,6 +22,7 @@ export type VariantDraft = {
   stock: string;
   basePrice: string;
   specs: SpecValues;
+  photos: Photo[];
 };
 
 const specsFrom = (value: (code: SpecCode) => string) =>
@@ -34,6 +37,7 @@ export function newVariant(name = "", copyFrom?: VariantDraft): VariantDraft {
     stock: "",
     basePrice: "",
     specs: copyFrom ? { ...copyFrom.specs } : specsFrom(() => ""),
+    photos: [],
   };
 }
 

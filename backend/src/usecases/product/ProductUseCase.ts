@@ -3,10 +3,12 @@ import type { AttributeDataType, Prisma, PrismaClient } from '@prisma/client';
 import { localStorage } from '../../infrastructure/storage/localStorage.js';
 import { validateProductImage } from './ProductMediaUseCase.js';
 import { assertCategory, categoryWithDescendants } from './catalogRules.js';
+import { saveOwnerImages, type StoredImage } from './typeImages.js';
 import { retryUniqueCode, uniqueCode } from './uniqueCode.js';
 import {
   assertUnits,
   assertUnitsWithinStock,
+  byLocationName,
   orderLocations,
   type LocationInput,
   type UnitInput,
@@ -38,6 +40,8 @@ export type VariantInput = {
   /** Batas minimum harga jual unit; null menghapus batas. */
   minPrice?: number | null;
   stock?: number;
+  /** Urutan akhir foto tipe; lihat saveOwnerImages. */
+  mediaOrder?: string[];
 };
 
 export type TypeVariantInput = {
@@ -51,9 +55,12 @@ export type TypeVariantInput = {
   isActive?: boolean;
   /** Spesifikasi unit milik varian ini; yang tidak dikirim tidak diubah. */
   attributes?: NewAttributeInput[];
+  /** Urutan akhir foto varian; lihat saveOwnerImages. */
+  mediaOrder?: string[];
 };
 
 export type ProjectTypeImage = { variantIndex: number; file: Express.Multer.File };
+export type ProjectTypeVariantImage = { variantIndex: number; typeVariantIndex: number; file: Express.Multer.File };
 export type ProjectUnitImage = { unitIndex: number; file: Express.Multer.File };
 
 export type ProductInput = {
@@ -95,6 +102,13 @@ export type ProductListFilters = {
   categoryId?: string;
   isActive?: boolean;
 };
+
+/** Photos sent with one type: for the type itself and for its variants. */
+export type TypeImageUploads = {
+  type: Express.Multer.File[];
+  variants: { typeVariantIndex: number; file: Express.Multer.File }[];
+};
+const NO_IMAGES: TypeImageUploads = { type: [], variants: [] };
 
 function assertUniqueSpecifications(variants: VariantInput[]) {
   for (const variant of variants) {
@@ -168,6 +182,62 @@ export class ProductUseCase {
       stock: variant.stock ?? 0,
       isActive: true,
     }];
+  }
+
+  /** Writes validated images to storage; paths are tracked in `stored` first so failures can be cleaned up. */
+  private async storeImages<T extends { file: Express.Multer.File }>(
+    tenantId: string,
+    productId: string,
+    images: T[],
+    stored: (T & StoredImage)[]
+  ) {
+    const extensions = images.map((image) => validateProductImage(image.file));
+    for (const [index, image] of images.entries()) {
+      const path = `${tenantId}/product/${productId}/${randomUUID()}.${extensions[index]}`;
+      stored.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
+      await this.storage.upload(path, image.file.buffer);
+    }
+  }
+
+  private async removeStoredUrls(urls: string[]) {
+    const paths = urls.flatMap((url) => {
+      try { return [this.storage.getFilePathFromPublicUrl(url)]; }
+      catch { return []; }
+    });
+    if (paths.length) await this.storage.remove(paths);
+  }
+
+  private assertTypeImages(
+    variants: VariantInput[],
+    typeImages: { variantIndex: number }[],
+    typeVariantImages: { variantIndex: number; typeVariantIndex: number }[]
+  ) {
+    if (typeImages.some((image) => !variants[image.variantIndex])) throw new Error('Invalid type image indexes');
+    if (typeVariantImages.some((image) => {
+      const variant = variants[image.variantIndex];
+      return !variant || !this.typeVariantsOf(variant)[image.typeVariantIndex];
+    })) throw new Error('Invalid type variant image indexes');
+  }
+
+  /** Saves the photos of one type and all of its variants; returns the URLs of removed photos. */
+  private async saveTypeImages(
+    tx: Prisma.TransactionClient,
+    owner: { tenantId: string; productId: string; variantId: string },
+    variant: VariantInput,
+    typeVariantIds: string[],
+    typeImages: StoredImage[],
+    typeVariantImages: (StoredImage & { typeVariantIndex: number })[]
+  ) {
+    const removed = await saveOwnerImages(tx, { ...owner, typeVariantId: null }, variant.mediaOrder, typeImages);
+    for (const [index, option] of this.typeVariantsOf(variant).entries()) {
+      removed.push(...await saveOwnerImages(
+        tx,
+        { ...owner, typeVariantId: typeVariantIds[index] as string },
+        option.mediaOrder,
+        typeVariantImages.filter((image) => image.typeVariantIndex === index)
+      ));
+    }
+    return removed;
   }
 
   private async assertProductRelations(tenantId: string, input: ProductInput) {
@@ -326,7 +396,7 @@ export class ProductUseCase {
       select: { id: true, parentId: true, name: true, code: true, type: true },
     });
     const children = new Map<string, typeof categories>();
-    for (const category of categories) {
+    for (const category of [...categories].sort(byLocationName)) {
       if (!category.parentId) continue;
       const siblings = children.get(category.parentId) ?? [];
       siblings.push(category);
@@ -354,7 +424,7 @@ export class ProductUseCase {
    * location tree and the units in the same transaction, so a project is saved as a whole.
    * Without `categoryId`, a PROJECT category with the same name and code becomes the tree root.
    */
-  async create(tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = []) {
+  async create(tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = [], typeVariantImages: ProjectTypeVariantImage[] = []) {
     if (!input.name || !input.code) throw new Error('name and code are required');
     const facilityIds = input.facilityAttributeIds ?? [];
     if (facilityIds.length) {
@@ -365,10 +435,7 @@ export class ProductUseCase {
     }
     const variants = input.variants ?? [];
     if (variants.length === 0) throw new Error('variants must contain at least one variant');
-    if (typeImages.some((image) => image.variantIndex < 0 || image.variantIndex >= variants.length) ||
-      new Set(typeImages.map((image) => image.variantIndex)).size !== typeImages.length) {
-      throw new Error('Invalid type image indexes');
-    }
+    this.assertTypeImages(variants, typeImages, typeVariantImages);
     assertUniqueSpecifications(variants);
     const locations = orderLocations(input.locations ?? []);
     const units = input.units ?? [];
@@ -383,11 +450,12 @@ export class ProductUseCase {
 
     if (covers.length > 10) throw new Error('Invalid cover count');
     const extensions = covers.map(validateProductImage);
-    const typeExtensions = typeImages.map((image) => validateProductImage(image.file));
+    [...typeImages, ...typeVariantImages].forEach((image) => validateProductImage(image.file));
     const siteplanExtension = siteplan ? validateProductImage(siteplan) : undefined;
-    const productId = covers.length || typeImages.length || siteplan || unitImages.length ? randomUUID() : undefined;
+    const productId = covers.length || typeImages.length || typeVariantImages.length || siteplan || unitImages.length ? randomUUID() : undefined;
     const storedCovers: { file: Express.Multer.File; path: string; url: string }[] = [];
-    const storedTypeImages: { file: Express.Multer.File; variantIndex: number; path: string; url: string }[] = [];
+    const storedTypeImages: (ProjectTypeImage & StoredImage)[] = [];
+    const storedTypeVariantImages: (ProjectTypeVariantImage & StoredImage)[] = [];
     let storedSiteplan: { file: Express.Multer.File; path: string; url: string } | undefined;
     const storedUnitImages: { file: Express.Multer.File; unitIndex: number; path: string; url: string }[] = [];
 
@@ -399,11 +467,8 @@ export class ProductUseCase {
         storedCovers.push({ file, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, file.buffer);
       }
-      for (const [index, image] of typeImages.entries()) {
-        const path = `${tenantId}/product/${productId}/${randomUUID()}.${typeExtensions[index]}`;
-        storedTypeImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
-        await this.storage.upload(path, image.file.buffer);
-      }
+      await this.storeImages(tenantId, productId as string, typeImages, storedTypeImages);
+      await this.storeImages(tenantId, productId as string, typeVariantImages, storedTypeVariantImages);
       if (siteplan && siteplanExtension) {
         const path = `${tenantId}/product/${productId as string}/siteplan-${randomUUID()}.${siteplanExtension}`;
         storedSiteplan = { file: siteplan, path, url: this.storage.getPublicUrl(path).publicUrl };
@@ -569,27 +634,28 @@ export class ProductUseCase {
             })),
           });
         }
-        if (storedTypeImages.length) {
-          await tx.productMedia.createMany({
-            data: storedTypeImages.map(({ file, variantIndex, url }) => ({
-              tenantId, productId: product.id, variantId: variantIds[variantIndex] as string,
-              mediaType: 'IMAGE', fileName: file.originalname.slice(0, 255), fileUrl: url,
-              fileType: file.mimetype, fileSize: file.buffer.length, sortOrder: 0, isPrimary: true,
-            })),
-          });
+        for (const [variantIndex, variant] of variants.entries()) {
+          await this.saveTypeImages(
+            tx,
+            { tenantId, productId: product.id, variantId: variantIds[variantIndex] as string },
+            variant,
+            typeVariantIds[variantIndex] as string[],
+            storedTypeImages.filter((image) => image.variantIndex === variantIndex),
+            storedTypeVariantImages.filter((image) => image.variantIndex === variantIndex)
+          );
         }
         return product;
       },
       { timeout: 30000 }
     ));
     } catch (error) {
-      await this.storage.remove([...storedCovers, ...storedTypeImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
+      await this.storage.remove([...storedCovers, ...storedTypeImages, ...storedTypeVariantImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
       throw error;
     }
     return this.get(created.id, tenantId);
   }
 
-  async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = []) {
+  async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = [], typeVariantImages: ProjectTypeVariantImage[] = []) {
     const project = await this.get(id, tenantId);
     if (input.categoryId !== undefined && input.categoryId !== project.categoryId) {
       throw new Error('Conflict: a project root category cannot be changed through a regular update');
@@ -645,11 +711,9 @@ export class ProductUseCase {
     if (structureProvided && (project.category.type !== 'PROJECT' || input.categoryId !== undefined)) {
       throw new Error('Invalid project category for wizard update');
     }
-    if (typeImages.length && (!structureProvided ||
-      typeImages.some((image) => image.variantIndex < 0 || image.variantIndex >= (structureInput.variants?.length ?? 0)) ||
-      new Set(typeImages.map((image) => image.variantIndex)).size !== typeImages.length)) {
-      throw new Error('Invalid type image indexes');
-    }
+    if (typeImages.length && !structureProvided) throw new Error('Invalid type image indexes');
+    if (typeVariantImages.length && !structureProvided) throw new Error('Invalid type variant image indexes');
+    this.assertTypeImages(structureInput.variants ?? [], typeImages, typeVariantImages);
     const projectImages = project.media.filter((media) => media.mediaType === 'IMAGE' && !media.variantId && !media.unitId);
     const removeMediaIds = input.removeMediaIds ?? [];
     if (removeMediaIds.length > 10 || new Set(removeMediaIds).size !== removeMediaIds.length ||
@@ -679,26 +743,22 @@ export class ProductUseCase {
     if (input.isActive !== undefined) data.isActive = input.isActive;
     if (covers.length > 10) throw new Error('Invalid cover count');
     const extensions = covers.map(validateProductImage);
-    const typeExtensions = typeImages.map((image) => validateProductImage(image.file));
+    [...typeImages, ...typeVariantImages].forEach((image) => validateProductImage(image.file));
     const siteplanExtension = siteplan ? validateProductImage(siteplan) : undefined;
     const storedCovers: { file: Express.Multer.File; path: string; url: string }[] = [];
-    const storedTypeImages: { file: Express.Multer.File; variantIndex: number; path: string; url: string }[] = [];
+    const storedTypeImages: (ProjectTypeImage & StoredImage)[] = [];
+    const storedTypeVariantImages: (ProjectTypeVariantImage & StoredImage)[] = [];
     let storedSiteplan: { file: Express.Multer.File; path: string; url: string } | undefined;
     const storedUnitImages: { file: Express.Multer.File; unitIndex: number; path: string; url: string }[] = [];
-    const replacedTypeMedia = typeImages.flatMap(({ variantIndex }) =>
-      project.media.filter((media) => media.variantId === structureInput.variants?.[variantIndex]?.id && media.mediaType === 'IMAGE')
-    );
+    let removedTypeUrls: string[] = [];
     try {
       for (const [index, file] of covers.entries()) {
         const path = `${tenantId}/product/${id}/${randomUUID()}.${extensions[index]}`;
         storedCovers.push({ file, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, file.buffer);
       }
-      for (const [index, image] of typeImages.entries()) {
-        const path = `${tenantId}/product/${id}/${randomUUID()}.${typeExtensions[index]}`;
-        storedTypeImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
-        await this.storage.upload(path, image.file.buffer);
-      }
+      await this.storeImages(tenantId, id, typeImages, storedTypeImages);
+      await this.storeImages(tenantId, id, typeVariantImages, storedTypeVariantImages);
       if (siteplan && siteplanExtension) {
         const path = `${tenantId}/product/${id}/siteplan-${randomUUID()}.${siteplanExtension}`;
         storedSiteplan = { file: siteplan, path, url: this.storage.getPublicUrl(path).publicUrl };
@@ -739,7 +799,21 @@ export class ProductUseCase {
           data: facilityIds.map((attributeId) => ({ tenantId, productId: id, variantId: null, attributeId, value: 1 })),
         });
       }
-      const variantIds = structureProvided ? await this.syncStructure(tx, id, tenantId, project.categoryId, structureInput) : [];
+      removedTypeUrls = [];
+      if (structureProvided) {
+        const synced = await this.syncStructure(tx, id, tenantId, project.categoryId, structureInput);
+        removedTypeUrls.push(...synced.removedUrls);
+        for (const [variantIndex, variant] of (structureInput.variants ?? []).entries()) {
+          removedTypeUrls.push(...await this.saveTypeImages(
+            tx,
+            { tenantId, productId: id, variantId: synced.variantIds[variantIndex] as string },
+            variant,
+            synced.typeVariantIds[variantIndex] as string[],
+            storedTypeImages.filter((image) => image.variantIndex === variantIndex),
+            storedTypeVariantImages.filter((image) => image.variantIndex === variantIndex)
+          ));
+        }
+      }
       if (storedUnitImages.length && structureInput.units) {
         const unitRows = await tx.productUnit.findMany({
           where: { tenantId, variant: { productId: id, tenantId }, code: { in: structureInput.units.map((unit) => unit.code) } },
@@ -752,19 +826,6 @@ export class ProductUseCase {
             mediaType: 'IMAGE' as const, fileName: image.file.originalname.slice(0, 255), fileUrl: image.url,
             fileType: image.file.mimetype, fileSize: image.file.buffer.length, sortOrder: 0, isPrimary: false,
           })).filter((media) => Boolean(media.unitId)),
-        });
-      }
-      if (storedTypeImages.length) {
-        const selectedIds = storedTypeImages.map((image) => variantIds[image.variantIndex] as string);
-        await tx.productMedia.deleteMany({
-          where: { tenantId, productId: id, variantId: { in: selectedIds }, mediaType: 'IMAGE' },
-        });
-        await tx.productMedia.createMany({
-          data: storedTypeImages.map(({ file, variantIndex, url }) => ({
-            tenantId, productId: id, variantId: variantIds[variantIndex] as string,
-            mediaType: 'IMAGE', fileName: file.originalname.slice(0, 255), fileUrl: url,
-            fileType: file.mimetype, fileSize: file.buffer.length, sortOrder: 0, isPrimary: true,
-          })),
         });
       }
       if (removeMediaIds.length) {
@@ -798,14 +859,10 @@ export class ProductUseCase {
       }
       }, { timeout: 30000 }));
     } catch (error) {
-      await this.storage.remove([...storedCovers, ...storedTypeImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
+      await this.storage.remove([...storedCovers, ...storedTypeImages, ...storedTypeVariantImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
       throw error;
     }
-    const removedPaths = [...removedMedia, ...replacedTypeMedia].flatMap((media) => {
-      try { return [this.storage.getFilePathFromPublicUrl(media.fileUrl)]; }
-      catch { return []; }
-    });
-    if (removedPaths.length) await this.storage.remove(removedPaths);
+    await this.removeStoredUrls([...removedMedia.map((media) => media.fileUrl), ...removedTypeUrls]);
     if (storedSiteplan && project.category.siteplanImg) {
       try {
         await this.storage.remove([this.storage.getFilePathFromPublicUrl(project.category.siteplanImg)]);
@@ -885,6 +942,14 @@ export class ProductUseCase {
     const masterOf = specificationMasters(tx, tenantId);
     const variantIds: string[] = [];
     const typeVariantIds: string[][] = [];
+    // Foto tipe/varian yang dihapus ikut terhapus; berkasnya dibersihkan setelah transaksi berhasil.
+    const removedUrls: string[] = [];
+    const collectUrls = async (where: Prisma.ProductMediaWhereInput) => {
+      const media = await tx.productMedia.findMany({
+        where: { tenantId, productId, mediaType: { not: 'VIDEO_LINK' }, ...where }, select: { fileUrl: true },
+      });
+      removedUrls.push(...media.map((item) => item.fileUrl));
+    };
     for (const [variantIndex, variant] of variants.entries()) {
       const old = oldVariants.find((row) => row.id === variant.id);
       const row = old
@@ -948,6 +1013,7 @@ export class ProductUseCase {
           await tx.productVariantPriceLog.count({ where: { tenantId, typeVariantId: option.id } })) {
           throw new Error('Conflict: a variant with units or pricing history must remain');
         }
+        await collectUrls({ typeVariantId: option.id });
         await tx.productTypeVariant.delete({ where: { id: option.id } });
       }
       typeVariantIds.push(optionIds);
@@ -997,10 +1063,10 @@ export class ProductUseCase {
 
     const removedVariants = oldVariants.filter((row) => !keptVariantIds.has(row.id));
     for (const row of removedVariants) {
-      if (await tx.productVariantPriceLog.count({ where: { tenantId, typeVariant: { productVariantId: row.id } } }) ||
-        await tx.productMedia.count({ where: { tenantId, variantId: row.id } })) {
-        throw new Error('Conflict: a type with pricing history or media must remain');
+      if (await tx.productVariantPriceLog.count({ where: { tenantId, typeVariant: { productVariantId: row.id } } })) {
+        throw new Error('Conflict: a type with pricing history must remain');
       }
+      await collectUrls({ variantId: row.id });
       await tx.productVariant.delete({ where: { id: row.id } });
     }
     for (const row of oldLocations.reverse()) {
@@ -1010,7 +1076,7 @@ export class ProductUseCase {
       }
       await tx.productCategory.delete({ where: { id: row.id } });
     }
-    return variantIds;
+    return { variantIds, typeVariantIds, removedUrls };
   }
 
   /** Deletes the product and returns the stored file URLs of its media for cleanup. */
@@ -1032,10 +1098,36 @@ export class ProductUseCase {
     return variant;
   }
 
-  async addVariant(productId: string, tenantId: string, input: VariantInput) {
+  /** Stores the photos of one type, runs the write, and cleans up files of the losing side. */
+  private async withTypeImages<T>(
+    tenantId: string,
+    productId: string,
+    input: VariantInput,
+    images: TypeImageUploads,
+    write: (stored: { type: StoredImage[]; variants: (StoredImage & { typeVariantIndex: number })[] }, removedUrls: string[]) => Promise<T>
+  ): Promise<T> {
+    const type: (StoredImage & { file: Express.Multer.File })[] = [];
+    const variants: (StoredImage & { typeVariantIndex: number })[] = [];
+    const removedUrls: string[] = [];
+    this.assertTypeImages([input], [], images.variants.map((image) => ({ ...image, variantIndex: 0 })));
+    [...images.type, ...images.variants.map((image) => image.file)].forEach(validateProductImage);
+    let result: T;
+    try {
+      await this.storeImages(tenantId, productId, images.type.map((file) => ({ file })), type);
+      await this.storeImages(tenantId, productId, images.variants, variants);
+      result = await write({ type, variants }, removedUrls);
+    } catch (error) {
+      await this.storage.remove([...type, ...variants].map((image) => image.path));
+      throw error;
+    }
+    await this.removeStoredUrls(removedUrls);
+    return result;
+  }
+
+  async addVariant(productId: string, tenantId: string, input: VariantInput, images: TypeImageUploads = NO_IMAGES) {
     await this.get(productId, tenantId);
     assertUniqueSpecifications([input]);
-    return this.prisma.$transaction(async (tx) => {
+    return this.withTypeImages(tenantId, productId, input, images, (stored) => this.prisma.$transaction(async (tx) => {
       const masterOf = specificationMasters(tx, tenantId);
       const type = await tx.productVariant.create({ data: { tenantId, productId, name: input.name as string } });
       const options = this.typeVariantsOf(input);
@@ -1054,14 +1146,17 @@ export class ProductUseCase {
           masterOf
         );
       }
+      await this.saveTypeImages(
+        tx, { tenantId, productId, variantId: type.id }, input, typeVariants.map((option) => option.id), stored.type, stored.variants
+      );
       return { ...type, typeVariants };
-    });
+    }, { timeout: 30000 }));
   }
 
-  async updateVariant(productId: string, variantId: string, tenantId: string, input: VariantInput) {
+  async updateVariant(productId: string, variantId: string, tenantId: string, input: VariantInput, images: TypeImageUploads = NO_IMAGES) {
     await this.assertVariant(productId, variantId, tenantId);
     assertUniqueSpecifications([input]);
-    return this.prisma.$transaction(async (tx) => {
+    return this.withTypeImages(tenantId, productId, input, images, (stored, removedUrls) => this.prisma.$transaction(async (tx) => {
       const masterOf = specificationMasters(tx, tenantId);
       const type = await tx.productVariant.update({ where: { id: variantId }, data: input.name === undefined ? {} : { name: input.name } });
       const current = await tx.productTypeVariant.findMany({ where: { tenantId, productVariantId: variantId }, orderBy: { createdAt: 'asc' } });
@@ -1108,10 +1203,15 @@ export class ProductUseCase {
           await tx.productVariantPriceLog.count({ where: { tenantId, typeVariantId: option.id } })) {
           throw new Error('Conflict: a variant with units or pricing history must remain');
         }
+        const media = await tx.productMedia.findMany({ where: { tenantId, typeVariantId: option.id }, select: { fileUrl: true } });
+        removedUrls.push(...media.map((item) => item.fileUrl));
         await tx.productTypeVariant.delete({ where: { id: option.id } });
       }
+      removedUrls.push(...await this.saveTypeImages(
+        tx, { tenantId, productId, variantId }, input, typeVariants.map((option) => option.id), stored.type, stored.variants
+      ));
       return { ...type, typeVariants };
-    });
+    }, { timeout: 30000 }));
   }
 
   async removeVariant(productId: string, variantId: string, tenantId: string) {

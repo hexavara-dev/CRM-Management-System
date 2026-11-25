@@ -1,4 +1,5 @@
 import type { CreateProjectPayload } from "@/hooks/use-projects";
+import { photoOrder } from "../../../lib/photos";
 import { specPayload } from "../../../lib/unit-specs";
 import type { LocationNode, UnitItem } from "./hierarchy-step";
 import type { ProjectInfo } from "./preview-step";
@@ -43,6 +44,7 @@ export function buildProjectPayload(input: {
   const variants = unitTypes.map((t) => ({
     ...(t.id ? { id: t.id } : {}),
     name: t.name.trim(),
+    mediaOrder: photoOrder(t.photos),
     typeVariants: t.variants.map((option) => ({
       ...(option.id ? { id: option.id } : {}),
       name: option.name.trim(),
@@ -50,6 +52,7 @@ export function buildProjectPayload(input: {
       basePrice: Math.round(Number(option.basePrice) || 0),
       stock: Math.round(Number(option.stock) || 0),
       attributes: specPayload(option.specs),
+      mediaOrder: photoOrder(option.photos),
     })),
   }));
 

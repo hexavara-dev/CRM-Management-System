@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useState } from "react";
 import Image from "next/image";
-import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, MoreVertical, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -13,23 +13,21 @@ import { newVariant, SPEC_FIELDS, type VariantDraft } from "@/lib/unit-specs";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { FIELD_LABEL, INPUT } from "./form-styles";
-import { compressImage, PHOTO_MAX_EDGE } from "@/lib/compress-image";
-import { ImageProcessingOverlay } from "./image-processing-overlay";
+import { PhotoPicker } from "@/components/projects/photo-picker";
+import type { Photo } from "@/lib/photos";
 import type { UnitItem } from "./hierarchy-step";
 
 export type UnitType = {
   id?: string;
-  image?: File;
-  imageUrl?: string;
-  imagePreviewUrl?: string;
   name: string;
+  photos: Photo[];
   variants: UnitTypeVariant[];
 };
 
 export type UnitTypeVariant = VariantDraft;
 
 const PAGE_SIZE = 6;
-const emptyType = (): UnitType => ({ name: "", variants: [newVariant("Default")] });
+const emptyType = (): UnitType => ({ name: "", photos: [], variants: [newVariant("Default")] });
 
 const idr = (v: string) => `Rp ${Number(v).toLocaleString("id-ID")}`;
 
@@ -38,9 +36,6 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
   const [editing, setEditing] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set());
   const [draft, setDraft] = useState<UnitType>(() => emptyType());
-  const [processing, setProcessing] = useState(false);
-  const previewUrls = useRef<string[]>([]);
-  useEffect(() => () => previewUrls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
   const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const current = Math.min(page, pages);
@@ -131,8 +126,8 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
                   </TableCell>
                   <TableCell>
                     <div className="relative flex size-14 items-center justify-center overflow-hidden rounded-md border border-[#E4E4E7] bg-[#F6F7F9] text-[10px] text-[#9CA3AF]">
-                      {u.imagePreviewUrl || u.imageUrl ? (
-                        <Image src={u.imagePreviewUrl ?? u.imageUrl ?? ""} alt={`Gambar ${u.name}`} fill unoptimized className="object-cover" />
+                      {u.photos[0] ? (
+                        <Image src={u.photos[0].url} alt={`Gambar ${u.name}`} fill unoptimized className="object-cover" />
                       ) : "No image"}
                     </div>
                   </TableCell>
@@ -238,7 +233,7 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
           <form onSubmit={save} className={TYPE_FORM_CLASS}>
             <VariantEditor
               variants={draft.variants}
-              onChange={(variants) => setDraft((current) => ({ ...current, variants }))}
+              onChange={(change) => setDraft((current) => ({ ...current, variants: change(current.variants) }))}
               createdUnits={(variant) => units.filter((unit) => unit.typeVariantKey === variant.key).length}
             >
             <label className="block">
@@ -251,46 +246,11 @@ export function UnitTypeStep({ items, units, onChange, onRename, onVariantRename
                 className={INPUT}
               />
             </label>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-[#1f1f1f]">Gambar tipe (opsional)</label>
-              <div>
-                <label htmlFor="unit-type-image-upload" className={cn("group relative flex h-24 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#8FC9E8] bg-[#E8F3FA] text-[#1980C0] transition hover:bg-[#D9EEF9]", (draft.imagePreviewUrl || draft.imageUrl) && "bg-[#E8F3FA]")}>
-                  {draft.imagePreviewUrl || draft.imageUrl ? (
-                    <Image src={draft.imagePreviewUrl ?? draft.imageUrl ?? ""} alt={`Preview ${draft.name || "tipe"}`} fill unoptimized className="object-contain" />
-                  ) : (
-                    <span className="flex flex-col items-center gap-1.5 text-center text-xs font-medium">
-                      <ImagePlus className="size-5" />
-                      Upload gambar tipe
-                    </span>
-                  )}
-                  {(draft.imagePreviewUrl || draft.imageUrl) && <span className="absolute inset-x-0 bottom-0 bg-black/55 px-3 py-2 text-center text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">Ganti gambar</span>}
-                </label>
-                <input id="unit-type-image-upload" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={async (event) => {
-                  const input = event.target;
-                  const file = input.files?.[0];
-                  if (!file) return;
-                  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
-                    toast.error("Gunakan JPEG, PNG, atau WebP maksimal 10 MB.");
-                    input.value = "";
-                    return;
-                  }
-                  input.value = "";
-                  setProcessing(true);
-                  try {
-                    const image = await compressImage(file, PHOTO_MAX_EDGE);
-                    const imagePreviewUrl = URL.createObjectURL(image);
-                    previewUrls.current.push(imagePreviewUrl);
-                    setDraft((current) => ({ ...current, image, imagePreviewUrl }));
-                  } catch {
-                    toast.error("Gambar tidak dapat diproses. Pilih berkas lain.");
-                  } finally {
-                    setProcessing(false);
-                  }
-                }} />
-                {processing && <ImageProcessingOverlay />}
-              </div>
-              <p className="text-[10px] text-[#6b6b6b]">JPEG, PNG, atau WebP; maksimal 10 MB.</p>
-            </div>
+            <PhotoPicker
+              label="Foto tipe"
+              photos={draft.photos}
+              onChange={(change) => setDraft((current) => ({ ...current, photos: change(current.photos) }))}
+            />
             </VariantEditor>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditing(null)} className="h-9 text-xs">

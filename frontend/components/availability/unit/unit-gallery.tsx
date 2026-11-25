@@ -20,6 +20,7 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
     );
   }
 
+  const multiple = unit.images.length > 1;
   const next = () =>
     setActiveIndex((current) =>
       current === unit.images.length - 1 ? 0 : current + 1,
@@ -36,7 +37,7 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
           alt={`Unit ${unit.number}`}
           className="h-full w-full object-contain"
         />
-        <button
+        {multiple && <><button
           type="button"
           onClick={previous}
           aria-label="Foto sebelumnya"
@@ -54,9 +55,9 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
         </button>
         <div className="absolute bottom-3 right-3 rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white">
           {activeIndex + 1} / {unit.images.length}
-        </div>
+        </div></>}
       </div>
-      <div className="mt-3 grid grid-cols-5 gap-3">
+      {multiple && <div className="mt-3 grid grid-cols-5 gap-3">
         {unit.images.map((image, index) => (
           <button
             key={image}
@@ -71,7 +72,7 @@ export function UnitGallery({ unit }: { unit: UnitDetail }) {
             />
           </button>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -93,7 +93,7 @@ describe('ProductUseCase.create (whole project)', () => {
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       productTypeVariant: { create: fn({ id: 'tv-1' }) },
-      productMedia: { createMany: fn({ count: 1 }) },
+      productMedia: { findMany: fn([]), create: fn({}) },
     };
     const prisma = {
       product: { findFirst: fn({ id: 'p-1', variants: [], media: [] }) },
@@ -108,8 +108,8 @@ describe('ProductUseCase.create (whole project)', () => {
       name: 'Project', code: 'PRJ', variants: [{ name: 'Type 36', basePrice: 1 }],
     }, [], [{ variantIndex: 0, file: jpegCover() }]);
 
-    expect(tx.productMedia.createMany).toHaveBeenCalledWith({
-      data: [expect.objectContaining({ productId: 'p-1', variantId: 'v-1', mediaType: 'IMAGE', isPrimary: true })],
+    expect(tx.productMedia.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: 'p-1', variantId: 'v-1', typeVariantId: null, mediaType: 'IMAGE', isPrimary: true }),
     });
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(storage.remove).not.toHaveBeenCalled();
