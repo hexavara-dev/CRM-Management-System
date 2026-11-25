@@ -110,6 +110,20 @@ export type TypeImageUploads = {
 };
 const NO_IMAGES: TypeImageUploads = { type: [], variants: [] };
 
+/** A type that is still used elsewhere cannot be deleted; explains what is using it. */
+async function assertTypeRemovable(tx: Prisma.TransactionClient, tenantId: string, variantId: string) {
+  if (await tx.productUnit.count({ where: { tenantId, variantId } })) {
+    throw new Error('Conflict: a type with units must remain');
+  }
+  if (await tx.productVariantPriceLog.count({ where: { tenantId, typeVariant: { productVariantId: variantId } } })) {
+    throw new Error('Conflict: a type with pricing history must remain');
+  }
+  if (await tx.lead.count({ where: { tenantId, productVariantId: variantId } }) ||
+    await tx.leadInterest.count({ where: { tenantId, variantId } })) {
+    throw new Error('Conflict: a type used by leads must remain');
+  }
+}
+
 function assertUniqueSpecifications(variants: VariantInput[]) {
   for (const variant of variants) {
     for (const option of variant.typeVariants ?? []) {
@@ -927,22 +941,7 @@ export class ProductUseCase {
       typeVariants: normalizedVariants[index]!.map((option) => ({ name: option.name, stock: option.stock ?? 0 })),
     })));
 
-    const removedUnits = oldUnits.filter((row) => !keptUnitIds.has(row.id));
-    if (removedUnits.length) {
-      const ids = removedUnits.map((row) => row.id);
-      if (removedUnits.some((row) => row.status !== 'AVAILABLE') ||
-        await tx.reservation.count({ where: { tenantId, unitId: { in: ids } } }) ||
-        await tx.unitPriceAdjustment.count({ where: { tenantId, unitId: { in: ids } } }) ||
-        await tx.productMedia.count({ where: { tenantId, unitId: { in: ids } } })) {
-        throw new Error('Conflict: units with reservations, pricing history, media or non-available status must remain');
-      }
-      await tx.productUnit.deleteMany({ where: { tenantId, id: { in: ids } } });
-    }
-
-    const masterOf = specificationMasters(tx, tenantId);
-    const variantIds: string[] = [];
-    const typeVariantIds: string[][] = [];
-    // Foto tipe/varian yang dihapus ikut terhapus; berkasnya dibersihkan setelah transaksi berhasil.
+    // Foto unit, tipe, dan varian yang dihapus ikut terhapus; berkasnya dibersihkan setelah transaksi berhasil.
     const removedUrls: string[] = [];
     const collectUrls = async (where: Prisma.ProductMediaWhereInput) => {
       const media = await tx.productMedia.findMany({
@@ -950,6 +949,22 @@ export class ProductUseCase {
       });
       removedUrls.push(...media.map((item) => item.fileUrl));
     };
+    const removedUnits = oldUnits.filter((row) => !keptUnitIds.has(row.id));
+    if (removedUnits.length) {
+      const ids = removedUnits.map((row) => row.id);
+      if (removedUnits.some((row) => row.status !== 'AVAILABLE') ||
+        await tx.reservation.count({ where: { tenantId, unitId: { in: ids } } }) ||
+        await tx.unitPriceAdjustment.count({ where: { tenantId, unitId: { in: ids } } }) ||
+        await tx.deal.count({ where: { tenantId, unitId: { in: ids } } })) {
+        throw new Error('Conflict: units with reservations, deals, pricing history or non-available status must remain');
+      }
+      await collectUrls({ unitId: { in: ids } });
+      await tx.productUnit.deleteMany({ where: { tenantId, id: { in: ids } } });
+    }
+
+    const masterOf = specificationMasters(tx, tenantId);
+    const variantIds: string[] = [];
+    const typeVariantIds: string[][] = [];
     for (const [variantIndex, variant] of variants.entries()) {
       const old = oldVariants.find((row) => row.id === variant.id);
       const row = old
@@ -1063,9 +1078,7 @@ export class ProductUseCase {
 
     const removedVariants = oldVariants.filter((row) => !keptVariantIds.has(row.id));
     for (const row of removedVariants) {
-      if (await tx.productVariantPriceLog.count({ where: { tenantId, typeVariant: { productVariantId: row.id } } })) {
-        throw new Error('Conflict: a type with pricing history must remain');
-      }
+      await assertTypeRemovable(tx, tenantId, row.id);
       await collectUrls({ variantId: row.id });
       await tx.productVariant.delete({ where: { id: row.id } });
     }
@@ -1084,8 +1097,39 @@ export class ProductUseCase {
     const product = await this.get(id, tenantId);
     const unitCount = await this.prisma.productUnit.count({ where: { tenantId, variant: { productId: id, tenantId } } });
     if (unitCount > 0) throw new Error('Project has units (conflict). Deactivate it instead.');
-    await this.prisma.product.delete({ where: { id } });
-    return product.media.filter((m) => m.mediaType !== 'VIDEO_LINK').map((m) => m.fileUrl);
+    if (await this.prisma.lead.count({ where: { tenantId, projectId: id } }) ||
+      await this.prisma.leadInterest.count({ where: { tenantId, productId: id } })) {
+      throw new Error('Conflict: a project used by leads must remain. Deactivate it instead.');
+    }
+    const fileUrls = product.media.filter((m) => m.mediaType !== 'VIDEO_LINK').map((m) => m.fileUrl);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.product.delete({ where: { id } });
+      fileUrls.push(...await this.removeLocationTree(tx, tenantId, product.categoryId));
+    });
+    return fileUrls;
+  }
+
+  /**
+   * Removes the location tree left behind by a deleted project; returns its siteplan URLs.
+   * The tree stays when any of its locations is still used by another product or unit.
+   */
+  private async removeLocationTree(tx: Prisma.TransactionClient, tenantId: string, rootId: string): Promise<string[]> {
+    const categories = await tx.productCategory.findMany({
+      where: { tenantId }, select: { id: true, parentId: true, type: true, siteplanImg: true },
+    });
+    const root = categories.find((category) => category.id === rootId);
+    if (root?.type !== 'PROJECT') return [];
+    const tree = [root];
+    for (let index = 0; index < tree.length; index += 1) {
+      tree.push(...categories.filter((category) => category.parentId === tree[index]!.id && !tree.includes(category)));
+    }
+    const ids = tree.map((category) => category.id);
+    const where = { tenantId, categoryId: { in: ids } };
+    if (await tx.product.count({ where }) || await tx.productUnit.count({ where }) || await tx.productVariantPriceLog.count({ where })) {
+      return [];
+    }
+    for (const id of ids.reverse()) await tx.productCategory.delete({ where: { id } });
+    return tree.flatMap((category) => (category.siteplanImg ? [category.siteplanImg] : []));
   }
 
   // ---------- variants ----------
@@ -1218,7 +1262,15 @@ export class ProductUseCase {
     await this.assertVariant(productId, variantId, tenantId);
     const count = await this.prisma.productVariant.count({ where: { productId, tenantId } });
     if (count <= 1) throw new Error('A product must keep at least one variant (conflict)');
-    await this.prisma.productVariant.delete({ where: { id: variantId } });
+    const urls = await this.prisma.$transaction(async (tx) => {
+      await assertTypeRemovable(tx, tenantId, variantId);
+      const media = await tx.productMedia.findMany({
+        where: { tenantId, variantId, mediaType: { not: 'VIDEO_LINK' } }, select: { fileUrl: true },
+      });
+      await tx.productVariant.delete({ where: { id: variantId } });
+      return media.map((item) => item.fileUrl);
+    });
+    await this.removeStoredUrls(urls);
   }
 
   // ---------- attributes (values; the definitions live in AttributeUseCase) ----------

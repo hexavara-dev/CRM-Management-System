@@ -3,6 +3,7 @@ import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import api from "@/lib/api";
+import { invalidateProductData } from "@/lib/product-cache";
 
 // Proyek adalah product di backend: `products` (nama, kode, deskripsi, status) + akar `product_categories`.
 
@@ -315,8 +316,7 @@ export function useCreateProject() {
       return (await api.post<ProjectDetail>("/api/products", form)).data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["project-types"] });
+      invalidateProductData(queryClient);
       toast.success("Proyek berhasil disimpan.");
     },
     onError: (error) =>
@@ -367,11 +367,7 @@ export function useUpdateProject() {
       return (await api.put<ProjectDetail>(`/api/products/${id}`, form)).data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["project"] });
-      queryClient.invalidateQueries({ queryKey: ["project-edit"] });
-      queryClient.invalidateQueries({ queryKey: ["project-types"] });
-      queryClient.invalidateQueries({ queryKey: ["availability-project"] });
+      invalidateProductData(queryClient);
       toast.success("Proyek diperbarui.");
     },
     onError: (error) =>
@@ -386,7 +382,7 @@ export function useDeleteProject() {
       await api.delete(`/api/products/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      invalidateProductData(queryClient, { deleted: true });
       toast.success("Proyek dihapus.");
     },
     onError: (error) =>
@@ -405,7 +401,7 @@ export function useProjectMediaAction() {
         await api.patch(`/api/media/${mediaId}`, { isPrimary: true });
       else await api.delete(`/api/media/${mediaId}`);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project"] }),
+    onSuccess: () => invalidateProductData(queryClient),
     onError: (error) =>
       toast.error(errorMessage(error, "Gagal memperbarui gambar.")),
   });

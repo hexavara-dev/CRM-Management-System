@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { errorMessage } from "@/hooks/use-projects";
 import api from "@/lib/api";
+import { invalidateProductData } from "@/lib/product-cache";
 import { newPhotoFiles, type Photo, photoOrder, typePhotos, typeVariantPhotos } from "@/lib/photos";
 import { specPayload, type SpecValues, specsOfVariant } from "@/lib/unit-specs";
 
@@ -242,10 +243,7 @@ export function useCreateProjectType() {
     mutationFn: (form: ProjectTypeForm) =>
       api.post(`/api/products/${form.projectId}/variants`, typeFormData(form)),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["project-types"] });
-      await queryClient.invalidateQueries({ queryKey: ["projects"] });
-      await queryClient.invalidateQueries({ queryKey: ["project"] });
-      await queryClient.invalidateQueries({ queryKey: ["project-edit"] });
+      await invalidateProductData(queryClient);
       toast.success("Tipe berhasil ditambahkan.");
     },
     onError: (error) =>
@@ -259,10 +257,7 @@ export function useUpdateProjectType() {
     mutationFn: (form: ProjectTypeForm & { variantId: string }) =>
       api.put(`/api/products/${form.projectId}/variants/${form.variantId}`, typeFormData(form)),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["project-types"] });
-      await queryClient.invalidateQueries({ queryKey: ["projects"] });
-      await queryClient.invalidateQueries({ queryKey: ["project"] });
-      await queryClient.invalidateQueries({ queryKey: ["project-edit"] });
+      await invalidateProductData(queryClient);
       toast.success("Tipe berhasil diperbarui.");
     },
     onError: (error) =>
