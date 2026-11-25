@@ -152,9 +152,6 @@ export function ProjectWizard({
   const save = () => {
     const payload = buildPayload();
     if (!payload) return;
-    const unitImages = units.flatMap((unit, unitIndex) =>
-      (unit.images ?? []).map((file) => ({ unitIndex, file })),
-    );
     if (projectId) {
       void saveUpdate(
         {
@@ -172,12 +169,11 @@ export function ProjectWizard({
           covers: coverFiles,
           ...typePhotoUploads(),
           siteplan: siteplanFile,
-          unitImages,
         },
       );
     } else {
       createProject.mutate(
-        { payload, covers: coverFiles, ...typePhotoUploads(), siteplan: siteplanFile, unitImages },
+        { payload, covers: coverFiles, ...typePhotoUploads(), siteplan: siteplanFile },
         { onSuccess: (project) => router.push(`/projects/${project.id}`) },
       );
     }
@@ -205,7 +201,6 @@ export function ProjectWizard({
         covers: coverFiles,
         ...(typesChanged ? typePhotoUploads() : { typeImages: [], typeVariantImages: [] }),
         siteplan: siteplanFile,
-        unitImages: structureChanged ? units.flatMap((unit, unitIndex) => (unit.images ?? []).map((file) => ({ unitIndex, file }))) : [],
       },
     );
     return true;

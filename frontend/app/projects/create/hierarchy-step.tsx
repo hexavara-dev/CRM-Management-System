@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ import { toast } from "sonner";
 /** Flat list; parentId "root" = langsung di bawah proyek. */
 export type LocationNode = { id: string; persistedId?: string; parentId: string; name: string; level: string };
 /** Unit fisik; dimiliki oleh lokasi terbawah (block) melalui locationId. */
-export type UnitItem = { id: string; persistedId?: string; locationId: string; code: string; type: string; typeVariantKey: string; typeVariantName: string; hook: string; status: string; images?: File[]; imageUrls?: string[] };
+export type UnitItem = { id: string; persistedId?: string; locationId: string; code: string; type: string; typeVariantKey: string; typeVariantName: string; hook: string; status: string };
 
 const ROOT = "root";
 const LEVEL_SUGGESTIONS = ["Cluster", "Zone", "Block", "Tower", "Floor"];
@@ -381,29 +381,28 @@ export function HierarchyStep({
               </div>
               <div>
                 <label className={FIELD_LABEL}>Level</label>
-                <Select value={draft.level} onValueChange={(v) => setDraft({ ...draft, level: v })}>
-                  <SelectTrigger className="h-9 w-full text-xs">
-                    <SelectValue placeholder="Pilih level" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LEVEL_SUGGESTIONS.map((l) => (
-                      <SelectItem key={l} value={l} className="text-xs">{l}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  triggerClassName="h-11 rounded-lg text-sm"
+                  value={draft.level || undefined}
+                  onChange={(v) => setDraft({ ...draft, level: v ?? "" })}
+                  placeholder="Pilih level"
+                  searchPlaceholder="Cari level"
+                  options={LEVEL_SUGGESTIONS.map((l) => ({ value: l, label: l }))}
+                  clearable={false}
+                />
               </div>
               <div>
                 <label className={FIELD_LABEL}>Parent</label>
-                <Select value={draft.parentId} onValueChange={(v) => setDraft({ ...draft, parentId: v })}>
-                  <SelectTrigger className="h-9 w-full text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {parentOptions.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-xs">{`${p.name} (${p.level})`}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  triggerClassName="h-11 rounded-lg text-sm"
+                  value={draft.parentId}
+                  onChange={(v) => setDraft({ ...draft, parentId: v ?? ROOT })}
+                  placeholder="Pilih parent"
+                  searchPlaceholder="Cari nama atau lokasi induk"
+                  // Nama lokasi bisa sama (mis. Lantai 1 di tiap tower), jadi induknya ikut ditampilkan dan dicari.
+                  options={parentOptions.map((p) => ({ value: p.id, label: `${p.name} (${p.level})`, hint: pathOf(p.id) || undefined }))}
+                  clearable={false}
+                />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setDraft(null)} className="h-9 text-xs">Cancel</Button>
