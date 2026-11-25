@@ -16,7 +16,6 @@ import { FIELD_LABEL, INPUT } from "./form-styles";
 import { AddUnitDialog } from "./add-unit-dialog";
 import { DetailStat } from "./detail-stat";
 import { TreeRow } from "./tree-row";
-import { UnitImageThumbs } from "./unit-image-thumbs";
 import { toast } from "sonner";
 
 /** Flat list; parentId "root" = langsung di bawah proyek. */
@@ -304,7 +303,7 @@ export function HierarchyStep({
                 <Table className="text-xs">
                   <TableHeader className="sticky top-0 z-10 bg-white">
                     <TableRow>
-                      {["No Unit", "Type", "Gambar", "Status Unit", "Action"].map((h) => (
+                      {["No Unit", "Type", "Status Unit", "Action"].map((h) => (
                         <TableHead key={h} className="h-10 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">{h}</TableHead>
                       ))}
                     </TableRow>
@@ -312,16 +311,13 @@ export function HierarchyStep({
                   <TableBody>
                     {selectedUnits.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="h-20 text-center text-[#9CA3AF]">Belum ada unit di lokasi ini.</TableCell>
+                        <TableCell colSpan={4} className="h-20 text-center text-[#9CA3AF]">Belum ada unit di lokasi ini.</TableCell>
                       </TableRow>
                     ) : (
                       selectedUnits.map((u) => (
                         <TableRow key={u.id}>
                           <TableCell className="whitespace-nowrap">{u.code}</TableCell>
                           <TableCell>{u.type}{u.typeVariantName && ` (${u.typeVariantName})`}</TableCell>
-                          <TableCell>
-                            <UnitImageThumbs files={u.images} urls={u.imageUrls} label={u.code} placeholder />
-                          </TableCell>
                           <TableCell>{u.status}</TableCell>
                           <TableCell>
                             <button type="button" aria-label="Delete unit" onClick={() => onUnitsChange(units.filter((x) => x.id !== u.id))} className="cursor-pointer rounded p-1 text-[#D64545] hover:bg-[#FDECEC]">
