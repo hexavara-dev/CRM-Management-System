@@ -1,6 +1,7 @@
 "use client";
 import { LabelBadge } from "@/app/crm-configuration/leads-label/label-icons";
 import { LeadLabelMultiSelect } from "@/app/leads/components/lead-label-multi-select";
+import { LeadArchiveDialog } from "@/app/leads/components/lead-archive-dialog";
 import {
   type LeadDateRange,
   LeadsPipelineTab,
@@ -9,6 +10,7 @@ import { AppSidebar } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import {
@@ -25,6 +27,11 @@ import FormSelect from "@/components/ui/form-select";
 import { FormTextarea } from "@/components/ui/form-textarea";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -35,15 +42,17 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLeadCampaigns } from "@/hooks/use-lead-campaigns";
 import { useLeadLabels } from "@/hooks/use-lead-labels";
+import { useArchiveLeadAction } from "@/hooks/use-lead-archive";
+import { useActiveLeadSources } from "@/hooks/use-lead-sources";
 import { useLeadsTable } from "@/hooks/use-leads-table";
 import { useLocations } from "@/hooks/use-locations";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useProject, useProjects } from "@/hooks/use-projects";
-import { useSources } from "@/hooks/use-sources";
 import { useUsers } from "@/hooks/use-users";
 import {
   LeadCreateFormData,
@@ -72,13 +81,21 @@ import {
   Plus,
   Save,
   Search,
+  Archive,
   Upload,
   UserRound,
   UsersRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { FormProvider, useForm } from "react-hook-form";
+import type { DateRange } from "react-day-picker";
 
 const formatLeadDate = (value?: string) =>
   value
@@ -109,18 +126,25 @@ const getDaysSince = (value: string) =>
     ),
   );
 
-const getNextFollowUp = (lead: Lead) => {
-  const dates =
-    lead.activities?.flatMap((activity) =>
-      (activity.tasks ?? [])
-        .map((task) => task.dueDate)
-        .filter((date): date is string => Boolean(date)),
-    ) ?? [];
-  return dates.sort((a, b) => +new Date(a) - +new Date(b))[0];
-};
+const dateValue = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const dateLabel = (date: Date) =>
+  date.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+function SidebarAwareLeadsTable({
+  children,
+}: { children: (isSidebarCollapsed: boolean) => ReactNode }) {
+  const { state, isMobile } = useSidebar();
+  return <>{children(!isMobile && state === "collapsed")}</>;
+}
 
 export default function LeadsPage() {
   const [search, setSearch] = useState("");
+  const [projectFilter, setProjectFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
   const [salesFilter, setSalesFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -137,11 +161,25 @@ export default function LeadsPage() {
     },
   );
   const deferredSearch = useDeferredValue(search.trim());
+  const pipelinePeriod: DateRange | undefined = pipelineDateRange.from
+    ? {
+        from: new Date(`${pipelineDateRange.from}T00:00:00`),
+        to: pipelineDateRange.to
+          ? new Date(`${pipelineDateRange.to}T00:00:00`)
+          : undefined,
+      }
+    : undefined;
+  const pipelinePeriodLabel = pipelinePeriod?.from
+    ? pipelinePeriod.to
+      ? `${dateLabel(pipelinePeriod.from)} – ${dateLabel(pipelinePeriod.to)}`
+      : dateLabel(pipelinePeriod.from)
+    : "Pilih rentang tanggal";
 
   const { leads, isLoading, createLead, updateLead, serverPagination } =
     useLeadsTable({
       filters: {
         search: deferredSearch || undefined,
+        projectId: projectFilter === "all" ? undefined : projectFilter,
         stageId: stageFilter === "all" ? undefined : stageFilter,
         assignedUserId: salesFilter === "all" ? undefined : salesFilter,
         sourceId: sourceFilter === "all" ? undefined : sourceFilter,
@@ -156,11 +194,7 @@ export default function LeadsPage() {
   );
   const { locations } = useLocations();
   const { users } = useUsers();
-  const { sources } = useSources({
-    additionalParams: {
-      type: "lead",
-    },
-  });
+  const { sources } = useActiveLeadSources();
   const leadLabelsQuery = useLeadLabels(undefined, 1, 100);
   const leadLabels = (leadLabelsQuery.data?.data ?? []).filter(
     (label) => label.isActive,
@@ -170,6 +204,8 @@ export default function LeadsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [leadToArchive, setLeadToArchive] = useState<Lead | null>(null);
+  const { archiveLead, isArchiving } = useArchiveLeadAction();
   const router = useRouter();
 
   const columns = useMemo<ColumnDef<Lead>[]>(
@@ -177,6 +213,7 @@ export default function LeadsPage() {
       {
         id: "name",
         header: "Lead",
+        size: 112,
         accessorFn: (row) =>
           `${row.customer.firstName} ${row.customer.lastName || ""}`.trim(),
         cell: ({ row }) => {
@@ -198,15 +235,25 @@ export default function LeadsPage() {
       {
         id: "phone",
         header: "No. HP",
+        size: 112,
         accessorFn: (row) => row.customer.phoneNumber || "-",
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap">
+            {row.original.customer.phoneNumber || "-"}
+          </span>
+        ),
       },
       {
         id: "project",
         header: "Project Diminati",
+        size: 170,
         accessorFn: (row) => row.project?.name || row.location?.name || "-",
         cell: ({ row }) =>
           row.original.project?.name || row.original.location?.name ? (
-            <span className="whitespace-nowrap rounded-md bg-[#E7F0FF] px-2 py-1 text-xs font-medium text-[#0B63F6]">
+            <span
+              title={row.original.project?.name || row.original.location?.name}
+              className="block max-w-40 truncate rounded-md bg-[#E7F0FF] px-2 py-1 text-[11px] font-medium text-[#0B63F6]"
+            >
               {row.original.project?.name || row.original.location?.name}
             </span>
           ) : (
@@ -216,22 +263,30 @@ export default function LeadsPage() {
       {
         id: "source",
         header: "Asal Leads",
+        size: 100,
         accessorFn: (row) => row.source?.name || "-",
+        cell: ({ row }) => (
+          <span title={row.original.source?.name} className="block truncate">
+            {row.original.source?.name || "-"}
+          </span>
+        ),
       },
       {
         id: "prospect",
         header: "Prospek",
+        size: 145,
         accessorFn: (row) =>
           row.labels?.map((label) => label.name).join(", ") || "-",
         cell: ({ row }) =>
           row.original.labels?.length ? (
-            <div className="flex min-w-52 flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {row.original.labels.map((label) => (
                 <LabelBadge
                   key={label.id}
                   name={label.name}
                   color={label.color}
                   icon={label.icon}
+                  className="lead-list-label"
                 />
               ))}
             </div>
@@ -241,6 +296,7 @@ export default function LeadsPage() {
       },
       {
         id: "createdAt",
+        size: 112,
         header: () => (
           <span className="inline-flex items-center gap-1 whitespace-nowrap">
             Tanggal Leads <ArrowUpDown className="size-3" />
@@ -256,6 +312,7 @@ export default function LeadsPage() {
       {
         id: "stage",
         header: "Fase Leads",
+        size: 105,
         accessorFn: (row) => row.stage?.name || "-",
         cell: ({ row }) =>
           row.original.stage ? (
@@ -269,11 +326,21 @@ export default function LeadsPage() {
       {
         id: "assignedSales",
         header: "Assigned Sales",
+        size: 125,
         accessorFn: (row) => row.assignedUser?.name || "-",
+        cell: ({ row }) => (
+          <span
+            title={row.original.assignedUser?.name}
+            className="block truncate"
+          >
+            {row.original.assignedUser?.name || "-"}
+          </span>
+        ),
       },
       {
         id: "lastUpdate",
         header: "Last Update",
+        size: 112,
         accessorFn: (row) => getLastUpdate(row),
         cell: ({ row }) => (
           <span className="whitespace-nowrap">
@@ -283,6 +350,7 @@ export default function LeadsPage() {
       },
       {
         id: "days",
+        size: 72,
         header: () => (
           <span className="inline-flex items-center gap-1">
             <Clock3 className="size-3.5" /> Hari
@@ -307,23 +375,9 @@ export default function LeadsPage() {
         },
       },
       {
-        id: "nextFollowUp",
-        header: "Next Follow-up",
-        accessorFn: (row) => getNextFollowUp(row) || "",
-        cell: ({ row }) => {
-          const next = getNextFollowUp(row.original);
-          return next ? (
-            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-              <CalendarDays className="size-3.5" /> {formatLeadDate(next)}
-            </span>
-          ) : (
-            "-"
-          );
-        },
-      },
-      {
         id: "actions",
         header: () => <div className="text-right">Actions</div>,
+        size: 88,
         cell: ({ row }) => {
           const lead = row.original;
           return (
@@ -336,8 +390,21 @@ export default function LeadsPage() {
                   router.push(`/leads/${lead.id}`);
                 }}
                 title="Lihat atau ubah Lead"
+                aria-label="Lihat atau ubah Lead"
               >
                 <Pencil className="h-4 w-4 text-[#141B34]" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLeadToArchive(lead);
+                }}
+                title="Arsipkan Lead"
+                aria-label="Arsipkan Lead"
+              >
+                <Archive className="h-4 w-4 text-[#D92D20]" />
               </Button>
             </div>
           );
@@ -472,40 +539,10 @@ export default function LeadsPage() {
     }
   };
 
-  // const handleEdit = (lead: Lead) => {
-  //   setSelectedLead(lead);
-  //   editForm.reset({
-  //     salutation: lead.customer.salutation || "",
-  //     gender: lead.customer.gender || "",
-  //     firstName: lead.customer.firstName,
-  //     lastName: lead.customer.lastName || "",
-  //     email: lead.customer.email || "",
-  //     phone: lead.customer.phoneNumber || "",
-  //     organizationName: lead.customer.organization?.name || "",
-  //     organizationLocation: lead.customer.organization?.location || "",
-  //     locationId:
-  //       lead.locationId || getLocationIdByName(lead.customer.location || ""),
-  //     company: lead.customer.organization?.name || "",
-  //     statusId: lead.status?.id || "",
-  //     source: lead.type || "",
-  //     notes: "",
-  //   });
-  //   setIsEditDialogOpen(true);
-  // };
-
-  // const handleOpenConvert = (lead: Lead) => {
-  //   setSelectedLead(lead);
-  //   convertForm.reset({
-  //     expectedAmount: 0,
-  //     currency: "USD",
-  //   });
-  //   setIsConvertDialogOpen(true);
-  // };
-
   return (
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
-      <SidebarInset className="w-0">
+      <SidebarInset className="w-0 min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="flex flex-1 items-center justify-between">
@@ -795,34 +832,37 @@ export default function LeadsPage() {
           </div>
         </header>
 
-        <div className="min-w-0 bg-[#FAFBFC] p-4">
-          <Tabs defaultValue="list" className="space-y-4">
-            <TabsList className="h-11 w-fit overflow-hidden rounded-xl border border-[#E4E7EC] bg-[#F3F5F8] p-1 shadow-sm">
+        <div className="min-w-0 bg-[#FAFBFC] p-3 lg:flex-1 lg:overflow-hidden">
+          <Tabs
+            defaultValue="list"
+            className="space-y-3 lg:flex lg:h-full lg:min-h-0 lg:flex-col"
+          >
+            <TabsList className="h-10 w-fit gap-0.5 overflow-hidden rounded-2xl border border-[#E4E7EC] bg-[#F7F8FA] p-1 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
               <TabsTrigger
                 value="list"
-                className="h-9 gap-2 rounded-lg px-5 text-base font-medium text-[#667085] transition-all data-[state=active]:bg-white data-[state=active]:text-[#0B63F6] data-[state=active]:shadow-sm"
+                className="h-8 gap-2 rounded-xl px-4 text-sm font-medium text-[#667085] transition-colors hover:text-[#344054] data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-[#0B63F6] data-[state=active]:shadow-[0_1px_2px_rgba(16,24,40,0.08)]"
               >
                 <List className="size-4" />
                 List Leads
               </TabsTrigger>
               <TabsTrigger
                 value="pipeline"
-                className="h-9 gap-2 rounded-lg px-5 text-base font-medium text-[#667085] transition-all data-[state=active]:bg-white data-[state=active]:text-[#0B63F6] data-[state=active]:shadow-sm"
+                className="h-8 gap-2 rounded-xl px-4 text-sm font-medium text-[#667085] transition-colors hover:text-[#344054] data-[state=active]:bg-white data-[state=active]:font-semibold data-[state=active]:text-[#0B63F6] data-[state=active]:shadow-[0_1px_2px_rgba(16,24,40,0.08)]"
               >
                 <Columns3 className="size-4" />
                 Pipeline
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="list" className="mt-0">
-              <Card className="gap-0 rounded-xl py-0 shadow-none">
-                <CardHeader className="px-4 pt-4 pb-3">
-                  <CardTitle className="text-xl font-semibold pb-2">
+            <TabsContent value="list" className="mt-0 lg:min-h-0 lg:flex-1">
+              <Card className="gap-0 rounded-xl py-0 shadow-none lg:flex lg:h-full lg:min-h-0 lg:flex-col">
+                <CardHeader className="px-4 pt-3 pb-2">
+                  <CardTitle className="pb-1 text-lg font-semibold">
                     Leads Management
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 px-4 pb-4">
-                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(230px,1.4fr)_repeat(5,minmax(140px,1fr))]">
+                <CardContent className="space-y-2 px-4 pb-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(200px,1.4fr)_repeat(5,minmax(125px,1fr))] xl:[&_[data-slot=select-trigger]]:h-8 xl:[&_[data-slot=select-trigger]]:text-xs xl:[&_[data-slot=input]]:h-8 xl:[&_[data-slot=input]]:text-xs">
                     <label className="space-y-1">
                       <span
                         aria-hidden="true"
@@ -843,12 +883,30 @@ export default function LeadsPage() {
                     </label>
                     <label className="space-y-1">
                       <span className="block text-xs font-medium">Project</span>
-                      <Select disabled value="all">
+                      <Select
+                        value={projectFilter}
+                        onValueChange={setProjectFilter}
+                        disabled={projectsQuery.isLoading}
+                      >
                         <SelectTrigger aria-label="Filter project">
                           <SelectValue placeholder="Semua Project" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">Semua Project</SelectItem>
+                          {projectOptions.map((project) => (
+                            <SelectItem
+                              key={project.value}
+                              value={project.value}
+                            >
+                              {project.label}
+                            </SelectItem>
+                          ))}
+                          {!projectsQuery.isLoading &&
+                            projectOptions.length === 0 && (
+                              <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                                Belum ada Project aktif
+                              </p>
+                            )}
                         </SelectContent>
                       </Select>
                     </label>
@@ -942,57 +1000,65 @@ export default function LeadsPage() {
                       </Select>
                     </label>
                   </div>
-                  <DataTable
-                    columns={columns}
-                    data={leads}
-                    isLoading={isLoading}
-                    serverPagination={serverPagination}
-                    showColumnSelector={false}
-                    tableHeaderClassName="bg-slate-200 text-slate-700"
-                  />
+                  <SidebarAwareLeadsTable>
+                    {(isSidebarCollapsed) => (
+                      <DataTable
+                        columns={columns}
+                        data={leads}
+                        isLoading={isLoading}
+                        serverPagination={serverPagination}
+                        showColumnSelector={false}
+                        tableHeaderClassName="bg-slate-200 text-slate-700"
+                        className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-2"
+                        tableContainerClassName="lg:min-h-0 lg:flex-1 [&_th]:!px-2 [&_td]:!px-2 [&_th]:!py-1.5 [&_td]:!py-1.5 [&_th]:!text-[11px] [&_td]:!text-[11px] [&_.lead-list-label]:!gap-1 [&_.lead-list-label]:!px-1.5 [&_.lead-list-label]:!py-0.5 [&_.lead-list-label]:!text-[10px]"
+                        compact
+                        useColumnSizing
+                        fillAvailableWidth={isSidebarCollapsed}
+                      />
+                    )}
+                  </SidebarAwareLeadsTable>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="pipeline">
-              <Card className="gap-0 rounded-xl py-0 shadow-none">
-                <CardHeader className="flex flex-row items-end justify-between gap-4 px-4 pt-4 pb-3">
-                  <CardTitle className="pb-2 text-xl font-semibold">
+            <TabsContent value="pipeline" className="lg:min-h-0 lg:flex-1">
+              <Card className="gap-0 rounded-xl py-0 shadow-none lg:flex lg:h-full lg:min-h-0 lg:flex-col">
+                <CardHeader className="flex flex-row items-end justify-between gap-4 px-4 pt-3 pb-2">
+                  <CardTitle className="pb-1 text-lg font-semibold">
                     Leads Pipeline
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium whitespace-nowrap">
                       Periode Leads
                     </span>
-                    <Input
-                      type="date"
-                      aria-label="Tanggal mulai periode Leads"
-                      value={pipelineDateRange.from}
-                      onChange={(event) =>
-                        setPipelineDateRange((current) => ({
-                          ...current,
-                          from: event.target.value,
-                        }))
-                      }
-                      className="w-40"
-                    />
-                    <span className="text-sm text-muted-foreground">s/d</span>
-                    <Input
-                      type="date"
-                      aria-label="Tanggal akhir periode Leads"
-                      value={pipelineDateRange.to}
-                      min={pipelineDateRange.from || undefined}
-                      onChange={(event) =>
-                        setPipelineDateRange((current) => ({
-                          ...current,
-                          to: event.target.value,
-                        }))
-                      }
-                      className="w-40"
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-60 justify-start text-xs font-normal"
+                        >
+                          <CalendarDays className="mr-2 size-3.5 text-muted-foreground" />
+                          {pipelinePeriodLabel}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-auto p-0">
+                        <Calendar
+                          mode="range"
+                          numberOfMonths={2}
+                          selected={pipelinePeriod}
+                          onSelect={(range) =>
+                            setPipelineDateRange({
+                              from: range?.from ? dateValue(range.from) : "",
+                              to: range?.to ? dateValue(range.to) : "",
+                            })
+                          }
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </CardHeader>
-                <CardContent className="px-4 pb-4">
+                <CardContent className="px-4 pb-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
                   <LeadsPipelineTab dateRange={pipelineDateRange} />
                 </CardContent>
               </Card>
@@ -1001,7 +1067,24 @@ export default function LeadsPage() {
         </div>
       </SidebarInset>
 
-      {/* Edit Dialog */}
+      <LeadArchiveDialog
+        open={leadToArchive !== null}
+        leadName={
+          leadToArchive
+            ? `${leadToArchive.customer.firstName} ${leadToArchive.customer.lastName || ""}`.trim()
+            : undefined
+        }
+        isSubmitting={isArchiving}
+        onOpenChange={(open) => {
+          if (!open) setLeadToArchive(null);
+        }}
+        onSubmit={async ({ category, reason }) => {
+          if (!leadToArchive) return;
+          await archiveLead({ id: leadToArchive.id, category, reason });
+          setLeadToArchive(null);
+        }}
+      />
+
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="min-w-2xl">
           <DialogHeader>

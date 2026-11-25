@@ -86,9 +86,25 @@ describe('LeadUseCases', () => {
 
   it('prevents a member from reading another sales user lead', async () => {
     const created = await mockRepo.create({ tenantId: 'tenant-1', assignedUserId: 'sales-1' });
+    await expect(leadUseCases.getLead(created.id, 'tenant-1', 'member', 'sales-2')).rejects.toThrow(
+      /Unauthorized/
+    );
+  });
+
+  it('rejects the legacy delete action without changing the lead', async () => {
+    const created = await mockRepo.create({
+      tenantId: 'tenant-1',
+      assignedUserId: 'sales-1',
+    });
+
     await expect(
-      leadUseCases.getLead(created.id, 'tenant-1', 'member', 'sales-2')
-    ).rejects.toThrow(/Unauthorized/);
+      leadUseCases.deleteLead(created.id, 'tenant-1', 'member', 'sales-1')
+    ).rejects.toThrow(/harus diarsipkan dengan kategori/i);
+
+    await expect(mockRepo.findById(created.id)).resolves.toMatchObject({
+      id: created.id,
+      isDeleted: false,
+    });
   });
 
   it('requires matching tenant-owned evidence before entering a protected stage', async () => {
@@ -98,9 +114,7 @@ describe('LeadUseCases', () => {
         findFirst: async () => ({
           id: 'stage-qualified',
           name: 'Qualified',
-          evidences: [
-            { name: 'Bukti KTP', isRequired: true, fileTypes: ['PDF'] },
-          ],
+          evidences: [{ name: 'Bukti KTP', isRequired: true, fileTypes: ['PDF'] }],
         }),
       },
       attachment: {
@@ -170,7 +184,7 @@ describe('LeadUseCases', () => {
       undefined,
       undefined,
       undefined,
-      prisma as any,
+      prisma as any
     );
 
     const lead = await useCases.createLead({
@@ -192,14 +206,16 @@ describe('LeadUseCases', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(leadCreate).not.toHaveBeenCalled();
     expect(dealCreate).not.toHaveBeenCalled();
-    expect(lead).toEqual(expect.objectContaining({
-      budget: 550_000_000,
-      converted: false,
-      project: { connect: { id: 'project-1' } },
-      productVariant: { connect: { id: 'variant-1' } },
-      campaign: { connect: { id: 'campaign-1' } },
-      customer: { create: expect.objectContaining({ age: 35 }) },
-    }));
+    expect(lead).toEqual(
+      expect.objectContaining({
+        budget: 550_000_000,
+        converted: false,
+        project: { connect: { id: 'project-1' } },
+        productVariant: { connect: { id: 'variant-1' } },
+        campaign: { connect: { id: 'campaign-1' } },
+        customer: { create: expect.objectContaining({ age: 35 }) },
+      })
+    );
   });
 
   it('rejects a product variant or campaign outside the selected parent', async () => {
@@ -222,19 +238,21 @@ describe('LeadUseCases', () => {
       undefined,
       undefined,
       undefined,
-      prisma as any,
+      prisma as any
     );
 
-    await expect(useCases.createLead({
-      tenantId: 'tenant-1',
-      firstName: 'Budi',
-      phone: '08123456789',
-      assignedUserId: 'user-1',
-      statusId: 'status-1',
-      sourceId: 'source-1',
-      projectId: 'project-1',
-      productVariantId: 'variant-from-another-project',
-      campaignId: 'campaign-from-another-source',
-    })).rejects.toThrow(/Product variant not found/i);
+    await expect(
+      useCases.createLead({
+        tenantId: 'tenant-1',
+        firstName: 'Budi',
+        phone: '08123456789',
+        assignedUserId: 'user-1',
+        statusId: 'status-1',
+        sourceId: 'source-1',
+        projectId: 'project-1',
+        productVariantId: 'variant-from-another-project',
+        campaignId: 'campaign-from-another-source',
+      })
+    ).rejects.toThrow(/Product variant not found/i);
   });
 });

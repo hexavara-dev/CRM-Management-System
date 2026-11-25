@@ -129,7 +129,9 @@ const uploadUseCases = new UploadUseCases(
   customerRepoForUpload,
   attachmentRepo,
   new PrismaGenericRepository((prisma as any).lead, 'lead'),
-  new PrismaGenericRepository((prisma as any).deal, 'deal')
+  new PrismaGenericRepository((prisma as any).deal, 'deal'),
+  undefined,
+  new PrismaGenericRepository((prisma as any).leadActivity, 'leadActivity')
 );
 const uploadController = new UploadController(uploadUseCases);
 

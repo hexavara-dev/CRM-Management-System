@@ -41,6 +41,12 @@ export function useLeadSources(filters: LeadSourceFilters) {
   });
 }
 
+/** Sumber aktif untuk seluruh pilihan operasional Leads. */
+export function useActiveLeadSources() {
+  const query = useLeadSources({ status: "active", page: 1, limit: 100 });
+  return { ...query, sources: query.data?.data ?? [] };
+}
+
 function useInvalidate() {
   const queryClient = useQueryClient();
   return () => queryClient.invalidateQueries({ queryKey: [KEY] });

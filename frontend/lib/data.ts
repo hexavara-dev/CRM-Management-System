@@ -130,6 +130,10 @@ export interface Attachment {
   fileType: string;
   fileSize: number;
   uploadedAt: Date;
+  /** Nama user terautentikasi yang mengunggah (dari backend). */
+  uploadedByName?: string;
+  /** Aktivitas Lead yang menjadi asal dokumen, mis. "Visit / Survey · 25 Nov 2026". */
+  activityLabel?: string;
 }
 
 export const initialLeads: Lead[] = [

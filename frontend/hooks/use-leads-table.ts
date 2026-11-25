@@ -9,6 +9,7 @@ type UseLeadsTableOptions = {
   filters?: {
     search?: string;
     stageId?: string;
+    projectId?: string;
     assignedUserId?: string;
     sourceId?: string;
     labelId?: string;
@@ -28,6 +29,7 @@ export function useLeadsTable(options: UseLeadsTableOptions = {}) {
     additionalParams: {
       search: filters.search || undefined,
       stageId: filters.stageId || undefined,
+      projectId: filters.projectId || undefined,
       assignedUserId:
         user?.role === "owner" ? filters.assignedUserId || undefined : user?.id,
       sourceId: filters.sourceId || undefined,
@@ -42,6 +44,7 @@ export function useLeadsTable(options: UseLeadsTableOptions = {}) {
   }, [
     filters.search,
     filters.stageId,
+    filters.projectId,
     filters.assignedUserId,
     filters.sourceId,
     filters.labelId,

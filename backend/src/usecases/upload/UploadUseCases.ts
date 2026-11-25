@@ -9,7 +9,8 @@ export class UploadUseCases {
     private attachmentRepo?: PrismaGenericRepository<Attachment, Prisma.AttachmentDelegate>,
     private leadRepo?: IRepository<any>,
     private dealRepo?: IRepository<any>,
-    private storage: typeof localStorage = localStorage
+    private storage: typeof localStorage = localStorage,
+    private activityRepo?: IRepository<any>
   ) {}
 
   async uploadCustomerDocument(customerId: string, file: Express.Multer.File, tenantId: string) {
@@ -52,7 +53,9 @@ export class UploadUseCases {
     entityId: string,
     entityType: 'lead' | 'deal',
     file: Express.Multer.File,
-    tenantId: string
+    tenantId: string,
+    uploadedById?: string,
+    leadActivityId?: string
   ) {
     if (!this.attachmentRepo) throw new Error('Attachment repository not initialized');
     const entityRepo = entityType === 'lead' ? this.leadRepo : this.dealRepo;
@@ -63,6 +66,18 @@ export class UploadUseCases {
       ...(entityType === 'lead' ? { isDeleted: false } : {}),
     });
     if (!entity) throw new Error(`${entityType === 'lead' ? 'Lead' : 'Deal'} not found`);
+
+    if (leadActivityId) {
+      if (entityType !== 'lead' || !this.activityRepo) {
+        throw new Error('Activity can only be linked to a lead attachment');
+      }
+      const activity = await this.activityRepo.findOne({
+        id: leadActivityId,
+        tenantId,
+        leadId: entityId,
+      });
+      if (!activity) throw new Error('Activity not found');
+    }
 
     const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
     const fileName = `${Date.now()}_${safeOriginalName}`;
@@ -78,6 +93,9 @@ export class UploadUseCases {
       fileType: file.mimetype,
       fileSize: file.size,
     };
+
+    if (uploadedById) attachmentData.uploadedBy = { connect: { id: uploadedById } };
+    if (leadActivityId) attachmentData.leadActivity = { connect: { id: leadActivityId } };
 
     if (entityType === 'lead') {
       attachmentData.lead = { connect: { id: entityId } };

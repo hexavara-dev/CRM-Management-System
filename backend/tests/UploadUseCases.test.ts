@@ -57,6 +57,50 @@ describe('UploadUseCases consistency', () => {
     ]);
   });
 
+  it('stores the authenticated uploader and links the attachment to a tenant-scoped activity', async () => {
+    const storage = createStorageMock();
+    const attachmentRepo = { create: jest.fn(async (data: unknown) => ({ id: 'att-1', ...(data as object) })) };
+    const leadRepo = { findOne: jest.fn(async () => ({ id: 'lead-1', tenantId: 'tenant-1' })) };
+    const activityRepo = { findOne: jest.fn(async () => ({ id: 'act-1' })) };
+    const useCases = new UploadUseCases(
+      {} as any,
+      attachmentRepo as any,
+      leadRepo as any,
+      undefined,
+      storage as any,
+      activityRepo as any
+    );
+
+    await useCases.uploadAttachment('lead-1', 'lead', uploadedFile, 'tenant-1', 'user-1', 'act-1');
+
+    expect(activityRepo.findOne).toHaveBeenCalledWith({ id: 'act-1', tenantId: 'tenant-1', leadId: 'lead-1' });
+    expect(attachmentRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uploadedBy: { connect: { id: 'user-1' } },
+        leadActivity: { connect: { id: 'act-1' } },
+      })
+    );
+  });
+
+  it('rejects linking to an activity outside the lead/tenant without touching storage', async () => {
+    const storage = createStorageMock();
+    const leadRepo = { findOne: jest.fn(async () => ({ id: 'lead-1', tenantId: 'tenant-1' })) };
+    const activityRepo = { findOne: jest.fn(async () => null) };
+    const useCases = new UploadUseCases(
+      {} as any,
+      { create: jest.fn() } as any,
+      leadRepo as any,
+      undefined,
+      storage as any,
+      activityRepo as any
+    );
+
+    await expect(
+      useCases.uploadAttachment('lead-1', 'lead', uploadedFile, 'tenant-1', 'user-1', 'other-act')
+    ).rejects.toThrow('Activity not found');
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
   it('does not touch storage when an attachment is outside the tenant', async () => {
     const storage = createStorageMock();
     const attachmentRepo = { findOne: jest.fn(async () => null) };

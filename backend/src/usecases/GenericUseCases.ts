@@ -40,7 +40,7 @@ const GENERIC_CREATE_FIELDS: Record<string, readonly string[]> = {
     'unitPrice',
     'snapshotData',
   ],
-  leadactivity: ['leadId', 'customerId', 'activityType', 'callLogs', 'tasks', 'notes'],
+  leadactivity: ['leadId', 'customerId', 'activityType', 'activityDate', 'callLogs', 'tasks', 'notes'],
   dealactivity: ['dealId', 'customerId', 'activityType', 'callLogs', 'tasks', 'notes'],
 };
 
@@ -159,6 +159,12 @@ export class GenericUseCases {
     if (operation === 'update') {
       const suppliedFields = Object.keys(payload).filter((key) => !ignoredSecurityFields.has(key));
       if (suppliedFields.length === 0) throw new Error('No supported fields to update');
+    }
+
+    if (modelName === 'leadactivity' && payload.activityDate !== undefined && payload.activityDate !== null) {
+      if (typeof payload.activityDate !== 'string' || Number.isNaN(Date.parse(payload.activityDate))) {
+        throw new Error('Invalid activityDate');
+      }
     }
 
     if (modelName === 'leadactivity' || modelName === 'dealactivity') {
