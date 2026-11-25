@@ -59,7 +59,6 @@ const COLORS = [
 ];
 const STATUS_STYLE: Record<string, string> = {
   Active: "bg-[#E7F6EC] text-[#1E9E55]",
-  "In Development": "bg-[#FFF4DB] text-[#B58900]",
   Inactive: "bg-[#F1F1F3] text-[#6b6b6b]",
 };
 

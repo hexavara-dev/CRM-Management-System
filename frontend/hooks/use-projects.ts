@@ -105,7 +105,6 @@ export interface ProjectEditData extends ProjectDetail {
     typeVariantId: string;
     code: string;
     status: string;
-    isHook: boolean;
     media: { id: string; fileUrl: string; isPrimary: boolean; sortOrder: number }[];
   }[];
 }
@@ -180,7 +179,6 @@ export interface CreateProjectPayload {
     variantIndex: number;
     typeVariantIndex: number;
     locationKey?: string;
-    isHook?: boolean;
   }[];
 }
 

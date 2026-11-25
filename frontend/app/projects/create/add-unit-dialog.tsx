@@ -12,7 +12,7 @@ import { INPUT } from "./form-styles";
 import type { LocationNode, UnitItem } from "./hierarchy-step";
 import type { UnitType } from "./unit-type-step";
 
-type UnitRow = { code: string; type: string; typeVariantKey: string; typeVariantName: string; hook: string };
+type UnitRow = { code: string; type: string; typeVariantKey: string; typeVariantName: string };
 
 export function AddUnitDialog({
   onOpenChange,
@@ -53,7 +53,7 @@ export function AddUnitDialog({
       const normalized = normalizeCode(code);
       if (unavailable.has(normalized)) continue;
       unavailable.add(normalized);
-      result.push({ code, type, typeVariantKey, typeVariantName, hook: "Ya" });
+      result.push({ code, type, typeVariantKey, typeVariantName });
     }
     return result;
   };
@@ -139,7 +139,7 @@ export function AddUnitDialog({
       fail(<>Nomor unit sudah digunakan di lokasi ini: <strong className="font-bold">{usedCodes.join(", ")}</strong>. Ganti dengan nomor lain atau hapus baris tersebut.</>);
       return;
     }
-    onSave(rows.map((r, i) => ({ id: crypto.randomUUID(), locationId: location.id, code: codes[i], type: r.type, typeVariantKey: r.typeVariantKey, typeVariantName: r.typeVariantName, hook: r.hook, status: "Available" })));
+    onSave(rows.map((r, i) => ({ id: crypto.randomUUID(), locationId: location.id, code: codes[i], type: r.type, typeVariantKey: r.typeVariantKey, typeVariantName: r.typeVariantName, status: "Available" })));
     onOpenChange(false);
   };
 

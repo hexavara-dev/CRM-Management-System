@@ -60,7 +60,6 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
       type: variantName.get(unit.variantId) ?? "",
       typeVariantKey: unit.typeVariantId,
       typeVariantName: typeVariantById.get(unit.typeVariantId)?.name ?? "",
-      hook: unit.isHook ? "Ya" : "Tidak",
       status: unit.status.charAt(0) + unit.status.slice(1).toLowerCase(),
     })),
     facilityAttributeIds: project.attributes

@@ -148,7 +148,7 @@ export function KprSimulationDialog({
           >
             Tutup
           </Button>
-          {unit.status === "Available" && (
+          {unit.status === "Available" && unit.projectActive && (
             <Button type="button" onClick={onReserve}>
               Pesan Unit Ini
             </Button>

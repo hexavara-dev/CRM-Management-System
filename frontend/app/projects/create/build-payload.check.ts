@@ -3,21 +3,21 @@ import assert from "node:assert/strict";
 import { buildProjectPayload } from "./build-payload";
 
 const info = { code: "CL", name: " Citraland ", status: "Inactive", description: "", province: "Jawa Timur", city: "Malang", subdistrict: " Bululawang ", village: "", address: "", postalCode: "", mapsUrl: "", siteplanImg: "" };
-const type36 = { name: "Type 36", photos: [{ key: "a", id: "m-1", url: "x" }, { key: "b", url: "y", file: {} as File }], variants: [{ key: "standard", name: "Standard", code: "", stock: "3", basePrice: "350000000", specs: { building_area: "36.4", surface_area: "", floors: "1", bedroom: "2", bathroom: "1", carport: "" }, photos: [{ key: "c", url: "z", file: {} as File }, { key: "d", id: "m-2", url: "x" }] }] };
+const type36 = { name: "Type 36", photos: [{ key: "a", id: "m-1", url: "x" }, { key: "b", url: "y", file: {} as File }], variants: [{ key: "standard", name: "Standard", code: "", stock: "3", basePrice: "350000000", specs: { building_area: "36.456", surface_area: "", floors: "1", bedroom: "2", bathroom: "1", carport: "" }, photos: [{ key: "c", url: "z", file: {} as File }, { key: "d", id: "m-2", url: "x" }] }] };
 const nodes = [
   { id: "n1", parentId: "root", name: "Cluster A", level: "Cluster" },
   { id: "n2", parentId: "n1", name: "Block A", level: "Block" },
 ];
-const units = [{ id: "u1", locationId: "n2", code: "A-01", type: "Type 36", typeVariantKey: "standard", typeVariantName: "Standard", hook: "1", status: "Reserved" }];
+const units = [{ id: "u1", locationId: "n2", code: "A-01", type: "Type 36", typeVariantKey: "standard", typeVariantName: "Standard", status: "Reserved" }];
 
 const payload = buildProjectPayload({ info, unitTypes: [type36], nodes, units });
 assert.equal(payload.name, "Citraland");
-assert.equal(payload.isActive, false); // Inactive -> false; Active/In Development -> true
+assert.equal(payload.isActive, false); // Inactive -> false
 assert.equal("description" in payload, false); // kosong tidak dikirim
 assert.deepEqual([payload.province, payload.city, payload.subdistrict], ["Jawa Timur", "Malang", "Bululawang"]); // di-trim
 assert.equal("village" in payload, false);
 assert.deepEqual(payload.variants[0].typeVariants[0].attributes.map((a) => [a.code, a.value]), [
-  ["building_area", 36], // dibulatkan
+  ["building_area", 36.46], // dua desimal
   ["surface_area", 0], // kosong dikirim 0
   ["floors", 1],
   ["bedroom", 2],
@@ -31,7 +31,7 @@ assert.deepEqual(payload.locations, [
   { key: "n1", parentKey: null, name: "Cluster A", type: "CLUSTER" },
   { key: "n2", parentKey: "n1", name: "Block A", type: "BLOCK" },
 ]);
-assert.deepEqual(payload.units, [{ code: "A-01", variantIndex: 0, typeVariantIndex: 0, locationKey: "n2", isHook: false }]);
+assert.deepEqual(payload.units, [{ code: "A-01", variantIndex: 0, typeVariantIndex: 0, locationKey: "n2" }]);
 
 assert.throws(() => buildProjectPayload({ info, unitTypes: [type36], nodes: [{ ...nodes[0], level: "Room" }], units: [] }), /belum didukung/);
 assert.throws(() => buildProjectPayload({ info, unitTypes: [type36, type36], nodes, units }), /tidak boleh sama/);

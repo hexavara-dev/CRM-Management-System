@@ -335,7 +335,6 @@ export function ProjectWizard({
                     initialValue={initial?.info.status}
                     options={[
                       { value: "Active", label: "Aktif" },
-                      { value: "In Development", label: "Dalam Pengembangan" },
                       { value: "Inactive", label: "Tidak Aktif" },
                     ]}
                     required

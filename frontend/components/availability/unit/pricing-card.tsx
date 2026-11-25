@@ -49,12 +49,14 @@ export function PricingCard({
           <Button
             className="h-11 w-full rounded-xl bg-[#0878ff] text-sm font-semibold hover:bg-[#006be8]"
             onClick={onReserve}
-            disabled={unit.status !== "Available"}
+            disabled={unit.status !== "Available" || !unit.projectActive}
           >
             <ShoppingBag className="mr-2 size-4" />
-            {unit.status === "Available"
-              ? "Pesan Unit Ini"
-              : "Unit Tidak Tersedia"}
+            {!unit.projectActive
+              ? "Project Tidak Aktif"
+              : unit.status === "Available"
+                ? "Pesan Unit Ini"
+                : "Unit Tidak Tersedia"}
           </Button>
           <Button
             variant="outline"
