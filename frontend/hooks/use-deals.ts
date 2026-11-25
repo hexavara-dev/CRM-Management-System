@@ -1,4 +1,5 @@
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/api-error";
 import type { Deal, DealPaymentMethod, DealSummary } from "@/types/deal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -42,13 +43,6 @@ export type DealUnitOption = {
   variant: { id: string; name: string; currentPrice: number };
   typeVariant: { id: string; name: string; currentPrice: number };
 };
-const errorMessage = (error: unknown, fallback: string) => {
-  const response = error as { response?: { data?: { error?: unknown } } };
-  return typeof response.response?.data?.error === "string"
-    ? response.response.data.error
-    : fallback;
-};
-
 export function useDeals(filters: DealFilters = {}, enabled = true) {
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -70,10 +64,13 @@ export function useDeals(filters: DealFilters = {}, enabled = true) {
     onSuccess: (_, variables) => {
       invalidate();
       queryClient.invalidateQueries({ queryKey: ["deal", variables.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["deal-history", variables.id],
+      });
       toast.success("Deal berhasil diperbarui.");
     },
     onError: (error) =>
-      toast.error(errorMessage(error, "Gagal memperbarui Deal.")),
+      toast.error(apiErrorMessage(error, "Gagal memperbarui Deal.")),
   });
   const remove = useMutation({
     mutationFn: async (id: string) => {
@@ -84,7 +81,7 @@ export function useDeals(filters: DealFilters = {}, enabled = true) {
       toast.success("Deal dihapus permanen.");
     },
     onError: (error) =>
-      toast.error(errorMessage(error, "Gagal menghapus Deal.")),
+      toast.error(apiErrorMessage(error, "Gagal menghapus Deal.")),
   });
   return {
     deals: query.data?.data ?? [],
@@ -105,6 +102,8 @@ export function useDealDetail(id: string) {
     queryKey: ["deal", id],
     queryFn: async () => (await api.get<Deal>(`/api/deal/${id}`)).data,
     enabled: !!id,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 

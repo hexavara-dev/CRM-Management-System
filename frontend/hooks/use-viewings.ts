@@ -2,25 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import api from "@/lib/api";
+import { apiErrorMessage } from "@/lib/api-error";
+import { normalizeCollection } from "@/lib/api-response";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { Pagination } from "@/types/api";
 import { Viewing } from "@/types/viewing";
-
-function normalizeCollection<T>(payload: unknown): T[] {
-  if (Array.isArray(payload)) return payload as T[];
-
-  const data = (payload as { data?: unknown } | undefined)?.data;
-  if (Array.isArray(data)) return data as T[];
-
-  const nestedData = (data as { data?: unknown } | undefined)?.data;
-  if (Array.isArray(nestedData)) return nestedData as T[];
-
-  const dataPerPage = (data as { data_per_page?: unknown } | undefined)
-    ?.data_per_page;
-  if (Array.isArray(dataPerPage)) return dataPerPage as T[];
-
-  return [];
-}
 
 type UpsertViewingPayload = {
   leadId: string;
@@ -81,11 +67,7 @@ export function useViewings(options: UseViewingsOptions = {}) {
       if (!tenantId) {
         throw new Error("Not authenticated - no tenant ID");
       }
-      const payload = {
-        ...data,
-        tenantId,
-      };
-      const response = await api.post<Viewing>("/api/viewing", payload);
+      const response = await api.post<Viewing>("/api/viewing", data);
       return response.data;
     },
     onSuccess: () => {
@@ -93,8 +75,7 @@ export function useViewings(options: UseViewingsOptions = {}) {
       toast.success("Visit schedule created");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to create visit");
+      toast.error(apiErrorMessage(error, "Gagal membuat jadwal visit."));
     },
   });
 
@@ -109,11 +90,7 @@ export function useViewings(options: UseViewingsOptions = {}) {
       if (!tenantId) {
         throw new Error("Not authenticated - no tenant ID");
       }
-      const payload = {
-        ...data,
-        tenantId,
-      };
-      const response = await api.put<Viewing>(`/api/viewing/${id}`, payload);
+      const response = await api.put<Viewing>(`/api/viewing/${id}`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -121,8 +98,7 @@ export function useViewings(options: UseViewingsOptions = {}) {
       toast.success("Visit schedule updated");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to update visit");
+      toast.error(apiErrorMessage(error, "Gagal memperbarui jadwal visit."));
     },
   });
 
@@ -136,8 +112,7 @@ export function useViewings(options: UseViewingsOptions = {}) {
       toast.success("Visit schedule deleted");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to delete visit");
+      toast.error(apiErrorMessage(error, "Gagal menghapus jadwal visit."));
     },
   });
 
@@ -170,8 +145,7 @@ export function useViewings(options: UseViewingsOptions = {}) {
       toast.success("Visit evidence uploaded");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to upload evidence");
+      toast.error(apiErrorMessage(error, "Gagal mengunggah bukti visit."));
     },
   });
 
@@ -188,8 +162,9 @@ export function useViewings(options: UseViewingsOptions = {}) {
       toast.success("Visit marked as failed");
     },
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Failed to mark as failed");
+      toast.error(
+        apiErrorMessage(error, "Gagal menandai visit sebagai gagal."),
+      );
     },
   });
 
