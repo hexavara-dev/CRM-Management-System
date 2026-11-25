@@ -1,6 +1,5 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -29,7 +28,6 @@ import {
 } from "@/components/ui/table";
 import {
   formatViewingTimeRange,
-  getInitials,
   getViewingCustomerName,
   getViewingPhone,
   getViewingProjectName,
@@ -121,11 +119,11 @@ function SortableHead({
     <button
       type="button"
       onClick={() => onSortChange(field)}
-      className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium"
+      className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium"
       aria-label={`Urutkan berdasarkan ${label}`}
     >
       {label}
-      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+      <Icon className="h-3 w-3 text-muted-foreground" />
     </button>
   );
 }
@@ -173,12 +171,12 @@ export function ViewingsTable({
   const sortProps = { sortBy, sortOrder, onSortChange };
 
   return (
-    <div className="space-y-4">
-      <div className="overflow-x-auto rounded-xl border bg-white">
-        <Table>
+    <div className="space-y-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+      <div className="overflow-auto rounded-xl border bg-white lg:min-h-0 lg:flex-1">
+        <Table className="text-xs [&_th]:h-9 [&_th]:px-2.5 [&_td]:px-2.5 [&_td]:py-2">
           <TableHeader className="bg-slate-50/80">
             <TableRow>
-              <TableHead className="w-10">
+              <TableHead className="w-8">
                 <Checkbox
                   checked={allSelected}
                   onCheckedChange={(checked) => toggleAll(checked === true)}
@@ -260,43 +258,39 @@ export function ViewingsTable({
                       />
                     </TableCell>
                     <TableCell>
-                      <div className="leading-tight">
-                        <div className="text-base font-bold">
-                          {date.getDate()}
+                      <div className="leading-tight whitespace-nowrap">
+                        <div className="text-xs font-semibold">
+                          {date.getDate()} {DAY_MONTH_YEAR.format(date)}
                         </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {DAY_MONTH_YEAR.format(date)}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
+                        <div className="text-[10px] text-muted-foreground">
                           {WEEKDAY.format(date)}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">
+                    <TableCell
+                      className="max-w-36 truncate text-xs font-medium"
+                      title={getViewingCustomerName(viewing)}
+                    >
                       {getViewingCustomerName(viewing)}
                     </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
+                    <TableCell className="text-xs whitespace-nowrap">
                       {getViewingPhone(viewing)}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar size="sm">
-                          <AvatarFallback className="bg-blue-50 text-[10px] font-semibold text-blue-700">
-                            {getInitials(salesName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm whitespace-nowrap">
-                          {salesName}
-                        </span>
-                      </div>
+                      <span
+                        className="block max-w-28 truncate text-xs whitespace-nowrap"
+                        title={salesName}
+                      >
+                        {salesName}
+                      </span>
                     </TableCell>
                     <TableCell
-                      className="max-w-44 truncate text-sm"
+                      className="max-w-36 truncate text-xs"
                       title={getViewingProjectName(viewing)}
                     >
                       {getViewingProjectName(viewing)}
                     </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
+                    <TableCell className="text-xs whitespace-nowrap">
                       {formatViewingTimeRange(viewing)}
                     </TableCell>
                     <TableCell>
@@ -309,6 +303,7 @@ export function ViewingsTable({
                             type="button"
                             variant="ghost"
                             size="icon"
+                            className="size-7"
                             aria-label="Aksi visit"
                           >
                             <MoreVertical className="h-4 w-4" />
