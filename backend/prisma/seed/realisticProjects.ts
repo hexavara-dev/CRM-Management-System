@@ -1,5 +1,5 @@
 import type { ProductUnitStatus } from '@prisma/client';
-import type { ProductInput, VariantInput } from '../../src/usecases/product/ProductUseCase.js';
+import type { NewAttributeInput, ProductInput, VariantInput } from '../../src/usecases/product/ProductUseCase.js';
 import type { LocationInput, UnitInput } from '../../src/usecases/product/catalogStructure.js';
 
 type TypeOption = { name: string; code: string; price: number; weight: number };
@@ -53,17 +53,22 @@ function typeVariantOf(types: UnitType[], random: () => number, typeIndex?: numb
   return choices[choices.length - 1] as (typeof choices)[number];
 }
 
+/** Varian Premium tipe dua lantai mendapat satu kamar tidur dan carport tambahan. */
+function specificationsOf(type: UnitType, option: TypeOption): NewAttributeInput[] {
+  const extra = option.name === 'Premium' && type.floors > 1 ? 1 : 0;
+  return [
+    { name: 'Building Area', code: 'building_area', dataType: 'NUMBER', unit: 'm²', value: type.buildingArea },
+    { name: 'Surface Area', code: 'surface_area', dataType: 'NUMBER', unit: 'm²', value: type.surfaceArea },
+    { name: 'Floors', code: 'floors', dataType: 'NUMBER', value: type.floors },
+    { name: 'Bedroom', code: 'bedroom', dataType: 'NUMBER', value: type.bedroom + extra },
+    { name: 'Bathroom', code: 'bathroom', dataType: 'NUMBER', value: type.bathroom },
+    { name: 'Carport', code: 'carport', dataType: 'NUMBER', value: type.carport + extra },
+  ];
+}
+
 function variantsOf(types: UnitType[], units: UnitInput[]): VariantInput[] {
   return types.map((type, variantIndex) => ({
     name: type.name,
-    attributes: [
-      { name: 'Building Area', code: 'building_area', dataType: 'NUMBER', unit: 'm²', value: type.buildingArea },
-      { name: 'Surface Area', code: 'surface_area', dataType: 'NUMBER', unit: 'm²', value: type.surfaceArea },
-      { name: 'Floors', code: 'floors', dataType: 'NUMBER', value: type.floors },
-      { name: 'Bedroom', code: 'bedroom', dataType: 'NUMBER', value: type.bedroom },
-      { name: 'Bathroom', code: 'bathroom', dataType: 'NUMBER', value: type.bathroom },
-      { name: 'Carport', code: 'carport', dataType: 'NUMBER', value: type.carport },
-    ],
     typeVariants: type.options.map((option, typeVariantIndex) => ({
       name: option.name,
       code: option.code,
@@ -72,6 +77,7 @@ function variantsOf(types: UnitType[], units: UnitInput[]): VariantInput[] {
       minPrice: Math.round(option.price * 0.96),
       stock: units.filter((unit) => unit.variantIndex === variantIndex && unit.typeVariantIndex === typeVariantIndex).length,
       isActive: true,
+      attributes: specificationsOf(type, option),
     })),
   }));
 }

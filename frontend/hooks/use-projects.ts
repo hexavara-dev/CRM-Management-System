@@ -3,6 +3,7 @@ import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import api from "@/lib/api";
+import { invalidateProductData } from "@/lib/product-cache";
 
 // Proyek adalah product di backend: `products` (nama, kode, deskripsi, status) + akar `product_categories`.
 
@@ -76,12 +77,14 @@ export interface ProjectDetail extends ProjectLocation {
     mediaType: string;
     isPrimary: boolean;
     variantId: string | null;
+    typeVariantId: string | null;
     unitId: string | null;
   }[];
   unitSummary?: UnitSummary;
   attributes: {
     id: string;
     variantId: string | null;
+    typeVariantId: string | null;
     value: number;
     attribute: ProjectAttribute;
   }[];
@@ -145,19 +148,21 @@ export interface CreateProjectPayload {
   variants: {
     id?: string;
     name: string;
+    mediaOrder: string[];
     typeVariants: {
+      mediaOrder: string[];
       id?: string;
       name: string;
       code?: string;
       basePrice: number;
       stock: number;
-    }[];
-    attributes: {
-      name: string;
-      code: string;
-      dataType: "NUMBER" | "STRING";
-      value: number;
-      unit?: string;
+      attributes: {
+        name: string;
+        code: string;
+        dataType: "NUMBER" | "STRING";
+        value: number;
+        unit?: string;
+      }[];
     }[];
   }[];
   locations: {
@@ -173,7 +178,6 @@ export interface CreateProjectPayload {
     variantIndex: number;
     typeVariantIndex: number;
     locationKey?: string;
-    status?: "AVAILABLE" | "RESERVED" | "BOOKED" | "BLOCKED" | "SOLD";
     isHook?: boolean;
   }[];
 }
@@ -184,6 +188,7 @@ export type UpdateProjectPayload = Partial<CreateProjectPayload> & {
 };
 
 type TypeImageUpload = { variantIndex: number; file: File };
+type TypeVariantImageUpload = { variantIndex: number; typeVariantIndex: number; file: File };
 type UnitImageUpload = { unitIndex: number; file: File };
 
 export interface ProjectFilters {
@@ -262,6 +267,32 @@ export function useProjectEditData(id: string | undefined) {
     enabled: !!user && !!id,
     refetchOnMount: "always",
     refetchOnWindowFocus: false,
+    // Muat ulang melepas wizard dan menghilangkan isian yang belum disimpan.
+    refetchOnReconnect: false,
+  });
+}
+
+export type UnitPhotos = {
+  id: string;
+  code: string;
+  type: string;
+  variant: string;
+  photos: { id: string; fileUrl: string }[];
+};
+
+export function useUnitPhotos(
+  projectId: string,
+  params: { page: number; limit: number; search?: string; variantId?: string; typeVariantId?: string },
+) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["unit-photos", user?.tenantId, projectId, params],
+    queryFn: async () =>
+      (
+        await api.get<{ data: UnitPhotos[]; meta: { total: number } }>(`/api/products/${projectId}/unit-photos`, { params })
+      ).data,
+    enabled: !!user,
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -273,16 +304,18 @@ export function useCreateProject() {
       payload,
       covers,
       typeImages,
+      typeVariantImages,
       siteplan,
       unitImages,
     }: {
       payload: CreateProjectPayload;
       covers: File[];
       typeImages: TypeImageUpload[];
+      typeVariantImages: TypeVariantImageUpload[];
       siteplan?: File;
       unitImages?: UnitImageUpload[];
     }) => {
-      if (covers.length === 0 && typeImages.length === 0 && !siteplan && !unitImages?.length)
+      if (covers.length === 0 && typeImages.length === 0 && typeVariantImages.length === 0 && !siteplan && !unitImages?.length)
         return (await api.post<ProjectDetail>("/api/products", payload)).data;
       const form = new FormData();
       form.append("payload", JSON.stringify(payload));
@@ -296,13 +329,17 @@ export function useCreateProject() {
         form.append("covers", file);
       }
       for (const image of typeImages) form.append("typeImages", image.file);
+      form.append(
+        "typeVariantImageIndexes",
+        JSON.stringify(typeVariantImages.map((image) => [image.variantIndex, image.typeVariantIndex])),
+      );
+      for (const image of typeVariantImages) form.append("typeVariantImages", image.file);
       if (siteplan) form.append("siteplan", siteplan);
       for (const image of unitImages ?? []) form.append("unitImages", image.file);
       return (await api.post<ProjectDetail>("/api/products", form)).data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["project-types"] });
+      invalidateProductData(queryClient);
       toast.success("Proyek berhasil disimpan.");
     },
     onError: (error) =>
@@ -318,6 +355,7 @@ export function useUpdateProject() {
       payload,
       covers,
       typeImages,
+      typeVariantImages,
       siteplan,
       unitImages,
     }: {
@@ -325,10 +363,11 @@ export function useUpdateProject() {
       payload: UpdateProjectPayload;
       covers: File[];
       typeImages: TypeImageUpload[];
+      typeVariantImages: TypeVariantImageUpload[];
       siteplan?: File;
       unitImages?: UnitImageUpload[];
     }) => {
-      if (covers.length === 0 && typeImages.length === 0 && !siteplan && !unitImages?.length)
+      if (covers.length === 0 && typeImages.length === 0 && typeVariantImages.length === 0 && !siteplan && !unitImages?.length)
         return (await api.put<ProjectDetail>(`/api/products/${id}`, payload))
           .data;
       const form = new FormData();
@@ -341,16 +380,17 @@ export function useUpdateProject() {
       form.append("unitCount", String(payload.units?.length ?? 0));
       for (const file of covers) form.append("covers", file);
       for (const image of typeImages) form.append("typeImages", image.file);
+      form.append(
+        "typeVariantImageIndexes",
+        JSON.stringify(typeVariantImages.map((image) => [image.variantIndex, image.typeVariantIndex])),
+      );
+      for (const image of typeVariantImages) form.append("typeVariantImages", image.file);
       if (siteplan) form.append("siteplan", siteplan);
       for (const image of unitImages ?? []) form.append("unitImages", image.file);
       return (await api.put<ProjectDetail>(`/api/products/${id}`, form)).data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ queryKey: ["project"] });
-      queryClient.invalidateQueries({ queryKey: ["project-edit"] });
-      queryClient.invalidateQueries({ queryKey: ["project-types"] });
-      queryClient.invalidateQueries({ queryKey: ["availability-project"] });
+      invalidateProductData(queryClient);
       toast.success("Proyek diperbarui.");
     },
     onError: (error) =>
@@ -365,7 +405,7 @@ export function useDeleteProject() {
       await api.delete(`/api/products/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      invalidateProductData(queryClient, { deleted: true });
       toast.success("Proyek dihapus.");
     },
     onError: (error) =>
@@ -384,7 +424,7 @@ export function useProjectMediaAction() {
         await api.patch(`/api/media/${mediaId}`, { isPrimary: true });
       else await api.delete(`/api/media/${mediaId}`);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project"] }),
+    onSuccess: () => invalidateProductData(queryClient),
     onError: (error) =>
       toast.error(errorMessage(error, "Gagal memperbarui gambar.")),
   });

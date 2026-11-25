@@ -12,6 +12,8 @@ import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { compressImage } from "@/lib/compress-image";
+import { newPhotoFiles } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 import { CoverGuide, CoverUpload } from "./cover-upload";
 import { LocationPicker } from "./location-picker";
@@ -106,6 +108,17 @@ export function ProjectWizard({
     return nextInfo;
   };
 
+  const typePhotoUploads = () => ({
+    typeImages: unitTypes.flatMap((type, variantIndex) =>
+      newPhotoFiles(type.photos).map((file) => ({ variantIndex, file })),
+    ),
+    typeVariantImages: unitTypes.flatMap((type, variantIndex) =>
+      type.variants.flatMap((variant, typeVariantIndex) =>
+        newPhotoFiles(variant.photos).map((file) => ({ variantIndex, typeVariantIndex, file })),
+      ),
+    ),
+  });
+
   const buildPayload = (infoOverride: ProjectInfo = info) => {
     let payload;
     try {
@@ -126,17 +139,24 @@ export function ProjectWizard({
     return payload;
   };
 
+  // mutateAsync: redirect tetap jalan walau wizard dilepas saat data edit dimuat ulang.
+  const saveUpdate = async (input: Parameters<typeof updateProject.mutateAsync>[0]) => {
+    try {
+      await updateProject.mutateAsync(input);
+      router.push(`/projects/${input.id}`);
+    } catch {
+      // Pesan error sudah ditampilkan oleh useUpdateProject.
+    }
+  };
+
   const save = () => {
     const payload = buildPayload();
     if (!payload) return;
-    const typeImages = unitTypes.flatMap((type, variantIndex) =>
-      type.image ? [{ variantIndex, file: type.image }] : [],
-    );
     const unitImages = units.flatMap((unit, unitIndex) =>
       (unit.images ?? []).map((file) => ({ unitIndex, file })),
     );
     if (projectId) {
-      updateProject.mutate(
+      void saveUpdate(
         {
           id: projectId,
           payload: {
@@ -150,15 +170,14 @@ export function ProjectWizard({
               : {}),
           },
           covers: coverFiles,
-          typeImages,
+          ...typePhotoUploads(),
           siteplan: siteplanFile,
           unitImages,
         },
-        { onSuccess: () => router.push(`/projects/${projectId}`) },
       );
     } else {
       createProject.mutate(
-        { payload, covers: coverFiles, typeImages, siteplan: siteplanFile, unitImages },
+        { payload, covers: coverFiles, ...typePhotoUploads(), siteplan: siteplanFile, unitImages },
         { onSuccess: (project) => router.push(`/projects/${project.id}`) },
       );
     }
@@ -170,17 +189,25 @@ export function ProjectWizard({
     if (!currentInfo) return false;
     const payload = buildPayload(currentInfo);
     if (!payload) return false;
-    const stepPayload = stepToSave === 0
-      ? { name: payload.name, code: payload.code, description: payload.description, province: payload.province, city: payload.city, subdistrict: payload.subdistrict, village: payload.village, address: payload.address, postalCode: payload.postalCode, mapsUrl: payload.mapsUrl, isActive: payload.isActive, facilityAttributeIds: payload.facilityAttributeIds, removeMediaIds: removedMediaIds, ...(existingMedia.find((media) => media.isPrimary) ? { primaryMediaId: existingMedia.find((media) => media.isPrimary)?.id } : {}) }
-      : stepToSave === 1 ? { variants: payload.variants } : { locations: payload.locations, units: payload.units };
-    updateProject.mutate({
-      id: projectId,
-      payload: stepPayload,
-      covers: stepToSave === 0 ? coverFiles : [],
-      typeImages: stepToSave === 1 ? unitTypes.flatMap((type, variantIndex) => type.image ? [{ variantIndex, file: type.image }] : []) : [],
-      siteplan: stepToSave === 0 ? siteplanFile : undefined,
-      unitImages: stepToSave === 2 ? units.flatMap((unit, unitIndex) => (unit.images ?? []).map((file) => ({ unitIndex, file }))) : [],
-    });
+    // Setelah simpan pengguna meninggalkan wizard, jadi perubahan di step lain ikut dikirim.
+    const typesChanged = unitTypes !== initial?.unitTypes;
+    const structureChanged = locations !== initial?.locations || units !== initial?.units;
+    const primaryMediaId = existingMedia.find((media) => media.isPrimary)?.id;
+    void saveUpdate(
+      {
+        id: projectId,
+        payload: {
+          name: payload.name, code: payload.code, description: payload.description, province: payload.province, city: payload.city, subdistrict: payload.subdistrict, village: payload.village, address: payload.address, postalCode: payload.postalCode, mapsUrl: payload.mapsUrl, isActive: payload.isActive, facilityAttributeIds: payload.facilityAttributeIds, removeMediaIds: removedMediaIds,
+          ...(primaryMediaId ? { primaryMediaId } : {}),
+          ...(typesChanged ? { variants: payload.variants } : {}),
+          ...(structureChanged ? { locations: payload.locations, units: payload.units } : {}),
+        },
+        covers: coverFiles,
+        ...(typesChanged ? typePhotoUploads() : { typeImages: [], typeVariantImages: [] }),
+        siteplan: siteplanFile,
+        unitImages: structureChanged ? units.flatMap((unit, unitIndex) => (unit.images ?? []).map((file) => ({ unitIndex, file }))) : [],
+      },
+    );
     return true;
   };
 
@@ -331,7 +358,7 @@ export function ProjectWizard({
                   </Field>
                 <Field label="Siteplan (Opsional)">
                   <div className="space-y-2">
-                    <label className="group relative flex h-36 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#1980C0] bg-[#F6FAFD] transition hover:bg-[#EAF5FC] focus-within:ring-2 focus-within:ring-[#1980C0]/30">
+                    <label className="group relative flex aspect-square w-full max-w-[280px] cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#1980C0] bg-[#F6FAFD] transition hover:bg-[#EAF5FC] focus-within:ring-2 focus-within:ring-[#1980C0]/30">
                       {siteplanPreviewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- object URL lokal atau URL storage.
                         <img src={siteplanPreviewUrl} alt="Preview siteplan" className="size-full object-contain" />
@@ -345,16 +372,25 @@ export function ProjectWizard({
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
                         className="sr-only"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
+                        onChange={async (event) => {
+                          const input = event.target;
+                          const file = input.files?.[0];
                           if (!file) return;
                           if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 10 * 1024 * 1024) {
                             toast.error("Gunakan JPEG, PNG, atau WebP maksimal 10 MB.");
-                            event.target.value = "";
+                            input.value = "";
                             return;
                           }
-                          setSiteplanFile(file);
-                          setSiteplanPreviewUrl(URL.createObjectURL(file));
+                          try {
+                            // Siteplan tidak dipotong; resolusi dijaga cukup besar agar teks denah terbaca.
+                            const compressed = await compressImage(file, 2560);
+                            setSiteplanFile(compressed);
+                            setSiteplanPreviewUrl(URL.createObjectURL(compressed));
+                          } catch {
+                            toast.error("Gambar siteplan tidak dapat diproses. Pilih berkas lain.");
+                          } finally {
+                            input.value = "";
+                          }
                         }}
                       />
                     </label>

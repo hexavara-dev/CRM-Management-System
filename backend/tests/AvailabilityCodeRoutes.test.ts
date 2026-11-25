@@ -29,8 +29,8 @@ const unit = {
   name: null,
   categoryId: 'block',
   status: 'AVAILABLE',
-  variant: { name: 'Type 45', currentPrice: 650_000_000n, attributes: [] },
-  typeVariant: { id: 'tv-45', name: 'Standard', currentPrice: 650_000_000n },
+  variant: { name: 'Type 45', currentPrice: 650_000_000n },
+  typeVariant: { id: 'tv-45', name: 'Standard', basePrice: 650_000_000n },
   typeVariantId: 'tv-45',
   media: [],
   reservations: [],
@@ -46,6 +46,9 @@ function setup(foundProject: typeof project | null = project) {
     productCategory: { findMany: categoryFindMany },
     productUnit: { findMany: unitFindMany },
     reservation: { findMany: jest.fn().mockResolvedValue([]) },
+    productVariantPriceLog: { findMany: jest.fn().mockResolvedValue([] as never) },
+    unitPriceAdjustment: { findMany: jest.fn().mockResolvedValue([] as never) },
+    productMedia: { findMany: jest.fn().mockResolvedValue([] as never) },
   } as never);
   return { useCase, findUnique, findFirst, categoryFindMany, unitFindMany };
 }

@@ -8,7 +8,7 @@ const project = { id: 'p-1', categoryId: 'root', variants: [], media: [], catego
 const baseInput = {
   name: 'Project Updated',
   code: 'PRJ',
-  variants: [{ id: 'v-1', name: 'Type 36', typeVariants: [{ id: 'tv-1', name: 'Standard', basePrice: 500, stock: 1 }], attributes: [] }],
+  variants: [{ id: 'v-1', name: 'Type 36', typeVariants: [{ id: 'tv-1', name: 'Standard', basePrice: 500, stock: 1 }] }],
   locations: [{ id: 'c-1', key: 'c-1', parentKey: null, name: 'Cluster A', type: 'CLUSTER' as const }],
   units: [{ id: 'u-1', code: 'A-01', variantIndex: 0, typeVariantIndex: 0, locationKey: 'c-1', status: 'AVAILABLE' as const }],
 };
@@ -36,7 +36,7 @@ function fixture(unitStatus = 'AVAILABLE') {
     },
     reservation: { count: fn(0) },
     unitPriceAdjustment: { count: fn(0) },
-    productMedia: { count: fn(0), createMany: fn(), deleteMany: fn(), updateMany: fn(), update: fn(), findFirst: fn(null) },
+    productMedia: { findMany: fn([]), create: fn(), count: fn(0), createMany: fn(), deleteMany: fn(), updateMany: fn(), update: fn(), findFirst: fn(null) },
   };
   const prisma = {
     product: { findFirst: fn(project) },
@@ -64,6 +64,20 @@ describe('project edit wizard persistence', () => {
       ...baseInput, units: [],
     })).rejects.toThrow(/Conflict: units/);
     expect(tx.productUnit.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a status change of a stored unit instead of ignoring it', async () => {
+    const { tx, prisma } = fixture();
+    await expect(new ProductUseCase(prisma as never).update('p-1', 't-1', {
+      ...baseInput, units: [{ ...baseInput.units[0]!, status: 'SOLD' }],
+    })).rejects.toThrow(/Conflict: the status of unit/);
+    expect(tx.productUnit.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps the stored status when none is sent', async () => {
+    const { prisma } = fixture('RESERVED');
+    const { status: _status, ...unit } = baseInput.units[0]!;
+    await expect(new ProductUseCase(prisma as never).update('p-1', 't-1', { ...baseInput, units: [unit] })).resolves.toBeDefined();
   });
 
   it('rejects an existing ID from another project', async () => {
@@ -127,20 +141,23 @@ describe('project edit wizard persistence', () => {
       getPublicUrl: jest.fn((path: string) => ({ publicUrl: `http://localhost:3000/uploads/${path}` })),
       getFilePathFromPublicUrl: jest.fn(() => 't-1/old-type.jpg'),
     };
+    tx.productMedia.findMany.mockResolvedValue([
+      { id: 'type-image-1', fileUrl: 'http://localhost:3000/uploads/t-1/old-type.jpg', sortOrder: 0, isPrimary: true },
+    ]);
     const image = {
       originalname: 'type.jpg', mimetype: 'image/jpeg',
       buffer: Buffer.from([0xff, 0xd8, 0xff, 0x00]), size: 4,
     } as Express.Multer.File;
 
     await new ProductUseCase(prisma as never, storage as never).update(
-      'p-1', 't-1', baseInput, [], [{ variantIndex: 0, file: image }],
+      'p-1', 't-1', { ...baseInput, variants: [{ ...baseInput.variants[0], mediaOrder: ['new:0'] }] }, [], [{ variantIndex: 0, file: image }],
     );
 
     expect(tx.productMedia.deleteMany).toHaveBeenCalledWith({
-      where: { tenantId: 't-1', productId: 'p-1', variantId: { in: ['v-1'] }, mediaType: 'IMAGE' },
+      where: { tenantId: 't-1', productId: 'p-1', variantId: 'v-1', typeVariantId: null, id: { in: ['type-image-1'] } },
     });
-    expect(tx.productMedia.createMany).toHaveBeenCalledWith({
-      data: [expect.objectContaining({ productId: 'p-1', variantId: 'v-1', mediaType: 'IMAGE', isPrimary: true })],
+    expect(tx.productMedia.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: 'p-1', variantId: 'v-1', typeVariantId: null, isPrimary: true }),
     });
     expect(storage.remove).toHaveBeenCalledWith(['t-1/old-type.jpg']);
   });

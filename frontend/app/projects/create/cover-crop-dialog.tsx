@@ -16,11 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  PROJECT_COVER_ASPECT,
-  PROJECT_COVER_HEIGHT,
-  PROJECT_COVER_WIDTH,
-} from "./cover-image";
+import { encodeCanvas, imageFileName, resizeToCanvas } from "@/lib/compress-image";
+import { COVER_FORMAT, type CropFormat } from "./cover-image";
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MIN_SCALE = 0.25;
@@ -28,6 +25,7 @@ const MIN_SCALE = 0.25;
 type Props = {
   file: File;
   url: string;
+  format?: CropFormat;
   onSave: (file: File) => void;
   onCancel: () => void;
 };
@@ -45,7 +43,8 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-export function CoverCropDialog({ file, url, onSave, onCancel }: Props) {
+export function CoverCropDialog({ file, url, format = COVER_FORMAT, onSave, onCancel }: Props) {
+  const aspect = format.width / format.height;
   const [frameElement, setFrameElement] = useState<HTMLDivElement | null>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -80,10 +79,10 @@ export function CoverCropDialog({ file, url, onSave, onCancel }: Props) {
   const imageTop = (frame.height - displayHeight) / 2;
   const maxCropWidth = Math.min(
     displayWidth,
-    displayHeight * PROJECT_COVER_ASPECT,
+    displayHeight * aspect,
   );
   const cropWidth = maxCropWidth * scale;
-  const cropHeight = cropWidth / PROJECT_COVER_ASPECT;
+  const cropHeight = cropWidth / aspect;
   const halfX = displayWidth ? cropWidth / displayWidth / 2 : 0.5;
   const halfY = displayHeight ? cropHeight / displayHeight / 2 : 0.5;
   const centerX = clamp(center.x, halfX, 1 - halfX);
@@ -136,7 +135,7 @@ export function CoverCropDialog({ file, url, onSave, onCancel }: Props) {
     if (drag.mode === "resize") {
       setScale(
         clamp(
-          drag.scale + (dx + dy * PROJECT_COVER_ASPECT) / (2 * maxCropWidth),
+          drag.scale + (dx + dy * aspect) / (2 * maxCropWidth),
           MIN_SCALE,
           1,
         ),
@@ -171,37 +170,26 @@ export function CoverCropDialog({ file, url, onSave, onCancel }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = PROJECT_COVER_WIDTH;
-      canvas.height = PROJECT_COVER_HEIGHT;
-      const context = canvas.getContext("2d");
-      if (!context)
-        throw new Error("Browser tidak dapat memproses gambar ini.");
-      // JPEG tidak mendukung transparansi; area transparan diisi putih.
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, PROJECT_COVER_WIDTH, PROJECT_COVER_HEIGHT);
       const sourceWidth = Math.min(image.width, cropWidth / fit);
       const sourceHeight = Math.min(image.height, cropHeight / fit);
-      context.drawImage(
+      // Gambar kecil tidak diperbesar agar ukuran berkas tidak membengkak.
+      const outputWidth = Math.max(1, Math.round(Math.min(format.width, sourceWidth)));
+      const outputHeight = Math.max(1, Math.round(outputWidth / aspect));
+      const canvas = resizeToCanvas(
         source,
-        clamp((cropLeft - imageLeft) / fit, 0, image.width - sourceWidth),
-        clamp((cropTop - imageTop) / fit, 0, image.height - sourceHeight),
-        sourceWidth,
-        sourceHeight,
-        0,
-        0,
-        PROJECT_COVER_WIDTH,
-        PROJECT_COVER_HEIGHT,
+        {
+          x: clamp((cropLeft - imageLeft) / fit, 0, image.width - sourceWidth),
+          y: clamp((cropTop - imageTop) / fit, 0, image.height - sourceHeight),
+          width: sourceWidth,
+          height: sourceHeight,
+        },
+        outputWidth,
+        outputHeight,
       );
-      const blob = await new Promise<Blob | null>((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.88),
-      );
-      if (!blob || blob.type !== "image/jpeg")
-        throw new Error("Gagal membuat hasil crop JPEG.");
+      const blob = await encodeCanvas(canvas);
       if (blob.size > MAX_UPLOAD_BYTES)
         throw new Error("Hasil crop melebihi 10 MB. Coba gambar lain.");
-      const baseName = file.name.replace(/\.[^.]+$/, "");
-      onSave(new File([blob], `${baseName}-cover.jpg`, { type: "image/jpeg" }));
+      onSave(new File([blob], imageFileName(file.name, blob, `-${format.suffix}`), { type: blob.type }));
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Gagal memotong gambar.",
@@ -220,7 +208,7 @@ export function CoverCropDialog({ file, url, onSave, onCancel }: Props) {
     >
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Atur crop cover</DialogTitle>
+          <DialogTitle>{format.title}</DialogTitle>
           <DialogDescription>
             Geser kotak putih atau tarik langsung pada gambar untuk memilih
             area.
@@ -275,7 +263,7 @@ export function CoverCropDialog({ file, url, onSave, onCancel }: Props) {
             <div
               data-crop-area
               role="group"
-              aria-label="Area crop cover. Geser dengan mouse atau tombol panah. Anda juga dapat menggeser dari area gambar di luar kotak."
+              aria-label="Area crop foto. Geser dengan mouse atau tombol panah. Anda juga dapat menggeser dari area gambar di luar kotak."
               tabIndex={0}
               onKeyDown={onKeyDown}
               className="absolute cursor-move touch-none border-2 border-white outline-none ring-inset focus-visible:ring-2 focus-visible:ring-blue-400"

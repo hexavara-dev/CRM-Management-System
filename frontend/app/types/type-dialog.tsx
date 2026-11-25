@@ -10,28 +10,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { RupiahInput } from "@/components/ui/rupiah-input";
+import { duplicateVariantName, TYPE_DIALOG_CLASS, TYPE_FORM_CLASS, VariantEditor } from "@/components/projects/variant-editor";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { PhotoPicker } from "@/components/projects/photo-picker";
+import type { Photo } from "@/lib/photos";
+import { toast } from "sonner";
 import {
   type ProjectTypeRow,
-  TYPE_ATTRIBUTES,
-  type TypeAttributeCode,
   useCreateProjectType,
   useUpdateProjectType,
 } from "@/hooks/use-project-types";
-import { ImagePlus, Plus, Trash2 } from "lucide-react";
+import { newVariant, type VariantDraft } from "@/lib/unit-specs";
 import { useState } from "react";
 
 type ProjectOption = { id: string; name: string };
-
-const EMPTY_ATTRIBUTES: Record<TypeAttributeCode, number> = {
-  building_area: 0,
-  surface_area: 0,
-  floors: 0,
-  bedroom: 0,
-  bathroom: 0,
-  carport: 0,
-};
 
 function TypeForm({
   projects,
@@ -46,32 +38,50 @@ function TypeForm({
   const updateType = useUpdateProjectType();
   const [projectId, setProjectId] = useState(initial?.projectId ?? "");
   const [name, setName] = useState(initial?.name ?? "");
-  const [basePrice] = useState(String(initial?.basePrice ?? ""));
-  const [stock, setStock] = useState(initial ? String(initial.stock) : "");
-  const [typeVariants, setTypeVariants] = useState(() =>
-    initial?.typeVariants?.map((option) => ({ ...option, key: option.id ?? crypto.randomUUID(), basePriceText: String(option.basePrice), stockText: String(option.stock) }))
-    ?? [{ key: crypto.randomUUID(), name: "Default", code: null, basePrice: 0, stock: 0, basePriceText: "", stockText: "", unitCount: 0 }],
+  const [variants, setVariants] = useState<VariantDraft[]>(() =>
+    initial
+      ? initial.typeVariants.map((option) => ({
+          id: option.id,
+          key: option.id ?? crypto.randomUUID(),
+          name: option.name,
+          code: option.code ?? "",
+          stock: String(option.stock),
+          basePrice: String(option.basePrice),
+          specs: option.specs,
+          photos: option.photos,
+        }))
+      : [newVariant("Default")],
   );
-  const [attributes, setAttributes] = useState<
-    Record<TypeAttributeCode, number>
-  >(initial?.attributes ?? EMPTY_ATTRIBUTES);
-  const [image, setImage] = useState<File>();
+  const savedVariant = (variant: VariantDraft) => initial?.typeVariants.find((option) => option.id === variant.id);
+  const [photos, setPhotos] = useState<Photo[]>(initial?.photos ?? []);
   const pending = createType.isPending || updateType.isPending;
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const duplicate = duplicateVariantName(variants);
+    if (duplicate) {
+      toast.error(duplicate);
+      return;
+    }
     const payload = {
       projectId,
       name,
-      basePrice: Number(basePrice),
-      stock: Number(stock),
-      typeVariants: typeVariants.map((option) => ({
-        ...(option.id ? { id: option.id } : {}), name: option.name, code: option.code,
-        basePrice: Number(option.basePriceText), currentPrice: option.currentPrice ?? Number(option.basePriceText),
-        minPrice: option.minPrice ?? null, stock: Number(option.stockText), unitCount: option.unitCount,
-      })),
-      attributes,
-      image,
+      typeVariants: variants.map((variant) => {
+        const saved = variant.id ? savedVariant(variant) : undefined;
+        const basePrice = Number(variant.basePrice);
+        return {
+          ...(variant.id ? { id: variant.id } : {}),
+          name: variant.name.trim(),
+          code: variant.code || null,
+          basePrice,
+          currentPrice: saved?.currentPrice ?? basePrice,
+          minPrice: saved?.minPrice ?? null,
+          stock: Number(variant.stock),
+          specs: variant.specs,
+          photos: variant.photos,
+        };
+      }),
+      photos,
     };
 
     if (initial) {
@@ -79,7 +89,6 @@ function TypeForm({
         {
           ...payload,
           variantId: initial.id,
-          attributeRows: initial.attributeRows,
         },
         { onSuccess: onClose },
       );
@@ -89,9 +98,14 @@ function TypeForm({
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5 text-xs font-medium text-[#344054] sm:col-span-2">
+    <form onSubmit={submit} className={TYPE_FORM_CLASS}>
+      <VariantEditor
+        variants={variants}
+        onChange={setVariants}
+        createdUnits={(variant) => (variant.id ? (savedVariant(variant)?.unitCount ?? 0) : 0)}
+      >
+        <div className="space-y-3">
+        <div className="space-y-1.5 text-xs font-medium text-[#344054]">
           <span>Proyek</span>
           {initial ? (
             <Input value={initial.projectName} disabled className="h-9" />
@@ -110,7 +124,7 @@ function TypeForm({
             />
           )}
         </div>
-        <label className="space-y-1.5 text-xs font-medium text-[#344054] sm:col-span-2">
+        <label className="block space-y-1.5 text-xs font-medium text-[#344054]">
           Nama tipe
           <Input
             required
@@ -121,78 +135,9 @@ function TypeForm({
             className="h-9"
           />
         </label>
-        <div className="space-y-3 rounded-lg border border-[#E4E4E7] p-3 sm:col-span-2">
-          <div className="flex items-center justify-between gap-2">
-            <div><p className="text-xs font-semibold">Varian tipe</p><p className="text-[10px] font-normal text-[#667085]">Harga dan stock disimpan per varian.</p></div>
-            <Button type="button" variant="outline" className="h-8 text-xs" onClick={() => setTypeVariants((items) => [...items, { key: crypto.randomUUID(), name: "", code: null, basePrice: 0, stock: 0, basePriceText: "", stockText: "", unitCount: 0 }])}><Plus className="mr-1 size-3.5" />Tambah</Button>
-          </div>
-          {typeVariants.map((option) => (
-            <div key={option.key} className="grid gap-2 rounded-md bg-[#F8FAFC] p-2 sm:grid-cols-[1fr_0.75fr_1fr_auto]">
-              <Input required value={option.name} placeholder="Nama varian" className="h-9" onChange={(event) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, name: event.target.value } : item))} />
-              <Input type="number" required min={option.unitCount ?? 0} value={option.stockText} placeholder="Stock" className="h-9" onChange={(event) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, stockText: event.target.value } : item))} />
-              <RupiahInput required value={option.basePriceText} placeholder="Harga dasar" className="h-9" onValueChange={(value) => setTypeVariants((items) => items.map((item) => item.key === option.key ? { ...item, basePriceText: value } : item))} />
-              <Button type="button" variant="ghost" disabled={typeVariants.length === 1 || (option.unitCount ?? 0) > 0} className="h-9 px-2 text-[#D64545]" onClick={() => setTypeVariants((items) => items.filter((item) => item.key !== option.key))}><Trash2 className="size-4" /></Button>
-            </div>
-          ))}
+        <PhotoPicker label="Foto tipe" photos={photos} onChange={setPhotos} />
         </div>
-        <label className="hidden">
-          Total unit
-          <Input
-            type="number"
-            required
-            min={initial?.unitCount ?? 0}
-            max={2147483647}
-            step="1"
-            value={stock}
-            onChange={(event) => setStock(event.target.value)}
-            onFocus={(event) => event.currentTarget.select()}
-            placeholder="0"
-            className="h-9"
-          />
-          <p className="text-[10px] font-normal text-[#667085]">
-            {Number(stock || 0).toLocaleString("id-ID")} slot total ·{" "}
-            {(initial?.unitCount ?? 0).toLocaleString("id-ID")} unit sudah diatur.
-            {initial && Number(stock || 0) < initial.unitCount
-              ? ` Minimal ${initial.unitCount.toLocaleString("id-ID")} unit.`
-              : ""}
-          </p>
-        </label>
-        {TYPE_ATTRIBUTES.map((attribute) => (
-          <label
-            key={attribute.code}
-            className="space-y-1.5 text-xs font-medium text-[#344054]"
-          >
-            {attribute.name}
-            {attribute.unit ? ` (${attribute.unit})` : ""}
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              value={attributes[attribute.code]}
-              onFocus={(event) => event.currentTarget.select()}
-              onChange={(event) =>
-                setAttributes((current) => ({
-                  ...current,
-                  [attribute.code]: Number(event.target.value),
-                }))
-              }
-              className="h-9"
-            />
-          </label>
-        ))}
-        <label className="space-y-1.5 text-xs font-medium text-[#344054] sm:col-span-2">
-          Gambar tipe (opsional)
-          <span className="flex min-h-10 items-center gap-2 rounded-lg border border-dashed border-[#D0D5DD] px-3 py-2 text-xs font-normal text-[#667085]">
-            <ImagePlus className="size-4 shrink-0" />
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(event) => setImage(event.target.files?.[0])}
-              className="min-w-0 flex-1 file:mr-2 file:rounded-md file:border-0 file:bg-[#EFF6FF] file:px-2 file:py-1 file:text-xs file:text-[#175CD3]"
-            />
-          </span>
-        </label>
-      </div>
+      </VariantEditor>
       <DialogFooter>
         <Button
           type="button"
@@ -231,7 +176,7 @@ export function TypeDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className={TYPE_DIALOG_CLASS}>
         <DialogHeader>
           <DialogTitle>{initial ? "Edit Tipe" : "Tambah Tipe"}</DialogTitle>
           <DialogDescription>

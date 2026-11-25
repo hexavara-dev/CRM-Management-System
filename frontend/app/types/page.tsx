@@ -3,6 +3,7 @@
 import { PageHeading } from "@/components/PageHeading";
 import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
+import { TypeGallery, typeGalleryPhotos } from "@/components/projects/type-gallery";
 import { NoImagePlaceholder } from "@/components/projects/no-image-placeholder";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,9 +51,11 @@ import {
   Search,
   Shapes,
 } from "lucide-react";
+import { type SpecCode, specRange } from "@/lib/unit-specs";
 import { useMemo, useState } from "react";
 import { pageItems } from "@/lib/pagination";
 import { toast } from "sonner";
+import { buildTypeExport } from "./export-rows";
 import { TypeDialog } from "./type-dialog";
 import type { CellInput } from "jspdf-autotable";
 
@@ -89,13 +92,13 @@ function Metric({
   );
 }
 
-function specifications(row: ProjectTypeRow) {
-  const attrs = row.attributes;
+function specifications({ typeVariants }: ProjectTypeRow) {
+  const range = (code: SpecCode) => specRange(typeVariants, code);
   return [
-    `LB ${numberFormat.format(attrs.building_area)} m²  |  LT ${numberFormat.format(attrs.surface_area)} m²`,
-    `${numberFormat.format(attrs.bedroom)} Kamar Tidur`,
-    `${numberFormat.format(attrs.bathroom)} Kamar Mandi`,
-    `${numberFormat.format(attrs.carport)} Carport`,
+    `LB ${range("building_area")} m²  |  LT ${range("surface_area")} m²`,
+    `${range("bedroom")} Kamar Tidur`,
+    `${range("bathroom")} Kamar Mandi`,
+    `${range("carport")} Carport`,
   ];
 }
 
@@ -107,6 +110,7 @@ export default function TypesPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [dialogKey, setDialogKey] = useState(0);
+  const [previewRow, setPreviewRow] = useState<ProjectTypeRow | null>(null);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -166,88 +170,30 @@ export default function TypesPage() {
     URL.revokeObjectURL(url);
   };
 
-  const exportColumns = [
-    "Project",
-    "Kode Project",
-    "Lokasi",
-    "Tipe",
-    "Luas Bangunan",
-    "Luas Tanah",
-    "Lantai",
-    "Kamar Tidur",
-    "Kamar Mandi",
-    "Carport",
-    "Unit Dibuat",
-  ];
-  const exportRows = [...filteredRows].sort((a, b) => {
-    const projectOrder = a.projectName.localeCompare(b.projectName, "id-ID", {
-      numeric: true,
-    });
-    if (projectOrder !== 0) return projectOrder;
-    return a.name.localeCompare(b.name, "id-ID", { numeric: true });
-  });
-  const exportGroups = exportRows.reduce(
-    (groups, row, index) => {
-      const previous = groups[groups.length - 1];
-      if (previous && previous.key === row.projectId) {
-        previous.end = index;
-      } else {
-        groups.push({ key: row.projectId, start: index, end: index });
-      }
-      return groups;
-    },
-    [] as { key: string; start: number; end: number }[],
-  );
-  const groupForRow = (index: number) =>
-    exportGroups.find((group) => group.start === index);
-  const exportBody = exportRows.map((row, index) => {
-    const group = groupForRow(index);
-    const identity = group
-      ? [row.projectName, row.projectCode, row.location]
-      : ["", "", ""];
-    return [
-      ...identity,
-      row.name,
-      row.attributes.building_area,
-      row.attributes.surface_area,
-      row.attributes.floors,
-      row.attributes.bedroom,
-      row.attributes.bathroom,
-      row.attributes.carport,
-      row.unitCount,
-    ];
-  });
-
   const exportExcel = async () => {
     try {
       const ExcelJS = await import("exceljs");
+      const { columns, rows, merges } = buildTypeExport(filteredRows);
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet("Tipe Unit");
       sheet.views = [{ showGridLines: false }];
-      sheet.addRow(exportColumns);
-      exportBody.forEach((row) => sheet.addRow(row));
+      sheet.addRow(columns);
+      rows.forEach((row) => sheet.addRow(row));
       const cellBorder = {
         top: { style: "thin" as const, color: { argb: "FF000000" } },
         left: { style: "thin" as const, color: { argb: "FF000000" } },
         bottom: { style: "thin" as const, color: { argb: "FF000000" } },
         right: { style: "thin" as const, color: { argb: "FF000000" } },
       };
-      for (const group of exportGroups) {
-        if (group.end === group.start) continue;
-        for (const column of ["A", "B", "C"]) {
-          sheet.mergeCells(
-            `${column}${group.start + 2}:${column}${group.end + 2}`,
-          );
-          const cell = sheet.getCell(`${column}${group.start + 2}`);
-          cell.alignment = { vertical: "middle", wrapText: true };
-        }
+      for (const { column, start, end } of merges) {
+        if (end > start) sheet.mergeCells(start + 2, column + 1, end + 2, column + 1);
       }
       // ExcelJS dapat mengubah style cell saat merge. Terapkan ulang ke seluruh
       // grid setelah merge agar border terlihat pada cell biasa maupun merged cell.
       for (let rowNumber = 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
         for (
           let columnNumber = 1;
-          columnNumber <= exportColumns.length;
+          columnNumber <= columns.length;
           columnNumber += 1
         ) {
           const cell = sheet.getCell(rowNumber, columnNumber);
@@ -285,44 +231,22 @@ export default function TypesPage() {
         import("jspdf"),
         import("jspdf-autotable"),
       ]);
+      const { columns, rows, merges } = buildTypeExport(filteredRows);
       const document = new jsPDF({ orientation: "landscape" });
       document.setFontSize(14);
       document.text("Daftar Tipe Unit", 14, 14);
-      const pdfBody: CellInput[][] = exportRows.map((row, index) => {
-        const group = groupForRow(index);
-        const identity = group
-          ? [
-              {
-                content: row.projectName,
-                rowSpan: group.end - group.start + 1,
-                styles: { valign: "middle" as const },
-              },
-              {
-                content: row.projectCode,
-                rowSpan: group.end - group.start + 1,
-                styles: { valign: "middle" as const },
-              },
-              {
-                content: row.location,
-                rowSpan: group.end - group.start + 1,
-                styles: { valign: "middle" as const },
-              },
-            ]
-          : [];
-        return [
-          ...identity,
-          row.name,
-          row.attributes.building_area,
-          row.attributes.surface_area,
-          row.attributes.floors,
-          row.attributes.bedroom,
-          row.attributes.bathroom,
-          row.attributes.carport,
-          row.unitCount,
-        ];
-      });
+      const pdfBody: CellInput[][] = rows.map((row, rowIndex) =>
+        row.flatMap((content, column): CellInput[] => {
+          const merge = merges.find(
+            (item) => item.column === column && item.start <= rowIndex && rowIndex <= item.end,
+          );
+          if (!merge) return [content];
+          if (merge.start !== rowIndex) return [];
+          return [{ content, rowSpan: merge.end - merge.start + 1, styles: { valign: "middle" as const } }];
+        }),
+      );
       autoTable(document, {
-        head: [exportColumns],
+        head: [columns],
         body: pdfBody,
         startY: 20,
         theme: "grid",
@@ -595,14 +519,27 @@ export default function TypesPage() {
                             </p>
                           </TableCell>
                           <TableCell className="px-4 py-3">
-                            <div className="h-[72px] w-28 overflow-hidden rounded-xl border border-[#E4EAF2] bg-[#F4F4F5]">
-                              {row.image ? (
-                                <img
-                                  src={row.image}
-                                  alt={`Tipe ${row.name}`}
-                                  className="size-full object-cover"
-                                  loading="lazy"
-                                />
+                            <div className="size-20 overflow-hidden rounded-xl border border-[#E4EAF2] bg-[#F4F4F5]">
+                              {typeGalleryPhotos(row)[0] ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewRow(row)}
+                                  aria-label={`Lihat foto ${row.name}`}
+                                  className="relative block size-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1980C0]"
+                                >
+                                  {/* Foto utama tipe; bila tidak ada, foto varian pertama. */}
+                                  <img
+                                    src={typeGalleryPhotos(row)[0].url}
+                                    alt={`Tipe ${row.name}`}
+                                    className="size-full object-cover transition-transform duration-200 hover:scale-105"
+                                    loading="lazy"
+                                  />
+                                  {typeGalleryPhotos(row).length > 1 && (
+                                    <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-black/65 px-1.5 text-[10px] font-medium text-white">
+                                      +{typeGalleryPhotos(row).length - 1}
+                                    </span>
+                                  )}
+                                </button>
                               ) : (
                                 <NoImagePlaceholder compact />
                               )}
@@ -719,6 +656,7 @@ export default function TypesPage() {
           </section>
         </main>
       </SidebarInset>
+      {previewRow && <TypeGallery type={previewRow} onClose={() => setPreviewRow(null)} />}
       <TypeDialog
         key={dialogKey}
         open={dialogOpen}

@@ -1,4 +1,6 @@
 import type { Prisma, PrismaClient, ProductCategoryType, ProductUnitStatus } from '@prisma/client';
+import { unitSellingPrices } from '../pricing/unitPrices.js';
+import { byLocationName } from '../product/catalogStructure.js';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 import {
   availabilityIntegrity,
@@ -13,14 +15,19 @@ const unitInclude = (tenantId: string) =>
       select: {
         id: true,
         name: true,
+      },
+    },
+    typeVariant: {
+      select: {
+        id: true,
+        name: true,
+        basePrice: true,
+        currentPrice: true,
         attributes: {
           where: { tenantId, attribute: { tenantId } },
           include: { attribute: { select: { code: true, name: true, unit: true } } },
         },
       },
-    },
-    typeVariant: {
-      select: { id: true, name: true, basePrice: true, currentPrice: true },
     },
     media: {
       where: { tenantId, mediaType: 'IMAGE' as const },
@@ -35,7 +42,10 @@ const unitInclude = (tenantId: string) =>
     },
   }) satisfies Prisma.ProductUnitInclude;
 
-type AvailabilityUnit = Prisma.ProductUnitGetPayload<{ include: ReturnType<typeof unitInclude> }>;
+type AvailabilityUnit = Prisma.ProductUnitGetPayload<{ include: ReturnType<typeof unitInclude> }> & {
+  /** Harga jual hari ini, sama dengan Pricing. */
+  sellingPrice: number;
+};
 type Summary = {
   total: number;
   available: number;
@@ -110,11 +120,6 @@ function locationOf(product: {
   return [product.address, product.village, product.subdistrict, product.city, product.province]
     .filter((part): part is string => Boolean(part?.trim()))
     .join(', ');
-}
-
-function priceOf(unit: AvailabilityUnit) {
-  const legacyVariant = unit.variant as typeof unit.variant & { currentPrice?: bigint };
-  return Number(unit.typeVariant?.currentPrice ?? legacyVariant.currentPrice ?? 0);
 }
 
 function ancestorsOf(categoryId: string, categories: Map<string, AvailabilityCategory>) {
@@ -215,7 +220,7 @@ export class AvailabilityUseCase {
     const hierarchyByProduct = new Map(
       products.map((product) => [
         product.id,
-        buildSafeAvailabilityHierarchy(product.categoryId, categoryRows),
+        buildSafeAvailabilityHierarchy(product.categoryId, [...categoryRows].sort(byLocationName)),
       ])
     );
     const ignoredUnitsByProduct = new Map(products.map((product) => [product.id, 0]));
@@ -323,7 +328,8 @@ export class AvailabilityUseCase {
       where: { tenantId },
       select: { id: true, code: true, parentId: true, name: true, type: true },
     });
-    const hierarchy = buildSafeAvailabilityHierarchy(product.categoryId, categoryRows);
+    // Urutan di sini menentukan urutan lokasi di semua halaman Availability dan Unit Distribution.
+    const hierarchy = buildSafeAvailabilityHierarchy(product.categoryId, [...categoryRows].sort(byLocationName));
     if (!hierarchy) return null;
 
     const projectUnits = await this.prisma.productUnit.findMany({
@@ -331,7 +337,10 @@ export class AvailabilityUseCase {
       orderBy: { code: 'asc' },
       include: unitInclude(tenantId),
     });
-    const units = projectUnits.filter((unit) => hierarchy.categories.has(unit.categoryId));
+    const prices = await unitSellingPrices(this.prisma, tenantId, projectUnits);
+    const units = projectUnits
+      .filter((unit) => hierarchy.categories.has(unit.categoryId))
+      .map((unit) => ({ ...unit, sellingPrice: Number(prices.get(unit.id) ?? 0) }));
     const integrity = availabilityIntegrity(
       projectUnits.length - units.length,
       hierarchy.skippedCycleEdges
@@ -406,6 +415,24 @@ export class AvailabilityUseCase {
     };
   }
 
+  /** Foto pengganti unit tanpa foto: foto varian, lalu foto tipe, lalu sampul proyek. */
+  private async fallbackImages(tenantId: string, productId: string, variantId: string, typeVariantId: string) {
+    const media = await this.prisma.productMedia.findMany({
+      where: {
+        tenantId, productId, unitId: null, mediaType: 'IMAGE',
+        OR: [{ typeVariantId }, { variantId, typeVariantId: null }, { variantId: null, typeVariantId: null }],
+      },
+      orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: { fileUrl: true, variantId: true, typeVariantId: true },
+    });
+    const groups = [
+      media.filter((item) => item.typeVariantId),
+      media.filter((item) => item.variantId && !item.typeVariantId),
+      media.filter((item) => !item.variantId),
+    ];
+    return (groups.find((group) => group.length) ?? []).map((item) => item.fileUrl);
+  }
+
   private mapUnits(units: AvailabilityUnit[], categories: Map<string, AvailabilityCategory>) {
     return units.map((unit) => {
       const location = categories.get(unit.categoryId);
@@ -417,7 +444,7 @@ export class AvailabilityUseCase {
         isHook: unit.isHook,
         type: unit.variant.name,
         variant: unit.typeVariant?.name ?? 'Default',
-        price: priceOf(unit),
+        price: unit.sellingPrice,
         basePrice: Number(unit.typeVariant?.basePrice ?? 0),
         location: location?.name ?? '—',
         locationLevel: location?.type ?? 'CATEGORY',
@@ -473,7 +500,6 @@ export class AvailabilityUseCase {
     const siblings = node.parentId
       ? childCategories(node.parentId, data.categories)
           .map((item) => ({ code: item.code, name: item.name }))
-          .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true }))
       : [];
     const blocks = [
       ...new Set(
@@ -481,7 +507,7 @@ export class AvailabilityUseCase {
           .map((unit) => nearestCategory(unit.categoryId, 'BLOCK', data.categories)?.name)
           .filter((name): name is string => Boolean(name))
       ),
-    ];
+    ].sort((a, b) => byLocationName({ name: a }, { name: b }));
 
     return {
       project: {
@@ -540,8 +566,10 @@ export class AvailabilityUseCase {
     if (!unit) return null;
 
     const block = nearestCategory(unit.categoryId, 'BLOCK', data.categories);
+    // Spesifikasi mengikuti varian unit, bukan tipenya.
+    const unitAttributes = unit.typeVariant?.attributes ?? [];
     const attributes = new Map(
-      unit.variant.attributes.map(({ attribute, value }) => [attribute.code, { attribute, value }])
+      unitAttributes.map(({ attribute, value }) => [attribute.code, { attribute, value }])
     );
     const attributeLabel = (code: string) => {
       const item = attributes.get(code);
@@ -549,8 +577,11 @@ export class AvailabilityUseCase {
       const suffix = item.attribute.unit ? ` ${item.attribute.unit}` : '';
       return `${item.value}${suffix}`;
     };
-    const price = priceOf(unit);
-    const specifications = unit.variant.attributes.map(({ attribute, value }) => ({
+    const price = unit.sellingPrice;
+    const images = unit.media.length
+      ? unit.media.map((media) => media.fileUrl)
+      : await this.fallbackImages(tenantId, data.product.id, unit.variantId, unit.typeVariantId);
+    const specifications = unitAttributes.map(({ attribute, value }) => ({
       key: attribute.code,
       label: `${attribute.name}: ${value}${attribute.unit ? ` ${attribute.unit}` : ''}`,
     }));
@@ -576,7 +607,7 @@ export class AvailabilityUseCase {
       basePrice: Number(unit.typeVariant?.basePrice ?? 0),
       promo: 0,
       finalPrice: price,
-      images: unit.media.map((media) => media.fileUrl),
+      images,
       floorPlan: null,
       specifications,
     };

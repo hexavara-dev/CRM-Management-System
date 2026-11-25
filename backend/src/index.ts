@@ -76,7 +76,9 @@ import { FinancingBankController } from './presentation/controllers/FinancingBan
 
 const app = express();
 app.use(requestLogMiddleware);
-app.use(express.json());
+// Proyek besar (sampai 5000 unit) mengirim struktur unit jauh di atas bawaan 100 KB.
+const MAX_PROJECT_PAYLOAD_BYTES = 2 * 1024 * 1024;
+app.use(express.json({ limit: MAX_PROJECT_PAYLOAD_BYTES }));
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3001')
   .split(',')
   .map((origin) => origin.trim());
@@ -99,7 +101,7 @@ app.use(
 // Specialized Upload Setup
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024, fieldSize: MAX_PROJECT_PAYLOAD_BYTES },
   fileFilter: (_req, file, callback) => {
     const allowed = [
       'application/pdf',
@@ -397,16 +399,18 @@ app.delete('/api/categories/:id', authMiddleware, ownerOnly, pc.deleteCategory);
 app.get('/api/products', authMiddleware, pc.listProducts);
 app.get('/api/products/:id', authMiddleware, pc.getProduct);
 app.get('/api/products/:id/edit-data', authMiddleware, pc.getProductEdit);
-const projectUploads = upload.fields([{ name: 'covers', maxCount: 10 }, { name: 'typeImages', maxCount: 100 }, { name: 'unitImages', maxCount: 500 }, { name: 'siteplan', maxCount: 1 }]);
+const projectUploads = upload.fields([{ name: 'covers', maxCount: 10 }, { name: 'typeImages', maxCount: 500 }, { name: 'typeVariantImages', maxCount: 500 }, { name: 'unitImages', maxCount: 500 }, { name: 'siteplan', maxCount: 1 }]);
 app.post('/api/products', authMiddleware, ownerOnly, projectUploads, pc.createProduct);
 app.put('/api/products/:id', authMiddleware, ownerOnly, projectUploads, pc.updateProduct);
 app.delete('/api/products/:id', authMiddleware, ownerOnly, pc.deleteProduct);
-app.post('/api/products/:id/variants', authMiddleware, ownerOnly, pc.createVariant);
-app.put('/api/products/:id/variants/:variantId', authMiddleware, ownerOnly, pc.updateVariant);
+const typeUploads = upload.fields([{ name: 'typeImages', maxCount: 5 }, { name: 'typeVariantImages', maxCount: 500 }]);
+app.post('/api/products/:id/variants', authMiddleware, ownerOnly, typeUploads, pc.createVariant);
+app.put('/api/products/:id/variants/:variantId', authMiddleware, ownerOnly, typeUploads, pc.updateVariant);
 app.delete('/api/products/:id/variants/:variantId', authMiddleware, ownerOnly, pc.deleteVariant);
 app.post('/api/products/:id/attributes', authMiddleware, ownerOnly, pc.createAttribute);
 app.put('/api/products/:id/attributes/:attributeId', authMiddleware, ownerOnly, pc.updateAttribute);
 app.delete('/api/products/:id/attributes/:attributeId', authMiddleware, ownerOnly, pc.deleteAttribute);
+app.get('/api/products/:id/unit-photos', authMiddleware, pc.listUnitPhotos);
 app.get('/api/products/:id/media', authMiddleware, pc.listMedia);
 app.post('/api/products/:id/media', authMiddleware, ownerOnly, upload.single('file'), pc.uploadMedia);
 app.post('/api/products/:id/media-links', authMiddleware, ownerOnly, pc.addMediaLink);

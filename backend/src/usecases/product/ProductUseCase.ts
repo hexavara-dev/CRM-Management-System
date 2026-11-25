@@ -3,18 +3,20 @@ import type { AttributeDataType, Prisma, PrismaClient } from '@prisma/client';
 import { localStorage } from '../../infrastructure/storage/localStorage.js';
 import { validateProductImage } from './ProductMediaUseCase.js';
 import { assertCategory, categoryWithDescendants } from './catalogRules.js';
+import { saveOwnerImages, type StoredImage } from './typeImages.js';
 import { retryUniqueCode, uniqueCode } from './uniqueCode.js';
 import {
   assertUnits,
   assertUnitsWithinStock,
+  byLocationName,
   orderLocations,
   type LocationInput,
   type UnitInput,
 } from './catalogStructure.js';
 
-/** Value of a master attribute for a product or one of its variants (pivot row). */
+/** Value of a master attribute for a product (facility) or one of its type variants (specification). */
 export type AttributeInput = {
-  variantId?: string | null;
+  typeVariantId?: string | null;
   attributeId?: string;
   value?: number;
 };
@@ -38,8 +40,8 @@ export type VariantInput = {
   /** Batas minimum harga jual unit; null menghapus batas. */
   minPrice?: number | null;
   stock?: number;
-  /** Only used when creating a product together with its variants. */
-  attributes?: NewAttributeInput[];
+  /** Urutan akhir foto tipe; lihat saveOwnerImages. */
+  mediaOrder?: string[];
 };
 
 export type TypeVariantInput = {
@@ -51,9 +53,14 @@ export type TypeVariantInput = {
   minPrice?: number | null;
   stock?: number;
   isActive?: boolean;
+  /** Spesifikasi unit milik varian ini; yang tidak dikirim tidak diubah. */
+  attributes?: NewAttributeInput[];
+  /** Urutan akhir foto varian; lihat saveOwnerImages. */
+  mediaOrder?: string[];
 };
 
 export type ProjectTypeImage = { variantIndex: number; file: Express.Multer.File };
+export type ProjectTypeVariantImage = { variantIndex: number; typeVariantIndex: number; file: Express.Multer.File };
 export type ProjectUnitImage = { unitIndex: number; file: Express.Multer.File };
 
 export type ProductInput = {
@@ -96,6 +103,86 @@ export type ProductListFilters = {
   isActive?: boolean;
 };
 
+/** Photos sent with one type: for the type itself and for its variants. */
+export type TypeImageUploads = {
+  type: Express.Multer.File[];
+  variants: { typeVariantIndex: number; file: Express.Multer.File }[];
+};
+const NO_IMAGES: TypeImageUploads = { type: [], variants: [] };
+
+/** A type that is still used elsewhere cannot be deleted; explains what is using it. */
+async function assertTypeRemovable(tx: Prisma.TransactionClient, tenantId: string, variantId: string) {
+  if (await tx.productUnit.count({ where: { tenantId, variantId } })) {
+    throw new Error('Conflict: a type with units must remain');
+  }
+  if (await tx.productVariantPriceLog.count({ where: { tenantId, typeVariant: { productVariantId: variantId } } })) {
+    throw new Error('Conflict: a type with pricing history must remain');
+  }
+  if (await tx.lead.count({ where: { tenantId, productVariantId: variantId } }) ||
+    await tx.leadInterest.count({ where: { tenantId, variantId } })) {
+    throw new Error('Conflict: a type used by leads must remain');
+  }
+}
+
+function assertUniqueSpecifications(variants: VariantInput[]) {
+  for (const variant of variants) {
+    for (const option of variant.typeVariants ?? []) {
+      const codes = (option.attributes ?? []).map((attribute) => attribute.code);
+      if (new Set(codes).size !== codes.length) {
+        throw new Error(`Invalid attributes: variant ${option.name} has duplicate attribute codes`);
+      }
+    }
+  }
+}
+
+/** Finds (or creates) UNIT_TYPE attribute masters by code, cached for one transaction. */
+function specificationMasters(tx: Prisma.TransactionClient, tenantId: string) {
+  const ids = new Map<string, string>();
+  return async (attribute: NewAttributeInput) => {
+    const code = attribute.code as string;
+    const known = ids.get(code);
+    if (known) return known;
+    const existing = await tx.attribute.findFirst({ where: { tenantId, code }, select: { id: true, source: true } });
+    if (existing && existing.source !== 'UNIT_TYPE') throw new Error('Invalid attribute source for this level');
+    const id =
+      existing?.id ??
+      (
+        await tx.attribute.create({
+          data: {
+            tenantId,
+            code,
+            name: attribute.name as string,
+            dataType: attribute.dataType as AttributeDataType,
+            unit: attribute.unit ?? null,
+          },
+        })
+      ).id;
+    ids.set(code, id);
+    return id;
+  };
+}
+
+/** Saves the specifications of one type variant; values that did not change are not written. */
+async function saveSpecifications(
+  tx: Prisma.TransactionClient,
+  owner: { tenantId: string; productId: string; variantId: string; typeVariantId: string },
+  attributes: NewAttributeInput[] | undefined,
+  masterOf: (attribute: NewAttributeInput) => Promise<string>
+) {
+  if (!attributes?.length) return;
+  const current = await tx.productAttribute.findMany({
+    where: { tenantId: owner.tenantId, typeVariantId: owner.typeVariantId },
+    select: { id: true, attributeId: true, value: true },
+  });
+  for (const attribute of attributes) {
+    const attributeId = await masterOf(attribute);
+    const value = attribute.value ?? 0;
+    const existing = current.find((row) => row.attributeId === attributeId);
+    if (!existing) await tx.productAttribute.create({ data: { ...owner, attributeId, value } });
+    else if (existing.value !== value) await tx.productAttribute.update({ where: { id: existing.id }, data: { value } });
+  }
+}
+
 export class ProductUseCase {
   constructor(private prisma: PrismaClient, private storage: typeof localStorage = localStorage) {}
 
@@ -109,6 +196,62 @@ export class ProductUseCase {
       stock: variant.stock ?? 0,
       isActive: true,
     }];
+  }
+
+  /** Writes validated images to storage; paths are tracked in `stored` first so failures can be cleaned up. */
+  private async storeImages<T extends { file: Express.Multer.File }>(
+    tenantId: string,
+    productId: string,
+    images: T[],
+    stored: (T & StoredImage)[]
+  ) {
+    const extensions = images.map((image) => validateProductImage(image.file));
+    for (const [index, image] of images.entries()) {
+      const path = `${tenantId}/product/${productId}/${randomUUID()}.${extensions[index]}`;
+      stored.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
+      await this.storage.upload(path, image.file.buffer);
+    }
+  }
+
+  private async removeStoredUrls(urls: string[]) {
+    const paths = urls.flatMap((url) => {
+      try { return [this.storage.getFilePathFromPublicUrl(url)]; }
+      catch { return []; }
+    });
+    if (paths.length) await this.storage.remove(paths);
+  }
+
+  private assertTypeImages(
+    variants: VariantInput[],
+    typeImages: { variantIndex: number }[],
+    typeVariantImages: { variantIndex: number; typeVariantIndex: number }[]
+  ) {
+    if (typeImages.some((image) => !variants[image.variantIndex])) throw new Error('Invalid type image indexes');
+    if (typeVariantImages.some((image) => {
+      const variant = variants[image.variantIndex];
+      return !variant || !this.typeVariantsOf(variant)[image.typeVariantIndex];
+    })) throw new Error('Invalid type variant image indexes');
+  }
+
+  /** Saves the photos of one type and all of its variants; returns the URLs of removed photos. */
+  private async saveTypeImages(
+    tx: Prisma.TransactionClient,
+    owner: { tenantId: string; productId: string; variantId: string },
+    variant: VariantInput,
+    typeVariantIds: string[],
+    typeImages: StoredImage[],
+    typeVariantImages: (StoredImage & { typeVariantIndex: number })[]
+  ) {
+    const removed = await saveOwnerImages(tx, { ...owner, typeVariantId: null }, variant.mediaOrder, typeImages);
+    for (const [index, option] of this.typeVariantsOf(variant).entries()) {
+      removed.push(...await saveOwnerImages(
+        tx,
+        { ...owner, typeVariantId: typeVariantIds[index] as string },
+        option.mediaOrder,
+        typeVariantImages.filter((image) => image.typeVariantIndex === index)
+      ));
+    }
+    return removed;
   }
 
   private async assertProductRelations(tenantId: string, input: ProductInput) {
@@ -223,10 +366,11 @@ export class ProductUseCase {
           },
         },
         attributes: {
-          orderBy: [{ variantId: 'asc' }, { attribute: { name: 'asc' } }],
+          orderBy: [{ variantId: 'asc' }, { typeVariantId: 'asc' }, { attribute: { name: 'asc' } }],
           include: { attribute: true },
         },
-        media: { orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        // Foto unit bisa ribuan; dimuat per halaman lewat ProductUnitUseCase.photos.
+        media: { where: { unitId: null }, orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'asc' }] },
       },
     });
     if (!product) throw new Error('Product not found');
@@ -267,7 +411,7 @@ export class ProductUseCase {
       select: { id: true, parentId: true, name: true, code: true, type: true },
     });
     const children = new Map<string, typeof categories>();
-    for (const category of categories) {
+    for (const category of [...categories].sort(byLocationName)) {
       if (!category.parentId) continue;
       const siblings = children.get(category.parentId) ?? [];
       siblings.push(category);
@@ -295,7 +439,7 @@ export class ProductUseCase {
    * location tree and the units in the same transaction, so a project is saved as a whole.
    * Without `categoryId`, a PROJECT category with the same name and code becomes the tree root.
    */
-  async create(tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = []) {
+  async create(tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = [], typeVariantImages: ProjectTypeVariantImage[] = []) {
     if (!input.name || !input.code) throw new Error('name and code are required');
     const facilityIds = input.facilityAttributeIds ?? [];
     if (facilityIds.length) {
@@ -306,16 +450,8 @@ export class ProductUseCase {
     }
     const variants = input.variants ?? [];
     if (variants.length === 0) throw new Error('variants must contain at least one variant');
-    if (typeImages.some((image) => image.variantIndex < 0 || image.variantIndex >= variants.length) ||
-      new Set(typeImages.map((image) => image.variantIndex)).size !== typeImages.length) {
-      throw new Error('Invalid type image indexes');
-    }
-    for (const variant of variants) {
-      const codes = (variant.attributes ?? []).map((a) => a.code);
-      if (new Set(codes).size !== codes.length) {
-        throw new Error(`Variant ${variant.name} has duplicate attribute codes`);
-      }
-    }
+    this.assertTypeImages(variants, typeImages, typeVariantImages);
+    assertUniqueSpecifications(variants);
     const locations = orderLocations(input.locations ?? []);
     const units = input.units ?? [];
     if (unitImages.some((image) => image.unitIndex < 0 || image.unitIndex >= units.length)) throw new Error('Invalid unit image indexes');
@@ -329,11 +465,12 @@ export class ProductUseCase {
 
     if (covers.length > 10) throw new Error('Invalid cover count');
     const extensions = covers.map(validateProductImage);
-    const typeExtensions = typeImages.map((image) => validateProductImage(image.file));
+    [...typeImages, ...typeVariantImages].forEach((image) => validateProductImage(image.file));
     const siteplanExtension = siteplan ? validateProductImage(siteplan) : undefined;
-    const productId = covers.length || typeImages.length || siteplan || unitImages.length ? randomUUID() : undefined;
+    const productId = covers.length || typeImages.length || typeVariantImages.length || siteplan || unitImages.length ? randomUUID() : undefined;
     const storedCovers: { file: Express.Multer.File; path: string; url: string }[] = [];
-    const storedTypeImages: { file: Express.Multer.File; variantIndex: number; path: string; url: string }[] = [];
+    const storedTypeImages: (ProjectTypeImage & StoredImage)[] = [];
+    const storedTypeVariantImages: (ProjectTypeVariantImage & StoredImage)[] = [];
     let storedSiteplan: { file: Express.Multer.File; path: string; url: string } | undefined;
     const storedUnitImages: { file: Express.Multer.File; unitIndex: number; path: string; url: string }[] = [];
 
@@ -345,11 +482,8 @@ export class ProductUseCase {
         storedCovers.push({ file, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, file.buffer);
       }
-      for (const [index, image] of typeImages.entries()) {
-        const path = `${tenantId}/product/${productId}/${randomUUID()}.${typeExtensions[index]}`;
-        storedTypeImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
-        await this.storage.upload(path, image.file.buffer);
-      }
+      await this.storeImages(tenantId, productId as string, typeImages, storedTypeImages);
+      await this.storeImages(tenantId, productId as string, typeVariantImages, storedTypeVariantImages);
       if (siteplan && siteplanExtension) {
         const path = `${tenantId}/product/${productId as string}/siteplan-${randomUUID()}.${siteplanExtension}`;
         storedSiteplan = { file: siteplan, path, url: this.storage.getPublicUrl(path).publicUrl };
@@ -409,31 +543,7 @@ export class ProductUseCase {
           });
         }
 
-        const masterIds = new Map<string, string>();
-        const masterOf = async (a: NewAttributeInput) => {
-          const known = masterIds.get(a.code as string);
-          if (known) return known;
-          const existing = await tx.attribute.findFirst({
-            where: { tenantId, code: a.code as string },
-            select: { id: true },
-          });
-          const id =
-            existing?.id ??
-            (
-              await tx.attribute.create({
-                data: {
-                  tenantId,
-                  code: a.code as string,
-                  name: a.name as string,
-                  dataType: a.dataType as AttributeDataType,
-                  unit: a.unit ?? null,
-                },
-              })
-            ).id;
-          masterIds.set(a.code as string, id);
-          return id;
-        };
-
+        const masterOf = specificationMasters(tx, tenantId);
         const variantIds: string[] = [];
         const typeVariantIds: string[][] = [];
         for (const [variantIndex, variant] of variants.entries()) {
@@ -462,18 +572,13 @@ export class ProductUseCase {
             }));
           }
           typeVariantIds.push(optionRows.map((option) => option.id));
-          if (variant.attributes?.length) {
-            const pivots = [];
-            for (const a of variant.attributes) {
-              pivots.push({
-                tenantId,
-                productId: product.id,
-                variantId: row.id,
-                attributeId: await masterOf(a),
-                value: a.value ?? 0,
-              });
-            }
-            await tx.productAttribute.createMany({ data: pivots });
+          for (const [optionIndex, option] of childVariants[variantIndex]!.entries()) {
+            await saveSpecifications(
+              tx,
+              { tenantId, productId: product.id, variantId: row.id, typeVariantId: optionRows[optionIndex]!.id },
+              option.attributes,
+              masterOf
+            );
           }
         }
 
@@ -544,27 +649,28 @@ export class ProductUseCase {
             })),
           });
         }
-        if (storedTypeImages.length) {
-          await tx.productMedia.createMany({
-            data: storedTypeImages.map(({ file, variantIndex, url }) => ({
-              tenantId, productId: product.id, variantId: variantIds[variantIndex] as string,
-              mediaType: 'IMAGE', fileName: file.originalname.slice(0, 255), fileUrl: url,
-              fileType: file.mimetype, fileSize: file.buffer.length, sortOrder: 0, isPrimary: true,
-            })),
-          });
+        for (const [variantIndex, variant] of variants.entries()) {
+          await this.saveTypeImages(
+            tx,
+            { tenantId, productId: product.id, variantId: variantIds[variantIndex] as string },
+            variant,
+            typeVariantIds[variantIndex] as string[],
+            storedTypeImages.filter((image) => image.variantIndex === variantIndex),
+            storedTypeVariantImages.filter((image) => image.variantIndex === variantIndex)
+          );
         }
         return product;
       },
       { timeout: 30000 }
     ));
     } catch (error) {
-      await this.storage.remove([...storedCovers, ...storedTypeImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
+      await this.storage.remove([...storedCovers, ...storedTypeImages, ...storedTypeVariantImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
       throw error;
     }
     return this.get(created.id, tenantId);
   }
 
-  async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = []) {
+  async update(id: string, tenantId: string, input: ProductInput, covers: Express.Multer.File[] = [], typeImages: ProjectTypeImage[] = [], siteplan?: Express.Multer.File, unitImages: ProjectUnitImage[] = [], typeVariantImages: ProjectTypeVariantImage[] = []) {
     const project = await this.get(id, tenantId);
     if (input.categoryId !== undefined && input.categoryId !== project.categoryId) {
       throw new Error('Conflict: a project root category cannot be changed through a regular update');
@@ -588,15 +694,6 @@ export class ProductUseCase {
           stock: option.stock,
           isActive: option.isActive,
         })),
-        attributes: current.attributes
-          .filter((attribute) => attribute.variantId === variant.id)
-          .map((attribute) => ({
-            name: attribute.attribute.name,
-            code: attribute.attribute.code,
-            dataType: attribute.attribute.dataType,
-            value: attribute.value,
-            unit: attribute.attribute.unit,
-          })),
       }));
       const typeVariantIndexes = new Map(current.variants.flatMap((variant, index) =>
         variant.typeVariants.map((option, optionIndex) => [option.id, [index, optionIndex] as const])
@@ -615,7 +712,6 @@ export class ProductUseCase {
         variantIndex: variantIndex.get(unit.variantId) ?? -1,
         typeVariantIndex: typeVariantIndexes.get(unit.typeVariantId)?.[1] ?? 0,
         ...(unit.categoryId === current.category.id ? {} : { locationKey: unit.categoryId }),
-        status: unit.status,
         isHook: unit.isHook,
       }));
       structureInput = {
@@ -629,11 +725,9 @@ export class ProductUseCase {
     if (structureProvided && (project.category.type !== 'PROJECT' || input.categoryId !== undefined)) {
       throw new Error('Invalid project category for wizard update');
     }
-    if (typeImages.length && (!structureProvided ||
-      typeImages.some((image) => image.variantIndex < 0 || image.variantIndex >= (structureInput.variants?.length ?? 0)) ||
-      new Set(typeImages.map((image) => image.variantIndex)).size !== typeImages.length)) {
-      throw new Error('Invalid type image indexes');
-    }
+    if (typeImages.length && !structureProvided) throw new Error('Invalid type image indexes');
+    if (typeVariantImages.length && !structureProvided) throw new Error('Invalid type variant image indexes');
+    this.assertTypeImages(structureInput.variants ?? [], typeImages, typeVariantImages);
     const projectImages = project.media.filter((media) => media.mediaType === 'IMAGE' && !media.variantId && !media.unitId);
     const removeMediaIds = input.removeMediaIds ?? [];
     if (removeMediaIds.length > 10 || new Set(removeMediaIds).size !== removeMediaIds.length ||
@@ -663,26 +757,22 @@ export class ProductUseCase {
     if (input.isActive !== undefined) data.isActive = input.isActive;
     if (covers.length > 10) throw new Error('Invalid cover count');
     const extensions = covers.map(validateProductImage);
-    const typeExtensions = typeImages.map((image) => validateProductImage(image.file));
+    [...typeImages, ...typeVariantImages].forEach((image) => validateProductImage(image.file));
     const siteplanExtension = siteplan ? validateProductImage(siteplan) : undefined;
     const storedCovers: { file: Express.Multer.File; path: string; url: string }[] = [];
-    const storedTypeImages: { file: Express.Multer.File; variantIndex: number; path: string; url: string }[] = [];
+    const storedTypeImages: (ProjectTypeImage & StoredImage)[] = [];
+    const storedTypeVariantImages: (ProjectTypeVariantImage & StoredImage)[] = [];
     let storedSiteplan: { file: Express.Multer.File; path: string; url: string } | undefined;
     const storedUnitImages: { file: Express.Multer.File; unitIndex: number; path: string; url: string }[] = [];
-    const replacedTypeMedia = typeImages.flatMap(({ variantIndex }) =>
-      project.media.filter((media) => media.variantId === structureInput.variants?.[variantIndex]?.id && media.mediaType === 'IMAGE')
-    );
+    let removedTypeUrls: string[] = [];
     try {
       for (const [index, file] of covers.entries()) {
         const path = `${tenantId}/product/${id}/${randomUUID()}.${extensions[index]}`;
         storedCovers.push({ file, path, url: this.storage.getPublicUrl(path).publicUrl });
         await this.storage.upload(path, file.buffer);
       }
-      for (const [index, image] of typeImages.entries()) {
-        const path = `${tenantId}/product/${id}/${randomUUID()}.${typeExtensions[index]}`;
-        storedTypeImages.push({ ...image, path, url: this.storage.getPublicUrl(path).publicUrl });
-        await this.storage.upload(path, image.file.buffer);
-      }
+      await this.storeImages(tenantId, id, typeImages, storedTypeImages);
+      await this.storeImages(tenantId, id, typeVariantImages, storedTypeVariantImages);
       if (siteplan && siteplanExtension) {
         const path = `${tenantId}/product/${id}/siteplan-${randomUUID()}.${siteplanExtension}`;
         storedSiteplan = { file: siteplan, path, url: this.storage.getPublicUrl(path).publicUrl };
@@ -723,7 +813,21 @@ export class ProductUseCase {
           data: facilityIds.map((attributeId) => ({ tenantId, productId: id, variantId: null, attributeId, value: 1 })),
         });
       }
-      const variantIds = structureProvided ? await this.syncStructure(tx, id, tenantId, project.categoryId, structureInput) : [];
+      removedTypeUrls = [];
+      if (structureProvided) {
+        const synced = await this.syncStructure(tx, id, tenantId, project.categoryId, structureInput);
+        removedTypeUrls.push(...synced.removedUrls);
+        for (const [variantIndex, variant] of (structureInput.variants ?? []).entries()) {
+          removedTypeUrls.push(...await this.saveTypeImages(
+            tx,
+            { tenantId, productId: id, variantId: synced.variantIds[variantIndex] as string },
+            variant,
+            synced.typeVariantIds[variantIndex] as string[],
+            storedTypeImages.filter((image) => image.variantIndex === variantIndex),
+            storedTypeVariantImages.filter((image) => image.variantIndex === variantIndex)
+          ));
+        }
+      }
       if (storedUnitImages.length && structureInput.units) {
         const unitRows = await tx.productUnit.findMany({
           where: { tenantId, variant: { productId: id, tenantId }, code: { in: structureInput.units.map((unit) => unit.code) } },
@@ -736,19 +840,6 @@ export class ProductUseCase {
             mediaType: 'IMAGE' as const, fileName: image.file.originalname.slice(0, 255), fileUrl: image.url,
             fileType: image.file.mimetype, fileSize: image.file.buffer.length, sortOrder: 0, isPrimary: false,
           })).filter((media) => Boolean(media.unitId)),
-        });
-      }
-      if (storedTypeImages.length) {
-        const selectedIds = storedTypeImages.map((image) => variantIds[image.variantIndex] as string);
-        await tx.productMedia.deleteMany({
-          where: { tenantId, productId: id, variantId: { in: selectedIds }, mediaType: 'IMAGE' },
-        });
-        await tx.productMedia.createMany({
-          data: storedTypeImages.map(({ file, variantIndex, url }) => ({
-            tenantId, productId: id, variantId: variantIds[variantIndex] as string,
-            mediaType: 'IMAGE', fileName: file.originalname.slice(0, 255), fileUrl: url,
-            fileType: file.mimetype, fileSize: file.buffer.length, sortOrder: 0, isPrimary: true,
-          })),
         });
       }
       if (removeMediaIds.length) {
@@ -782,14 +873,10 @@ export class ProductUseCase {
       }
       }, { timeout: 30000 }));
     } catch (error) {
-      await this.storage.remove([...storedCovers, ...storedTypeImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
+      await this.storage.remove([...storedCovers, ...storedTypeImages, ...storedTypeVariantImages, ...(storedSiteplan ? [storedSiteplan] : []), ...storedUnitImages].map((image) => image.path));
       throw error;
     }
-    const removedPaths = [...removedMedia, ...replacedTypeMedia].flatMap((media) => {
-      try { return [this.storage.getFilePathFromPublicUrl(media.fileUrl)]; }
-      catch { return []; }
-    });
-    if (removedPaths.length) await this.storage.remove(removedPaths);
+    await this.removeStoredUrls([...removedMedia.map((media) => media.fileUrl), ...removedTypeUrls]);
     if (storedSiteplan && project.category.siteplanImg) {
       try {
         await this.storage.remove([this.storage.getFilePathFromPublicUrl(project.category.siteplanImg)]);
@@ -812,6 +899,7 @@ export class ProductUseCase {
     const locations = orderLocations(input.locations as LocationInput[]);
     const units = input.units as UnitInput[];
     if (!variants.length) throw new Error('variants must contain at least one variant');
+    assertUniqueSpecifications(variants);
     const normalizedVariants = variants.map((variant) => this.typeVariantsOf(variant));
     assertUnits(units, normalizedVariants.map((items) => items.length), new Set(locations.map((location) => location.key)));
 
@@ -853,32 +941,28 @@ export class ProductUseCase {
       typeVariants: normalizedVariants[index]!.map((option) => ({ name: option.name, stock: option.stock ?? 0 })),
     })));
 
+    // Foto unit, tipe, dan varian yang dihapus ikut terhapus; berkasnya dibersihkan setelah transaksi berhasil.
+    const removedUrls: string[] = [];
+    const collectUrls = async (where: Prisma.ProductMediaWhereInput) => {
+      const media = await tx.productMedia.findMany({
+        where: { tenantId, productId, mediaType: { not: 'VIDEO_LINK' }, ...where }, select: { fileUrl: true },
+      });
+      removedUrls.push(...media.map((item) => item.fileUrl));
+    };
     const removedUnits = oldUnits.filter((row) => !keptUnitIds.has(row.id));
     if (removedUnits.length) {
       const ids = removedUnits.map((row) => row.id);
       if (removedUnits.some((row) => row.status !== 'AVAILABLE') ||
         await tx.reservation.count({ where: { tenantId, unitId: { in: ids } } }) ||
         await tx.unitPriceAdjustment.count({ where: { tenantId, unitId: { in: ids } } }) ||
-        await tx.productMedia.count({ where: { tenantId, unitId: { in: ids } } })) {
-        throw new Error('Conflict: units with reservations, pricing history, media or non-available status must remain');
+        await tx.deal.count({ where: { tenantId, unitId: { in: ids } } })) {
+        throw new Error('Conflict: units with reservations, deals, pricing history or non-available status must remain');
       }
+      await collectUrls({ unitId: { in: ids } });
       await tx.productUnit.deleteMany({ where: { tenantId, id: { in: ids } } });
     }
 
-    const masterIds = new Map<string, string>();
-    const masterOf = async (attribute: NewAttributeInput) => {
-      const cached = masterIds.get(attribute.code as string);
-      if (cached) return cached;
-      const existing = await tx.attribute.findFirst({
-        where: { tenantId, code: attribute.code as string }, select: { id: true },
-      });
-      const id = existing?.id ?? (await tx.attribute.create({
-        data: { tenantId, code: attribute.code as string, name: attribute.name as string,
-          dataType: attribute.dataType as AttributeDataType, unit: attribute.unit ?? null },
-      })).id;
-      masterIds.set(attribute.code as string, id);
-      return id;
-    };
+    const masterOf = specificationMasters(tx, tenantId);
     const variantIds: string[] = [];
     const typeVariantIds: string[][] = [];
     for (const [variantIndex, variant] of variants.entries()) {
@@ -931,6 +1015,12 @@ export class ProductUseCase {
               },
             });
         optionIds.push(optionRow.id);
+        await saveSpecifications(
+          tx,
+          { tenantId, productId, variantId: row.id, typeVariantId: optionRow.id },
+          option.attributes,
+          masterOf
+        );
       }
       const removedOptions = oldOptions.filter((option) => !incomingOptionIds.includes(option.id));
       for (const option of removedOptions) {
@@ -938,24 +1028,10 @@ export class ProductUseCase {
           await tx.productVariantPriceLog.count({ where: { tenantId, typeVariantId: option.id } })) {
           throw new Error('Conflict: a variant with units or pricing history must remain');
         }
+        await collectUrls({ typeVariantId: option.id });
         await tx.productTypeVariant.delete({ where: { id: option.id } });
       }
       typeVariantIds.push(optionIds);
-      for (const attribute of variant.attributes ?? []) {
-        const attributeId = await masterOf(attribute);
-        const existing = await tx.productAttribute.findFirst({
-          where: { tenantId, productId, variantId: row.id, attributeId }, select: { id: true, value: true },
-        });
-        if (existing) {
-          if (existing.value !== (attribute.value ?? 0)) {
-            await tx.productAttribute.update({ where: { id: existing.id }, data: { value: attribute.value ?? 0 } });
-          }
-        } else {
-          await tx.productAttribute.create({
-            data: { tenantId, productId, variantId: row.id, attributeId, value: attribute.value ?? 0 },
-          });
-        }
-      }
     }
 
     const locationIds = new Map<string, string>();
@@ -983,6 +1059,9 @@ export class ProductUseCase {
       if (!categoryId) throw new Error('Invalid unit location');
       const old = oldUnits.find((row) => row.id === unit.id);
       if (old) {
+        if (unit.status && unit.status !== old.status) {
+          throw new Error(`Conflict: the status of unit ${old.code} can only change through a reservation. Reload the project.`);
+        }
         if ((old.variantId !== variantId || old.typeVariantId !== typeVariantId || old.categoryId !== categoryId) &&
           await tx.reservation.count({ where: { tenantId, unitId: old.id } })) {
           throw new Error('Conflict: a unit with reservations must keep its type and location');
@@ -995,17 +1074,15 @@ export class ProductUseCase {
       } else {
         await tx.productUnit.create({
           data: { tenantId, code: unit.code, variantId, typeVariantId, categoryId,
-            status: unit.status ?? 'AVAILABLE', isHook: unit.isHook ?? false },
+            status: 'AVAILABLE', isHook: unit.isHook ?? false },
         });
       }
     }
 
     const removedVariants = oldVariants.filter((row) => !keptVariantIds.has(row.id));
     for (const row of removedVariants) {
-      if (await tx.productVariantPriceLog.count({ where: { tenantId, typeVariant: { productVariantId: row.id } } }) ||
-        await tx.productMedia.count({ where: { tenantId, variantId: row.id } })) {
-        throw new Error('Conflict: a type with pricing history or media must remain');
-      }
+      await assertTypeRemovable(tx, tenantId, row.id);
+      await collectUrls({ variantId: row.id });
       await tx.productVariant.delete({ where: { id: row.id } });
     }
     for (const row of oldLocations.reverse()) {
@@ -1015,7 +1092,7 @@ export class ProductUseCase {
       }
       await tx.productCategory.delete({ where: { id: row.id } });
     }
-    return variantIds;
+    return { variantIds, typeVariantIds, removedUrls };
   }
 
   /** Deletes the product and returns the stored file URLs of its media for cleanup. */
@@ -1023,8 +1100,39 @@ export class ProductUseCase {
     const product = await this.get(id, tenantId);
     const unitCount = await this.prisma.productUnit.count({ where: { tenantId, variant: { productId: id, tenantId } } });
     if (unitCount > 0) throw new Error('Project has units (conflict). Deactivate it instead.');
-    await this.prisma.product.delete({ where: { id } });
-    return product.media.filter((m) => m.mediaType !== 'VIDEO_LINK').map((m) => m.fileUrl);
+    if (await this.prisma.lead.count({ where: { tenantId, projectId: id } }) ||
+      await this.prisma.leadInterest.count({ where: { tenantId, productId: id } })) {
+      throw new Error('Conflict: a project used by leads must remain. Deactivate it instead.');
+    }
+    const fileUrls = product.media.filter((m) => m.mediaType !== 'VIDEO_LINK').map((m) => m.fileUrl);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.product.delete({ where: { id } });
+      fileUrls.push(...await this.removeLocationTree(tx, tenantId, product.categoryId));
+    });
+    return fileUrls;
+  }
+
+  /**
+   * Removes the location tree left behind by a deleted project; returns its siteplan URLs.
+   * The tree stays when any of its locations is still used by another product or unit.
+   */
+  private async removeLocationTree(tx: Prisma.TransactionClient, tenantId: string, rootId: string): Promise<string[]> {
+    const categories = await tx.productCategory.findMany({
+      where: { tenantId }, select: { id: true, parentId: true, type: true, siteplanImg: true },
+    });
+    const root = categories.find((category) => category.id === rootId);
+    if (root?.type !== 'PROJECT') return [];
+    const tree = [root];
+    for (let index = 0; index < tree.length; index += 1) {
+      tree.push(...categories.filter((category) => category.parentId === tree[index]!.id && !tree.includes(category)));
+    }
+    const ids = tree.map((category) => category.id);
+    const where = { tenantId, categoryId: { in: ids } };
+    if (await tx.product.count({ where }) || await tx.productUnit.count({ where }) || await tx.productVariantPriceLog.count({ where })) {
+      return [];
+    }
+    for (const id of ids.reverse()) await tx.productCategory.delete({ where: { id } });
+    return tree.flatMap((category) => (category.siteplanImg ? [category.siteplanImg] : []));
   }
 
   // ---------- variants ----------
@@ -1037,9 +1145,37 @@ export class ProductUseCase {
     return variant;
   }
 
-  async addVariant(productId: string, tenantId: string, input: VariantInput) {
+  /** Stores the photos of one type, runs the write, and cleans up files of the losing side. */
+  private async withTypeImages<T>(
+    tenantId: string,
+    productId: string,
+    input: VariantInput,
+    images: TypeImageUploads,
+    write: (stored: { type: StoredImage[]; variants: (StoredImage & { typeVariantIndex: number })[] }, removedUrls: string[]) => Promise<T>
+  ): Promise<T> {
+    const type: (StoredImage & { file: Express.Multer.File })[] = [];
+    const variants: (StoredImage & { typeVariantIndex: number })[] = [];
+    const removedUrls: string[] = [];
+    this.assertTypeImages([input], [], images.variants.map((image) => ({ ...image, variantIndex: 0 })));
+    [...images.type, ...images.variants.map((image) => image.file)].forEach(validateProductImage);
+    let result: T;
+    try {
+      await this.storeImages(tenantId, productId, images.type.map((file) => ({ file })), type);
+      await this.storeImages(tenantId, productId, images.variants, variants);
+      result = await write({ type, variants }, removedUrls);
+    } catch (error) {
+      await this.storage.remove([...type, ...variants].map((image) => image.path));
+      throw error;
+    }
+    await this.removeStoredUrls(removedUrls);
+    return result;
+  }
+
+  async addVariant(productId: string, tenantId: string, input: VariantInput, images: TypeImageUploads = NO_IMAGES) {
     await this.get(productId, tenantId);
-    return this.prisma.$transaction(async (tx) => {
+    assertUniqueSpecifications([input]);
+    return this.withTypeImages(tenantId, productId, input, images, (stored) => this.prisma.$transaction(async (tx) => {
+      const masterOf = specificationMasters(tx, tenantId);
       const type = await tx.productVariant.create({ data: { tenantId, productId, name: input.name as string } });
       const options = this.typeVariantsOf(input);
       const typeVariants = [];
@@ -1050,18 +1186,29 @@ export class ProductUseCase {
           currentPrice: option.currentPrice ?? option.basePrice ?? 0,
           minPrice: option.minPrice ?? null, stock: option.stock ?? 0, isActive: option.isActive ?? true,
         } }));
+        await saveSpecifications(
+          tx,
+          { tenantId, productId, variantId: type.id, typeVariantId: typeVariants[typeVariants.length - 1]!.id },
+          option.attributes,
+          masterOf
+        );
       }
+      await this.saveTypeImages(
+        tx, { tenantId, productId, variantId: type.id }, input, typeVariants.map((option) => option.id), stored.type, stored.variants
+      );
       return { ...type, typeVariants };
-    });
+    }, { timeout: 30000 }));
   }
 
-  async updateVariant(productId: string, variantId: string, tenantId: string, input: VariantInput) {
+  async updateVariant(productId: string, variantId: string, tenantId: string, input: VariantInput, images: TypeImageUploads = NO_IMAGES) {
     await this.assertVariant(productId, variantId, tenantId);
-    return this.prisma.$transaction(async (tx) => {
+    assertUniqueSpecifications([input]);
+    return this.withTypeImages(tenantId, productId, input, images, (stored, removedUrls) => this.prisma.$transaction(async (tx) => {
+      const masterOf = specificationMasters(tx, tenantId);
       const type = await tx.productVariant.update({ where: { id: variantId }, data: input.name === undefined ? {} : { name: input.name } });
       const current = await tx.productTypeVariant.findMany({ where: { tenantId, productVariantId: variantId }, orderBy: { createdAt: 'asc' } });
       if (!current.length) throw new Error('Type variant not found');
-      const requested = input.typeVariants?.length ? input.typeVariants : [{
+      const requested: TypeVariantInput[] = input.typeVariants?.length ? input.typeVariants : [{
         id: current[0]!.id, name: current[0]!.name, code: current[0]!.code,
         basePrice: input.basePrice ?? Number(current[0]!.basePrice),
         currentPrice: input.currentPrice ?? Number(current[0]!.currentPrice),
@@ -1091,59 +1238,83 @@ export class ProductUseCase {
             minPrice: option.minPrice ?? null, stock: option.stock ?? 0, isActive: option.isActive ?? true,
           } }));
         }
+        await saveSpecifications(
+          tx,
+          { tenantId, productId, variantId, typeVariantId: typeVariants[typeVariants.length - 1]!.id },
+          option.attributes,
+          masterOf
+        );
       }
       for (const option of current.filter((item) => !requestedIds.includes(item.id))) {
         if (await tx.productUnit.count({ where: { tenantId, typeVariantId: option.id } }) ||
           await tx.productVariantPriceLog.count({ where: { tenantId, typeVariantId: option.id } })) {
           throw new Error('Conflict: a variant with units or pricing history must remain');
         }
+        const media = await tx.productMedia.findMany({ where: { tenantId, typeVariantId: option.id }, select: { fileUrl: true } });
+        removedUrls.push(...media.map((item) => item.fileUrl));
         await tx.productTypeVariant.delete({ where: { id: option.id } });
       }
+      removedUrls.push(...await this.saveTypeImages(
+        tx, { tenantId, productId, variantId }, input, typeVariants.map((option) => option.id), stored.type, stored.variants
+      ));
       return { ...type, typeVariants };
-    });
+    }, { timeout: 30000 }));
   }
 
   async removeVariant(productId: string, variantId: string, tenantId: string) {
     await this.assertVariant(productId, variantId, tenantId);
     const count = await this.prisma.productVariant.count({ where: { productId, tenantId } });
     if (count <= 1) throw new Error('A product must keep at least one variant (conflict)');
-    await this.prisma.productVariant.delete({ where: { id: variantId } });
+    const urls = await this.prisma.$transaction(async (tx) => {
+      await assertTypeRemovable(tx, tenantId, variantId);
+      const media = await tx.productMedia.findMany({
+        where: { tenantId, variantId, mediaType: { not: 'VIDEO_LINK' } }, select: { fileUrl: true },
+      });
+      await tx.productVariant.delete({ where: { id: variantId } });
+      return media.map((item) => item.fileUrl);
+    });
+    await this.removeStoredUrls(urls);
   }
 
   // ---------- attributes (values; the definitions live in AttributeUseCase) ----------
 
-  private async assertAttributeFree(
-    productId: string,
-    variantId: string | null,
-    attributeId: string,
-    exceptId?: string
-  ) {
-    const existing = await this.prisma.productAttribute.findFirst({
-      where: { productId, variantId, attributeId, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
-      select: { id: true },
-    });
-    if (existing) throw new Error('This attribute already has a value at this level');
-  }
-
   async addAttribute(productId: string, tenantId: string, input: AttributeInput) {
     await this.get(productId, tenantId);
-    const variantId = input.variantId ?? null;
-    if (variantId) await this.assertVariant(productId, variantId, tenantId);
+    const typeVariant = input.typeVariantId
+      ? await this.prisma.productTypeVariant.findFirst({
+          where: { id: input.typeVariantId, tenantId, productVariant: { productId, tenantId } },
+          select: { id: true, productVariantId: true },
+        })
+      : null;
+    if (input.typeVariantId && !typeVariant) throw new Error('Type variant not found');
     const master = await this.prisma.attribute.findFirst({
       where: { id: input.attributeId as string, tenantId },
       select: { id: true, source: true },
     });
     if (!master) throw new Error('Attribute not found');
-    if (master.source !== (variantId ? 'UNIT_TYPE' : 'PROJECT')) {
+    if (master.source !== (typeVariant ? 'UNIT_TYPE' : 'PROJECT')) {
       throw new Error('Invalid attribute source for this level');
     }
-    await this.assertAttributeFree(productId, variantId, master.id);
+    const typeVariantId = typeVariant?.id ?? null;
+    const existing = await this.prisma.productAttribute.findFirst({
+      where: { tenantId, productId, typeVariantId, attributeId: master.id, ...(typeVariantId ? {} : { variantId: null }) },
+      select: { id: true },
+    });
+    if (existing) throw new Error('A value for this attribute already exists at this level');
     return this.prisma.productAttribute.create({
-      data: { tenantId, productId, variantId, attributeId: master.id, value: input.value ?? 0 },
+      data: {
+        tenantId,
+        productId,
+        variantId: typeVariant?.productVariantId ?? null,
+        typeVariantId,
+        attributeId: master.id,
+        value: input.value ?? 0,
+      },
       include: { attribute: true },
     });
   }
 
+  /** Only the value can change; a value cannot move to another variant. */
   async updateAttribute(
     productId: string,
     productAttributeId: string,
@@ -1154,19 +1325,12 @@ export class ProductUseCase {
       where: { id: productAttributeId, productId, tenantId },
     });
     if (!current) throw new Error('Attribute not found');
-    const variantId = input.variantId !== undefined ? input.variantId : current.variantId;
-    if (variantId) await this.assertVariant(productId, variantId, tenantId);
-    const master = await this.prisma.attribute.findFirst({
-      where: { id: current.attributeId, tenantId }, select: { source: true },
-    });
-    if (!master || master.source !== (variantId ? 'UNIT_TYPE' : 'PROJECT')) {
-      throw new Error('Invalid attribute source for this level');
+    if (input.typeVariantId !== undefined && input.typeVariantId !== current.typeVariantId) {
+      throw new Error('Invalid typeVariantId: an attribute value cannot move to another variant');
     }
-    await this.assertAttributeFree(productId, variantId, current.attributeId, productAttributeId);
-
     return this.prisma.productAttribute.update({
       where: { id: productAttributeId },
-      data: { variantId, value: input.value ?? current.value },
+      data: { value: input.value ?? current.value },
       include: { attribute: true },
     });
   }

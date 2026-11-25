@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Code2, Crosshair, ExternalLink, Link2, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { parseMapsInput } from "./parse-maps-link";
+import { mapsLink, parseMapsInput } from "./parse-maps-link";
 
 /** Format isian titik lokasi yang diterima parseMapsInput. */
 const LOCATION_FORMATS = [
@@ -69,7 +69,7 @@ export function LocationPicker({ initialValue = "" }: { initialValue?: string })
               <p>Koordinat tidak terbaca, tapi lokasi tetap ditampilkan.</p>
             )}
             <a
-              href={preview.embedUrl.replace("&output=embed", "")}
+              href={mapsLink(preview)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 font-medium text-[#1980C0] hover:underline"

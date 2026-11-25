@@ -70,7 +70,6 @@ export type ReservationUnitSelection = {
   unitId: string;
   unitLabel: string;
   price: number;
-  basePrice: number;
 };
 
 export function CreateReservationDialog({
@@ -130,11 +129,12 @@ export function CreateReservationDialog({
   const handleSubmit = form.handleSubmit(async (values) => {
     try {
       const selectedUnit = unitsQuery.data?.find((unit) => unit.id === values.unitId);
-      const basePrice = initialSelection?.basePrice ?? selectedUnit?.typeVariant.basePrice ?? 0;
-      if (Number(values.price) < basePrice) {
+      // Sama dengan backend: minimal harga jual resmi dari Pricing.
+      const minimum = initialSelection?.price ?? selectedUnit?.typeVariant.currentPrice ?? 0;
+      if (Number(values.price) < minimum) {
         form.setError("price", {
           type: "min",
-          message: `Harga jual tidak boleh lebih rendah dari harga dasar ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(basePrice)}.`,
+          message: `Harga jual tidak boleh lebih rendah dari harga jual resmi ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(minimum)}.`,
         });
         return;
       }
@@ -360,7 +360,7 @@ export function CreateReservationDialog({
               <ReservationPriceInput />
 
               <p className="-mt-2 text-[11px] text-muted-foreground sm:col-span-2">
-                Harga jual minimum mengikuti harga dasar varian unit yang dipilih.
+                Harga minimum mengikuti harga jual resmi di Pricing. Untuk harga lebih rendah, ubah dulu lewat Pricing.
               </p>
 
               <Controller

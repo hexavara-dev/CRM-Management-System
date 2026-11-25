@@ -23,6 +23,10 @@ export type UnitInput = {
   isHook?: boolean;
 };
 
+/** Urutan nama lokasi dengan angka dibaca sebagai angka: Lantai 2 sebelum Lantai 10. */
+export const byLocationName = (a: { name: string }, b: { name: string }) =>
+  a.name.localeCompare(b.name, 'id', { numeric: true, sensitivity: 'base' });
+
 /** Orders locations parent-first. Rejects duplicate keys, unknown parents and cycles. */
 export function orderLocations(locations: LocationInput[]): LocationInput[] {
   const byKey = new Map<string, LocationInput>();

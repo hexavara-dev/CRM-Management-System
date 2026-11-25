@@ -39,7 +39,7 @@ function makeUnit(id: string, categoryId: string) {
     categoryId,
     status: 'AVAILABLE',
     isHook: false,
-    variant: { name: 'Type 36', currentPrice: 400_000_000n, attributes: [] },
+    variant: { name: 'Type 36', currentPrice: 400_000_000n },
     typeVariant: {
       id: 'type-variant-1',
       name: 'Standard',
@@ -65,6 +65,8 @@ function setup(categories: Category[], units: ReturnType<typeof makeUnit>[] = []
       findMany: jest.fn().mockResolvedValue(units as never),
     },
     reservation: { findMany: jest.fn().mockResolvedValue([]) },
+    productVariantPriceLog: { findMany: jest.fn().mockResolvedValue([] as never) },
+    unitPriceAdjustment: { findMany: jest.fn().mockResolvedValue([] as never) },
   } as never);
 }
 

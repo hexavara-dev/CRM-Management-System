@@ -2,24 +2,22 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { AlertCircle, LoaderCircle } from "lucide-react";
+import { AppSidebar } from "@/components/Sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 import { ProjectWizard, type WizardInitial } from "@/app/projects/create/project-wizard";
+import { typePhotos, typeVariantPhotos } from "@/lib/photos";
+import { specsOfVariant } from "@/lib/unit-specs";
 import { useProjectEditData, type ProjectEditData } from "@/hooks/use-projects";
 
 function toWizardInitial(project: ProjectEditData): WizardInitial {
-  const attributeValue = (variantId: string, code: string) =>
-    String(project.attributes.find((item) => item.variantId === variantId && item.attribute.code === code)?.value ?? 0);
   const variantName = new Map(project.variants.map((variant) => [variant.id, variant.name]));
   const typeVariantById = new Map(project.variants.flatMap((variant) => variant.typeVariants.map((option) => [option.id, option])));
   const unitTypes = project.variants.map((variant) => ({
     id: variant.id,
     name: variant.name,
-    imageUrl: project.media.find((media) => media.mediaType === "IMAGE" && media.variantId === variant.id)?.fileUrl,
-    buildingArea: attributeValue(variant.id, "building_area"),
-    surfaceArea: attributeValue(variant.id, "surface_area"),
-    floors: attributeValue(variant.id, "floors"),
-    bedroom: attributeValue(variant.id, "bedroom"),
-    bathroom: attributeValue(variant.id, "bathroom"),
-    carport: attributeValue(variant.id, "carport"),
+    photos: typePhotos(project.media, variant.id),
     variants: variant.typeVariants.map((option) => ({
       id: option.id,
       key: option.id,
@@ -27,6 +25,8 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
       code: option.code ?? "",
       stock: String(option.stock),
       basePrice: String(option.basePrice),
+      specs: specsOfVariant(project.attributes, option.id),
+      photos: typeVariantPhotos(project.media, option.id),
     })),
   }));
   return {
@@ -78,10 +78,28 @@ function EditWizard({ project }: { project: ProjectEditData }) {
   return <ProjectWizard projectId={project.id} initial={initial} />;
 }
 
+/** Status di tengah area konten; sidebar tetap tampil. */
+function EditState({ loading = false, message }: { loading?: boolean; message: string }) {
+  const Icon = loading ? LoaderCircle : AlertCircle;
+  return (
+    <SidebarProvider className="overflow-hidden">
+      <AppSidebar />
+      <SidebarInset className="w-0">
+        <div role={loading ? "status" : "alert"} className="grid min-h-svh place-items-center p-6 text-center">
+          <div>
+            <Icon className={cn("mx-auto size-10", loading ? "animate-spin text-[#1980C0]" : "text-[#D64545]")} />
+            <p className="mt-3 text-sm text-[#475467]">{message}</p>
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+
 export default function EditProjectPage() {
   const { id } = useParams<{ id: string }>();
   const query = useProjectEditData(id);
-  if (query.isPending || query.isFetching) return <p className="p-6">Memuat proyek...</p>;
-  if (query.isError || !query.data) return <p className="p-6">Gagal memuat proyek. Muat ulang halaman.</p>;
+  if (query.isPending || query.isFetching) return <EditState loading message="Memuat proyek..." />;
+  if (query.isError || !query.data) return <EditState message="Gagal memuat proyek. Muat ulang halaman." />;
   return <EditWizard key={query.data.id} project={query.data} />;
 }

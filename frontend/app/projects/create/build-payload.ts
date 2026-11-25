@@ -1,4 +1,6 @@
 import type { CreateProjectPayload } from "@/hooks/use-projects";
+import { photoOrder } from "../../../lib/photos";
+import { specPayload } from "../../../lib/unit-specs";
 import type { LocationNode, UnitItem } from "./hierarchy-step";
 import type { ProjectInfo } from "./preview-step";
 import type { UnitType } from "./unit-type-step";
@@ -13,24 +15,6 @@ const LEVEL_TYPE: Record<string, CreateProjectPayload["locations"][number]["type
   tower: "TOWER",
   floor: "FLOOR",
 };
-
-const UNIT_STATUS: Record<string, NonNullable<CreateProjectPayload["units"][number]["status"]>> = {
-  available: "AVAILABLE",
-  reserved: "RESERVED",
-  sold: "SOLD",
-  booked: "BOOKED",
-  blocked: "BLOCKED",
-};
-
-/** Field unit type -> `product_attributes` (INT; kosong dikirim 0, luas dibulatkan). */
-const ATTRIBUTES: { key: keyof UnitType; name: string; code: string; unit?: string }[] = [
-  { key: "buildingArea", name: "Building Area", code: "building_area", unit: "m²" },
-  { key: "surfaceArea", name: "Surface Area", code: "surface_area", unit: "m²" },
-  { key: "floors", name: "Floors", code: "floors" },
-  { key: "bedroom", name: "Bedroom", code: "bedroom" },
-  { key: "bathroom", name: "Bathroom", code: "bathroom" },
-  { key: "carport", name: "Carport", code: "carport" },
-];
 
 /** Isian lokasi step 1 -> kolom `products`; yang kosong tidak dikirim. */
 const LOCATION_FIELDS = ["province", "city", "subdistrict", "village", "address", "postalCode", "mapsUrl"] as const;
@@ -52,19 +36,15 @@ export function buildProjectPayload(input: {
   const variants = unitTypes.map((t) => ({
     ...(t.id ? { id: t.id } : {}),
     name: t.name.trim(),
+    mediaOrder: photoOrder(t.photos),
     typeVariants: t.variants.map((option) => ({
       ...(option.id ? { id: option.id } : {}),
       name: option.name.trim(),
       ...(option.code.trim() ? { code: option.code.trim() } : {}),
       basePrice: Math.round(Number(option.basePrice) || 0),
       stock: Math.round(Number(option.stock) || 0),
-    })),
-    attributes: ATTRIBUTES.map((a) => ({
-      name: a.name,
-      code: a.code,
-      dataType: "NUMBER" as const,
-      value: Math.round(Number(t[a.key]) || 0),
-      ...(a.unit ? { unit: a.unit } : {}),
+      attributes: specPayload(option.specs),
+      mediaOrder: photoOrder(option.photos),
     })),
   }));
 
@@ -86,7 +66,7 @@ export function buildProjectPayload(input: {
       typeVariantIndex,
       // Unit yang menempel di akar (tanpa node) memakai akar proyek di backend.
       ...(nodes.some((n) => n.id === u.locationId) ? { locationKey: u.locationId } : {}),
-      status: UNIT_STATUS[u.status.trim().toLowerCase()] ?? "AVAILABLE",
+      // Status tidak dikirim: unit baru selalu Available dan status tersimpan berubah lewat reservasi.
       isHook: u.hook === "Ya",
     };
   });

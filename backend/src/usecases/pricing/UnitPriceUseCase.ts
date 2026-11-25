@@ -1,16 +1,11 @@
 import type { PriceAdjustmentStatus, Prisma, PrismaClient, ProductUnitStatus } from '@prisma/client';
 import { categoryWithDescendants } from '../product/catalogRules.js';
 import {
-  activeAdjustment,
-  activeLogsForUnit,
-  ancestorChain,
   needsApproval,
-  sellingPrice,
-  sumLogs,
   toDateValue,
   todayInPriceZone,
-  type PriceLogRow,
 } from './priceRules.js';
+import { computeUnitPrices, loadCategoryParents, loadPriceLogs } from './unitPrices.js';
 
 export type UnitPriceFilters = {
   page: number;
@@ -52,30 +47,6 @@ function pricingVariant(unit: UnitWithVariant) {
 export class UnitPriceUseCase {
   constructor(private prisma: PrismaClient) {}
 
-  private async parentMap(tenantId: string) {
-    const rows = await this.prisma.productCategory.findMany({
-      where: { tenantId },
-      select: { id: true, parentId: true },
-    });
-    return new Map(rows.map((row) => [row.id, row.parentId]));
-  }
-
-  private async logsFor(tenantId: string, typeVariantIds: string[]): Promise<PriceLogRow[]> {
-    if (typeVariantIds.length === 0) return [];
-    return this.prisma.productVariantPriceLog.findMany({
-      where: { tenantId, typeVariantId: { in: typeVariantIds } },
-      select: {
-        id: true,
-        typeVariantId: true,
-        categoryId: true,
-        adjustmentPrice: true,
-        effectiveStart: true,
-        endDate: true,
-        reason: true,
-      },
-    });
-  }
-
   private async approvedAdjustments(tenantId: string, unitIds: string[], day: string) {
     if (unitIds.length === 0) return [];
     return this.prisma.unitPriceAdjustment.findMany({
@@ -91,31 +62,18 @@ export class UnitPriceUseCase {
 
   /** Price breakdown of loaded units on the given day, using a few batched queries. */
   private async price(tenantId: string, units: UnitWithVariant[], day: string) {
+    // Harga dibaca dari varian; data lama tanpa varian memakai tipenya.
+    const priceable = units.map((unit) => ({
+      ...unit,
+      typeVariant: pricingVariant(unit),
+      typeVariantId: unit.typeVariantId ?? unit.variantId,
+    }));
     const [parents, logs, adjustments] = await Promise.all([
-      this.parentMap(tenantId),
-      this.logsFor(tenantId, [...new Set(units.map((u) => u.typeVariantId ?? u.variantId))]),
+      loadCategoryParents(this.prisma, tenantId),
+      loadPriceLogs(this.prisma, tenantId, priceable),
       this.approvedAdjustments(tenantId, units.map((u) => u.id), day),
     ]);
-    return units.map((unit) => {
-      const chain = ancestorChain(unit.categoryId, parents);
-      const source = pricingVariant(unit);
-      const activeLogs = activeLogsForUnit(logs, unit.typeVariantId ?? unit.variantId, chain, day);
-      const adjustment = activeAdjustment(
-        adjustments.filter((a) => a.unitId === unit.id),
-        day
-      );
-      const logTotal = sumLogs(activeLogs);
-      const amount = adjustment?.amount ?? ZERO;
-      return {
-        unit,
-        activeLogs,
-        adjustment,
-        basePrice: source.basePrice,
-        logTotal,
-        amount,
-        price: sellingPrice(source.basePrice, logTotal, amount),
-      };
-    });
+    return computeUnitPrices(priceable, parents, logs, adjustments, day);
   }
 
   private async findUnit(unitId: string, tenantId: string) {

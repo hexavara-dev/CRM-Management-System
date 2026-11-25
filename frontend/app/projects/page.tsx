@@ -6,6 +6,7 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  LoaderCircle,
   Plus,
   RefreshCw,
   Search,
@@ -164,7 +165,8 @@ export default function ProjectsPage() {
               </div>
             </div>
           ) : !data ? (
-            <div className="rounded-xl border border-dashed border-[#E4E4E7] py-16 text-center text-sm text-[#6b6b6b]">
+            <div role="status" className="grid min-h-[50vh] place-items-center content-center gap-3 text-sm text-[#475467]">
+              <LoaderCircle className="size-10 animate-spin text-[#1980C0]" />
               Memuat daftar proyek...
             </div>
           ) : projects.length === 0 ? (

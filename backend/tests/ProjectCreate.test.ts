@@ -93,7 +93,7 @@ describe('ProductUseCase.create (whole project)', () => {
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       productTypeVariant: { create: fn({ id: 'tv-1' }) },
-      productMedia: { createMany: fn({ count: 1 }) },
+      productMedia: { findMany: fn([]), create: fn({}) },
     };
     const prisma = {
       product: { findFirst: fn({ id: 'p-1', variants: [], media: [] }) },
@@ -108,8 +108,8 @@ describe('ProductUseCase.create (whole project)', () => {
       name: 'Project', code: 'PRJ', variants: [{ name: 'Type 36', basePrice: 1 }],
     }, [], [{ variantIndex: 0, file: jpegCover() }]);
 
-    expect(tx.productMedia.createMany).toHaveBeenCalledWith({
-      data: [expect.objectContaining({ productId: 'p-1', variantId: 'v-1', mediaType: 'IMAGE', isPrimary: true })],
+    expect(tx.productMedia.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: 'p-1', variantId: 'v-1', typeVariantId: null, mediaType: 'IMAGE', isPrimary: true }),
     });
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(storage.remove).not.toHaveBeenCalled();
@@ -176,7 +176,7 @@ describe('ProductUseCase.create (whole project)', () => {
       productVariant: { create: fn({ id: 'v-1' }) },
       productTypeVariant: { create: fn({ id: 'tv-1' }) },
       attribute: { findFirst: fn(null), create: fn({ id: 'attr-1' }) },
-      productAttribute: { createMany: fn({ count: 1 }) },
+      productAttribute: { findMany: fn([]), create: fn({}) },
       productUnit: { createMany: fn({ count: 1 }) },
     };
     const prisma = {
@@ -192,9 +192,10 @@ describe('ProductUseCase.create (whole project)', () => {
       variants: [
         {
           name: 'Type 36',
-          basePrice: 350000000,
-          stock: 2,
-          attributes: [{ name: 'Bedroom', code: 'bedroom', dataType: 'NUMBER', value: 2 }],
+          typeVariants: [{
+            name: 'Standard', basePrice: 350000000, stock: 2,
+            attributes: [{ name: 'Bedroom', code: 'bedroom', dataType: 'NUMBER', value: 2 }],
+          }],
         },
       ],
       locations: [
@@ -210,8 +211,9 @@ describe('ProductUseCase.create (whole project)', () => {
     expect(blockCall).toMatchObject({ parentId: 'n-cluster', type: 'BLOCK', code: 'CL-002' });
     expect(tx.product.create.mock.calls[0][0].data).toMatchObject({ categoryId: 'root', name: 'Citraland', city: 'Malang', province: null });
     expect(tx.attribute.create.mock.calls[0][0].data).toMatchObject({ tenantId: 't-1', code: 'bedroom' });
-    expect(tx.productAttribute.createMany.mock.calls[0][0].data[0]).toMatchObject({
+    expect(tx.productAttribute.create.mock.calls[0][0].data).toMatchObject({
       variantId: 'v-1',
+      typeVariantId: 'tv-1',
       attributeId: 'attr-1',
       value: 2,
     });
@@ -230,8 +232,8 @@ describe('ProductUseCase.create (whole project)', () => {
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: jest.fn<(...args: any[]) => any>().mockResolvedValueOnce({ id: 'v-1' }).mockResolvedValueOnce({ id: 'v-2' }) },
       productTypeVariant: { create: jest.fn<(...args: any[]) => any>().mockResolvedValueOnce({ id: 'tv-1' }).mockResolvedValueOnce({ id: 'tv-2' }) },
-      attribute: { findFirst: fn({ id: 'attr-9' }), create: fn() },
-      productAttribute: { createMany: fn({ count: 1 }) },
+      attribute: { findFirst: fn({ id: 'attr-9', source: 'UNIT_TYPE' }), create: fn() },
+      productAttribute: { findMany: fn([]), create: fn({}) },
     };
     const prisma = {
       product: { findFirst: fn({ id: 'p-1', variants: [], media: [] }) },
@@ -242,13 +244,18 @@ describe('ProductUseCase.create (whole project)', () => {
       name: 'X',
       code: 'X',
       variants: [
-        { name: 'A', basePrice: 1, attributes: [bedroom] },
-        { name: 'B', basePrice: 1, attributes: [{ ...bedroom, value: 3 }] },
+        { name: 'A', typeVariants: [
+          { name: 'Standard', basePrice: 1, attributes: [bedroom] },
+          { name: 'Premium', basePrice: 2, attributes: [{ ...bedroom, value: 3 }] },
+        ] },
       ],
     });
     expect(tx.attribute.create).not.toHaveBeenCalled();
     expect(tx.attribute.findFirst).toHaveBeenCalledTimes(1); // second variant hits the in-transaction cache
-    expect(tx.productAttribute.createMany.mock.calls.map((c) => c[0].data[0].attributeId)).toEqual(['attr-9', 'attr-9']);
+    expect(tx.productAttribute.create.mock.calls.map((c) => c[0].data)).toEqual([
+      expect.objectContaining({ typeVariantId: 'tv-1', attributeId: 'attr-9', value: 2 }),
+      expect.objectContaining({ typeVariantId: 'tv-2', attributeId: 'attr-9', value: 3 }),
+    ]);
   });
 
   it('stores 0 for an attribute sent without a value', async () => {
@@ -257,8 +264,8 @@ describe('ProductUseCase.create (whole project)', () => {
       product: { findFirst: fn(null), create: fn({ id: 'p-1' }) },
       productVariant: { create: fn({ id: 'v-1' }) },
       productTypeVariant: { create: fn({ id: 'tv-1' }) },
-      attribute: { findFirst: fn({ id: 'attr-1' }), create: fn() },
-      productAttribute: { createMany: fn({ count: 1 }) },
+      attribute: { findFirst: fn({ id: 'attr-1', source: 'UNIT_TYPE' }), create: fn() },
+      productAttribute: { findMany: fn([]), create: fn({}) },
     };
     const prisma = {
       product: { findFirst: fn({ id: 'p-1', variants: [], media: [] }) },
@@ -267,9 +274,9 @@ describe('ProductUseCase.create (whole project)', () => {
     await new ProductUseCase(prisma as never).create('t-1', {
       name: 'X',
       code: 'X',
-      variants: [{ name: 'A', basePrice: 1, attributes: [{ name: 'Carport', code: 'carport', dataType: 'NUMBER' }] }],
+      variants: [{ name: 'A', typeVariants: [{ name: 'Standard', basePrice: 1, attributes: [{ name: 'Carport', code: 'carport', dataType: 'NUMBER' }] }] }],
     });
-    expect(tx.productAttribute.createMany.mock.calls[0][0].data[0]).toMatchObject({ value: 0 });
+    expect(tx.productAttribute.create.mock.calls[0][0].data).toMatchObject({ value: 0 });
   });
 
   it('rejects bad structure before opening a transaction', async () => {
@@ -294,10 +301,18 @@ describe('project request validation', () => {
     const result = validateProduct({
       ...base,
       locations: [{ key: 'a', name: 'Cluster', type: 'CLUSTER' }],
-      units: [{ code: 'U1', variantIndex: 0, locationKey: 'a', status: 'SOLD' }],
+      units: [{ code: 'U1', variantIndex: 0, locationKey: 'a', status: 'AVAILABLE' }],
     });
     expect(result.locations).toHaveLength(1);
-    expect(result.units?.[0]).toMatchObject({ code: 'U1', status: 'SOLD' });
+    expect(result.units?.[0]).toMatchObject({ code: 'U1', status: 'AVAILABLE' });
+  });
+
+  it('only accepts available new units; a fake id does not bypass it on create', () => {
+    const unit = { code: 'U1', variantIndex: 0, status: 'SOLD' };
+    expect(() => validateProduct({ ...base, units: [unit] })).toThrow(/Invalid unit status/);
+    expect(() => validateProduct({ ...base, units: [{ ...unit, id: 'u-1' }] })).toThrow(/Invalid unit status/);
+    expect(() => validateProduct({ units: [unit] }, true)).toThrow(/Invalid unit status/);
+    expect(validateProduct({ units: [{ ...unit, id: 'u-1' }] }, true).units).toHaveLength(1);
   });
 
   it('rejects bad unit status, bad location type and locations on update', () => {

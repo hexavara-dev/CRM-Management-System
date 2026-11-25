@@ -1,9 +1,11 @@
 import { validateBody, type FieldRule } from '../../../infrastructure/utils/RequestValidation.js';
 import type {
   ProductInput,
+  TypeVariantInput,
   VariantInput,
 } from '../../../usecases/product/ProductUseCase.js';
 import { CATEGORY_TYPES, MAX_LOCATIONS, MAX_UNITS, MAX_VARIANTS, PRICE_MAX, STOCK_MAX } from './constants.js';
+import { MAX_TYPE_IMAGES } from '../../../usecases/product/typeImages.js';
 import { newAttributeRules } from './attribute.js';
 import { unitRules } from './unit.js';
 
@@ -15,6 +17,7 @@ const variantRules: Record<string, FieldRule> = {
   minPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX, nullable: true },
   stock: { type: 'number', integer: true, min: 0, max: STOCK_MAX },
   typeVariants: { type: 'array' },
+  mediaOrder: { type: 'array' },
 };
 
 const typeVariantRules: Record<string, FieldRule> = {
@@ -26,13 +29,31 @@ const typeVariantRules: Record<string, FieldRule> = {
   minPrice: { type: 'number', integer: true, min: 0, max: PRICE_MAX, nullable: true },
   stock: { type: 'number', required: true, integer: true, min: 0, max: STOCK_MAX },
   isActive: { type: 'boolean' },
+  attributes: { type: 'array' },
+  mediaOrder: { type: 'array' },
 };
 
-/** Variant sent together with a new product; may carry its attributes. */
-const newVariantRules: Record<string, FieldRule> = {
-  ...variantRules,
-  attributes: { type: 'array' },
-};
+function assertMediaOrder(value: unknown) {
+  if (value === undefined) return;
+  const order = value as unknown[];
+  if (order.length > MAX_TYPE_IMAGES || order.some((key) => typeof key !== 'string' || !key || key.length > 36)) {
+    throw new Error(`Invalid mediaOrder: at most ${MAX_TYPE_IMAGES} photos are allowed per type or variant`);
+  }
+}
+
+/** Validates type variants together with their unit specifications. */
+function typeVariantsOf(value: unknown): TypeVariantInput[] {
+  return arrayOf(value, 100, 'typeVariants', (item) => {
+    const typeVariant = validateBody(item, typeVariantRules) as TypeVariantInput;
+    assertMediaOrder(typeVariant.mediaOrder);
+    if (typeVariant.attributes !== undefined) {
+      typeVariant.attributes = arrayOf(typeVariant.attributes, 50, 'attributes', (attribute) =>
+        validateBody(attribute, newAttributeRules)
+      ) as NonNullable<TypeVariantInput['attributes']>;
+    }
+    return typeVariant;
+  });
+}
 
 const productRules: Record<string, FieldRule> = {
   categoryId: { type: 'string', max: 36 },
@@ -64,8 +85,14 @@ const locationRules: Record<string, FieldRule> = {
   type: { type: 'string', required: true, values: CATEGORY_TYPES },
 };
 
-export const validateVariant = (body: unknown, partial = false) =>
-  validateBody(body, variantRules, { partial }) as VariantInput;
+export function validateVariant(body: unknown, partial = false) {
+  const variant = validateBody(body, variantRules, { partial }) as VariantInput;
+  assertMediaOrder(variant.mediaOrder);
+  if (variant.typeVariants !== undefined) {
+    variant.typeVariants = typeVariantsOf(variant.typeVariants);
+  }
+  return variant;
+}
 
 function arrayOf<T>(value: unknown, max: number, field: string, validate: (item: unknown) => T) {
   const items = value as unknown[];
@@ -108,16 +135,10 @@ export function validateProduct(body: unknown, partial = false) {
   }
   if (result.variants !== undefined) {
     result.variants = arrayOf(result.variants, MAX_VARIANTS, 'variants', (v) => {
-      const variant = validateBody(v, newVariantRules) as VariantInput;
-      if (variant.attributes !== undefined) {
-        variant.attributes = arrayOf(variant.attributes, 50, 'attributes', (a) =>
-          validateBody(a, newAttributeRules)
-        ) as NonNullable<VariantInput['attributes']>;
-      }
+      const variant = validateBody(v, variantRules) as VariantInput;
+      assertMediaOrder(variant.mediaOrder);
       if (variant.typeVariants !== undefined) {
-        variant.typeVariants = arrayOf(variant.typeVariants, 100, 'typeVariants', (item) =>
-          validateBody(item, typeVariantRules)
-        );
+        variant.typeVariants = typeVariantsOf(variant.typeVariants);
         if (variant.typeVariants.length === 0) throw new Error('typeVariants must contain at least one item');
       } else if (variant.basePrice === undefined) {
         throw new Error('typeVariants must contain at least one item');
@@ -134,6 +155,11 @@ export function validateProduct(body: unknown, partial = false) {
     result.units = arrayOf(result.units, MAX_UNITS, 'units', (u) =>
       validateBody(u, unitRules)
     ) as NonNullable<ProductInput['units']>;
+    // Status hanya berubah lewat reservasi; unit tersimpan diperiksa use case terhadap status sekarang.
+    const invalid = result.units.find((unit) => (!partial || !unit.id) && unit.status && unit.status !== 'AVAILABLE');
+    if (invalid) {
+      throw new Error(`Invalid unit status: new unit ${invalid.code} must be AVAILABLE. Use a reservation to change it.`);
+    }
   }
   return result;
 }

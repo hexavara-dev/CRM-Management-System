@@ -27,10 +27,11 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
     project.totalSlots,
   );
   const status = statusOf(project.isActive);
+  // Baris kartu (foto, nama, lokasi, angka) memakai subgrid agar sejajar dengan kartu di sebelahnya.
   return (
     <Link
       href={`/projects/${project.id}`}
-      className="flex h-full flex-col overflow-hidden rounded-2xl border border-[#E4E4E7] bg-white transition hover:-translate-y-0.5 hover:shadow-md"
+      className="row-span-4 grid grid-rows-subgrid gap-y-0 overflow-hidden rounded-2xl border border-[#E4E4E7] bg-white transition hover:-translate-y-0.5 hover:shadow-md"
     >
       <div className="relative flex h-44 items-center justify-center overflow-hidden bg-[#F4F4F5]">
         {project.coverUrl ? (
@@ -54,7 +55,7 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
           {status}
         </span>
       </div>
-      <div className="flex flex-1 flex-col gap-3 p-4">
+      <div className="px-4 pt-4">
         <div className="flex items-start justify-between gap-3">
           <h3 className="min-w-0 flex-1 text-[15px] font-semibold leading-5 text-[#1f1f1f]">
             {project.name}
@@ -63,13 +64,17 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
             {project.code}
           </span>
         </div>
+      </div>
+      <div className="px-4 pt-2">
         {shortLocation(project) && (
-          <p className="flex items-center gap-1.5 text-sm text-[#475467]">
-            <MapPin className="size-4 shrink-0" />
-            <span className="truncate">{shortLocation(project)}</span>
+          <p className="flex items-start gap-1.5 text-sm text-[#475467]">
+            <MapPin className="mt-0.5 size-4 shrink-0" />
+            <span>{shortLocation(project)}</span>
           </p>
         )}
-        <div className="mt-auto">
+      </div>
+      <div className="space-y-3 p-4">
+        <div>
           <p className="mb-1 text-right text-sm text-[#1f1f1f]">
             Sold {soldPct}%
           </p>

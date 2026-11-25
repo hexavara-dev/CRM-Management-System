@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpDown, Folder, Layers, LayoutGrid, MoreVertical, Pencil, Plus, Trash2, Boxes } from "lucide-react";
+import { ArrowUpDown, ChevronRight, Folder, Layers, LayoutGrid, MoreVertical, Pencil, Plus, Trash2, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { cn } from "@/lib/utils";
 import type { UnitType } from "./unit-type-step";
 import { FIELD_LABEL, INPUT } from "./form-styles";
 import { AddUnitDialog } from "./add-unit-dialog";
@@ -25,6 +26,13 @@ export type UnitItem = { id: string; persistedId?: string; locationId: string; c
 
 const ROOT = "root";
 const LEVEL_SUGGESTIONS = ["Cluster", "Zone", "Block", "Tower", "Floor"];
+/** Kolom status di daftar sublokasi; Booked dihitung sebagai Reserved. */
+const CHILD_STATUSES = [
+  { label: "Available", statuses: ["Available"], className: "bg-[#E7F8EC] text-[#12833B]" },
+  { label: "Reserved", statuses: ["Reserved", "Booked"], className: "bg-[#FFF4DB] text-[#B54708]" },
+  { label: "Sold", statuses: ["Sold"], className: "bg-[#FDECEC] text-[#D64545]" },
+  { label: "Blocked", statuses: ["Blocked"], className: "bg-[#F2F4F7] text-[#667085]" },
+];
 const UNIT_CODE_SORTER = new Intl.Collator("id-ID", { numeric: true, sensitivity: "base" });
 
 type Draft = { id: string | null; parentId: string; name: string; level: string };
@@ -51,7 +59,8 @@ export function HierarchyStep({
   const [pendingDelete, setPendingDelete] = useState<LocationNode | null>(null);
 
   const rootName = projectName || "Project";
-  const kids = (pid: string) => nodes.filter((n) => n.parentId === pid);
+  const kids = (pid: string) =>
+    nodes.filter((n) => n.parentId === pid).sort((a, b) => UNIT_CODE_SORTER.compare(a.name, b.name));
   const descendants = (id: string): LocationNode[] => kids(id).flatMap((k) => [k, ...descendants(k.id)]);
   const unitCount = (id: string) => units.filter((u) => u.locationId === id).length;
   const totalUnits = (id: string) => [id, ...descendants(id).map((d) => d.id)].reduce((s, x) => s + unitCount(x), 0);
@@ -84,6 +93,22 @@ export function HierarchyStep({
   };
   const desc = descendants(selected.id);
   const leaves = desc.filter((n) => kids(n.id).length === 0);
+  const childRows = children.map((child) => {
+    const ids = new Set([child.id, ...descendants(child.id).map((node) => node.id)]);
+    const childUnits = units.filter((unit) => ids.has(unit.locationId));
+    const sub = kids(child.id);
+    return {
+      node: child,
+      sub: sub.length ? `${sub.length} ${sub[0].level}` : "-",
+      total: childUnits.length,
+      counts: CHILD_STATUSES.map(({ statuses }) => childUnits.filter((unit) => statuses.includes(unit.status)).length),
+    };
+  });
+  // Buka lokasi dan induknya di pohon agar pilihan terlihat.
+  const openChild = (id: string) => {
+    setExpanded((current) => new Set([...current, selected.id, id]));
+    setSelectedId(id);
+  };
 
   const toggle = (id: string) =>
     setExpanded((s) => {
@@ -212,6 +237,52 @@ export function HierarchyStep({
               <DetailStat icon={<Boxes className="size-4" />} label={leaves.length ? `Total ${leaves[0].level}` : "Unit Dibuat"} value={leaves.length ? `${leaves.length} ${leaves[0].level}` : `${totalUnits(selected.id)} Unit`} />
             </div>
           </div>
+
+          {children.length > 0 && (
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <div className="flex shrink-0 items-baseline justify-between gap-3">
+                <h4 className="text-sm font-semibold text-[#1f1f1f]">Daftar {children[0].level}</h4>
+                <p className="text-xs text-[#667085]">
+                  {totalUnits(selected.id)} unit dibuat
+                  {selectedUnits.length > 0 && `, ${selectedUnits.length} langsung di ${selected.name}`}
+                </p>
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-[#E4E4E7]">
+                <table className="w-full min-w-[600px] text-left text-xs">
+                  <thead className="sticky top-0 z-10 bg-[#F8FAFC] text-[#1f1f1f]">
+                    <tr>
+                      {["Lokasi", "Sublokasi", "Unit", ...CHILD_STATUSES.map(({ label }) => label), ""].map((heading, index) => (
+                        <th key={heading || index} className={cn("h-10 whitespace-nowrap px-3 font-medium", index > 1 && "text-center")}>{heading}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {childRows.map(({ node, sub, total, counts }) => (
+                      <tr key={node.id} onClick={() => openChild(node.id)} className="cursor-pointer border-t border-[#EDEDED] hover:bg-[#F8FAFC]">
+                        <td className="px-3 py-2.5">
+                          <button type="button" className="flex cursor-pointer items-center gap-2 text-left font-medium text-[#1f1f1f] hover:text-[#1980C0]">
+                            <Folder className="size-4 shrink-0 text-[#1980C0]" />
+                            <span>
+                              {node.name}
+                              <span className="block text-[11px] font-normal text-[#667085]">{node.level}</span>
+                            </span>
+                          </button>
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-[#475467]">{sub}</td>
+                        <td className="px-3 py-2.5 text-center font-semibold text-[#1f1f1f]">{total}</td>
+                        {CHILD_STATUSES.map(({ label, className }, index) => (
+                          <td key={label} className="px-3 py-2.5 text-center">
+                            <span className={cn("inline-block min-w-9 rounded-md px-2 py-0.5 font-medium", className)}>{counts[index]}</span>
+                          </td>
+                        ))}
+                        <td className="px-3 py-2.5 text-right"><ChevronRight className="ml-auto size-4 text-[#667085]" /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {isLeaf && (
             <div className="flex min-h-0 flex-1 flex-col gap-3">

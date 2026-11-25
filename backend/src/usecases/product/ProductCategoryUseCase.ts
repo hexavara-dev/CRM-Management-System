@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient, ProductCategoryType } from '@prisma/client';
 import { categoryWithDescendants } from './catalogRules.js';
+import { byLocationName } from './catalogStructure.js';
 import { retryUniqueCode, uniqueCode } from './uniqueCode.js';
 
 export type CategoryInput = {
@@ -23,7 +24,7 @@ export class ProductCategoryUseCase {
       orderBy: { name: 'asc' },
       include: { _count: { select: { children: true, products: true } } },
     });
-    return { data };
+    return { data: data.sort(byLocationName) };
   }
 
   async get(id: string, tenantId: string) {
