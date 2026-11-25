@@ -152,7 +152,7 @@ function BulkAdjustForm({ units, onSaved }: { units: UnitPriceRow[]; onSaved: ()
                 <div className="min-w-0">
                   <p className="font-medium text-[#1f1f1f]">{unit.code}</p>
                   <p className="truncate text-xs text-[#6b6b6b]">
-                    {unit.variant.name} · {unit.location.name}
+                    {unit.variant.name} · {unit.location.path || unit.location.name}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">

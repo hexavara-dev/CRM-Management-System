@@ -5,6 +5,7 @@ import {
   toDateValue,
   todayInPriceZone,
 } from './priceRules.js';
+import { loadLocationPaths } from '../product/locationPaths.js';
 import { computeUnitPrices, loadCategoryParents, loadPriceLogs } from './unitPrices.js';
 
 export type UnitPriceFilters = {
@@ -102,7 +103,7 @@ export class UnitPriceUseCase {
     // (jumlah project, status, dan nilai harga jual) mencakup seluruh hasil filter,
     // lalu dipotong per halaman untuk tabel.
     const [allUnits, pendingAdjustments] = await Promise.all([
-      this.prisma.productUnit.findMany({ where, include: unitInclude, orderBy: { code: 'asc' } }),
+      this.prisma.productUnit.findMany({ where, include: unitInclude, orderBy: [{ code: 'asc' }, { id: 'asc' }] }),
       this.prisma.unitPriceAdjustment.count({ where: { tenantId, status: 'PENDING' } }),
     ]);
     const total = allUnits.length;
@@ -134,6 +135,7 @@ export class UnitPriceUseCase {
       if (unit.status !== 'SOLD') unsoldValue += price;
     }
 
+    const paths = await loadLocationPaths(this.prisma, tenantId, priced.map(({ unit }) => unit.categoryId));
     const data = priced.map(({ unit, basePrice, logTotal, amount, price }) => ({
       unitId: unit.id,
       code: unit.code,
@@ -142,7 +144,7 @@ export class UnitPriceUseCase {
       product: unit.variant.product,
       variant: { id: unit.variant.id, name: unit.variant.name, minPrice: pricingVariant(unit).minPrice },
       typeVariant: { id: pricingVariant(unit).id, name: pricingVariant(unit).name },
-      location: unit.category,
+      location: { ...unit.category, path: paths.get(unit.categoryId) ?? '' },
       basePrice,
       priceLogTotal: logTotal,
       adjustment: amount,
@@ -281,7 +283,7 @@ export class UnitPriceUseCase {
     const units = await this.prisma.productUnit.findMany({
       where: { id: { in: unitIds }, tenantId: actor.tenantId },
       include: unitInclude,
-      orderBy: { code: 'asc' },
+      orderBy: [{ code: 'asc' }, { id: 'asc' }],
     });
     const found = new Set(units.map((u) => u.id));
     const missing = unitIds.filter((id) => !found.has(id));

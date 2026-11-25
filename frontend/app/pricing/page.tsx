@@ -393,7 +393,7 @@ export default function PricingPage() {
                               )}
                             </div>
                             <p className="mt-0.5 whitespace-nowrap text-xs text-[#6b6b6b]">
-                              {row.product.name} · {row.variant.name} · {row.location.name}
+                              {row.product.name} · {row.variant.name} · {row.location.path || row.location.name}
                             </p>
                           </TableCell>
                           <TableCell>

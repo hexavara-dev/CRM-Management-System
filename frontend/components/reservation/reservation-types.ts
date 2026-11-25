@@ -105,5 +105,6 @@ export type AvailableReservationUnit = {
   status: string;
   variant: { id: string; name: string; currentPrice: number };
   typeVariant: { id: string; name: string; basePrice: number; currentPrice: number };
-  category: { id: string; name: string; type: string };
+  /** `path`: lokasi lengkap, mis. "Tower Arjuna > Lantai 1". */
+  category: { id: string; name: string; type: string; path?: string };
 };
