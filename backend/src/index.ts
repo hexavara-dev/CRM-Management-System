@@ -40,6 +40,8 @@ import { CharacteristicUseCase } from './usecases/product/CharacteristicUseCase.
 import { ProductMediaUseCase } from './usecases/product/ProductMediaUseCase.js';
 import { ProductUnitUseCase } from './usecases/product/ProductUnitUseCase.js';
 import { AttributeUseCase } from './usecases/product/AttributeUseCase.js';
+import { ProjectFacilityUseCase } from './usecases/product/ProjectFacilityUseCase.js';
+import { ProjectFacilityController } from './presentation/controllers/ProjectFacilityController.js';
 import { ProductController } from './presentation/controllers/ProductController.js';
 import { ReservationController } from './presentation/controllers/ReservationController.js';
 import { ReservationUseCase } from './usecases/reservation/ReservationUseCase.js';
@@ -420,6 +422,12 @@ app.get('/api/attributes', authMiddleware, pc.listAttributeDefinitions);
 app.post('/api/attributes', authMiddleware, ownerOnly, pc.createAttributeDefinition);
 app.put('/api/attributes/:id', authMiddleware, ownerOnly, pc.updateAttributeDefinition);
 app.delete('/api/attributes/:id', authMiddleware, ownerOnly, pc.deleteAttributeDefinition);
+// Konfigurasi fasilitas proyek per company. Semua user membaca, owner mengubah.
+const projectFacilities = new ProjectFacilityController(new ProjectFacilityUseCase(prisma));
+app.get('/api/project-facilities', authMiddleware, projectFacilities.list);
+app.post('/api/project-facilities', authMiddleware, ownerOnly, projectFacilities.create);
+app.put('/api/project-facilities/:id', authMiddleware, ownerOnly, projectFacilities.update);
+app.delete('/api/project-facilities/:id', authMiddleware, ownerOnly, projectFacilities.remove);
 app.get('/api/units', authMiddleware, pc.listUnits);
 app.get('/api/characteristics', authMiddleware, pc.listCharacteristics);
 app.post('/api/characteristics', authMiddleware, ownerOnly, pc.createCharacteristic);

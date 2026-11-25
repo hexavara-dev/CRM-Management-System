@@ -444,7 +444,7 @@ export class ProductUseCase {
     const facilityIds = input.facilityAttributeIds ?? [];
     if (facilityIds.length) {
       const count = await this.prisma.attribute.count({
-        where: { tenantId, id: { in: facilityIds }, source: 'PROJECT' },
+        where: { tenantId, id: { in: facilityIds }, source: 'PROJECT', isActive: true },
       });
       if (count !== facilityIds.length) throw new Error('Invalid facility attribute IDs');
     }
@@ -741,7 +741,15 @@ export class ProductUseCase {
     const removedMedia = projectImages.filter((media) => removeMediaIds.includes(media.id));
     const facilityIds = input.facilityAttributeIds;
     if (facilityIds?.length) {
-      const count = await this.prisma.attribute.count({ where: { tenantId, id: { in: facilityIds }, source: 'PROJECT' } });
+      // Fasilitas nonaktif hanya boleh dipertahankan bila sudah terpasang di proyek ini.
+      const count = await this.prisma.attribute.count({
+        where: {
+          tenantId,
+          id: { in: facilityIds },
+          source: 'PROJECT',
+          OR: [{ isActive: true }, { values: { some: { tenantId, productId: id } } }],
+        },
+      });
       if (count !== facilityIds.length) throw new Error('Invalid facility attribute IDs');
     }
 
@@ -1289,12 +1297,13 @@ export class ProductUseCase {
     if (input.typeVariantId && !typeVariant) throw new Error('Type variant not found');
     const master = await this.prisma.attribute.findFirst({
       where: { id: input.attributeId as string, tenantId },
-      select: { id: true, source: true },
+      select: { id: true, source: true, isActive: true },
     });
     if (!master) throw new Error('Attribute not found');
     if (master.source !== (typeVariant ? 'UNIT_TYPE' : 'PROJECT')) {
       throw new Error('Invalid attribute source for this level');
     }
+    if (master.source === 'PROJECT' && !master.isActive) throw new Error('Invalid facility: it is inactive');
     const typeVariantId = typeVariant?.id ?? null;
     const existing = await this.prisma.productAttribute.findFirst({
       where: { tenantId, productId, typeVariantId, attributeId: master.id, ...(typeVariantId ? {} : { variantId: null }) },

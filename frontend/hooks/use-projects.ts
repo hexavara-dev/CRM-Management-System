@@ -116,8 +116,10 @@ export interface ProjectAttribute {
   code: string;
   source: "PROJECT" | "UNIT_TYPE";
   iconKey: string | null;
+  isActive: boolean;
 }
 
+/** Semua fasilitas company, termasuk yang nonaktif. */
 export function useProjectFacilities() {
   const { user } = useAuth();
   return useQuery({

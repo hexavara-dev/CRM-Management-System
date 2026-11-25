@@ -24,13 +24,20 @@ export class AttributeUseCase {
   private async find(id: string, tenantId: string) {
     const row = await this.prisma.attribute.findFirst({ where: { id, tenantId } });
     if (!row) throw new Error('Attribute not found');
+    this.assertNotFacility(row.source);
     return row;
+  }
+
+  /** Fasilitas proyek hanya dikelola lewat ProjectFacilityUseCase, yang menjaga nama unik dan statusnya. */
+  private assertNotFacility(source: AttributeSource | undefined) {
+    if (source === 'PROJECT') throw new Error('Invalid source: project facilities must be managed through /api/project-facilities');
   }
 
   async create(tenantId: string, input: AttributeDefinitionInput) {
     if (!input.name || !input.code || !input.dataType) {
       throw new Error('name, code, and dataType are required');
     }
+    this.assertNotFacility(input.source);
     return this.prisma.attribute.create({
       data: {
         tenantId,
@@ -46,6 +53,7 @@ export class AttributeUseCase {
 
   async update(id: string, tenantId: string, input: AttributeDefinitionInput) {
     await this.find(id, tenantId);
+    this.assertNotFacility(input.source);
     const data: Prisma.AttributeUpdateInput = {};
     if (input.name !== undefined) data.name = input.name;
     if (input.code !== undefined) data.code = input.code;
