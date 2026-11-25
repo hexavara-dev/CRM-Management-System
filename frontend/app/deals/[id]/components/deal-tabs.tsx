@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Activity, Attachment, Note } from "@/lib/data";
 import type { DealHistory } from "@/types/deal";
+import { useState } from "react";
 import { DealHistoryTab } from "./deal-history";
 
 type AttachmentFormData = { name: string; file: FileList };
@@ -20,7 +21,8 @@ export function DealTabs({
   onAddNote,
   onAddAttachment,
 }: {
-  overview: React.ReactNode;
+  /** Menerima fungsi untuk berpindah tab, mis. dari "Lihat Semua" Dokumen Penting. */
+  overview: (openTab: (tab: string) => void) => React.ReactNode;
   activities: Activity[];
   attachments: Attachment[];
   notes: Note[];
@@ -28,8 +30,13 @@ export function DealTabs({
   onAddNote: (data: { content: string }) => Promise<void>;
   onAddAttachment: (data: AttachmentFormData) => void;
 }) {
+  const [tab, setTab] = useState("overview");
   return (
-    <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
+    <Tabs
+      value={tab}
+      onValueChange={setTab}
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <div className="border-b border-[#EAECF0] bg-white px-4">
         <TabsList
           variant="line"
@@ -37,6 +44,12 @@ export function DealTabs({
         >
           <TabsTrigger value="overview" className="px-0">
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="notes" className="px-0">
+            Notes
+          </TabsTrigger>
+          <TabsTrigger value="history" className="px-0">
+            History
           </TabsTrigger>
           <TabsTrigger value="activities" className="px-0">
             Activities
@@ -52,17 +65,11 @@ export function DealTabs({
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="notes" className="px-0">
-            Notes
-          </TabsTrigger>
-          <TabsTrigger value="history" className="px-0">
-            History
-          </TabsTrigger>
         </TabsList>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto bg-[#F9FAFB]">
         <TabsContent value="overview" className="m-0">
-          {overview}
+          {overview(setTab)}
         </TabsContent>
         <TabsContent value="activities" className="m-0 p-6">
           <ActivityTimelineTab activities={activities} entityLabel="deal" />
