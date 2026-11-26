@@ -212,6 +212,9 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
               icon: ClipboardList,
             },
             { title: "Siteplans", url: "/siteplans", icon: MapPinned },
+            ...(admin
+              ? [{ title: "Konfigurasi Fasilitas", url: "/product-configuration/facilities", icon: Sparkles }]
+              : []),
           ],
         },
         {
@@ -235,15 +238,6 @@ export function buildMenuSections(admin: boolean): MenuSection[] {
           visible: true,
           children: [
             { title: "Pricing", url: "/pricing", icon: DollarSign },
-          ],
-        },
-        {
-          title: "Product Management Configuration",
-          url: "/product-configuration",
-          icon: Settings2,
-          visible: admin,
-          children: [
-            { title: "Konfigurasi Fasilitas", url: "/product-configuration/facilities", icon: Sparkles },
           ],
         },
       ],

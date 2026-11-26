@@ -1,6 +1,5 @@
 "use client";
 
-import { Ban, CalendarDays, House, Layers, Tag } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -10,7 +9,6 @@ import { AvailabilityEmptyState } from "@/components/availability/availability-e
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { AvailabilityTable } from "@/components/availability/availability-table";
 import { SalesProgress } from "@/components/availability/sales-progress";
-import { SummaryCard } from "@/components/availability/summary-card";
 import { UnitDistribution } from "@/components/availability/unit-distribution";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -33,6 +31,7 @@ export default function AvailabilityPage() {
   const { data, isLoading, isError, error } = useProjects({
     page: 1,
     limit: 100,
+    isActive: true,
   });
 
   const projects = data?.data ?? [];
@@ -46,8 +45,6 @@ export default function AvailabilityPage() {
   else if (projects.length === 0) placeholder = "Belum ada proyek";
 
   const summary = availability.data?.summary ?? EMPTY_SUMMARY;
-  const getPercentage = (value: number) =>
-    summary.total > 0 ? (value / summary.total) * 100 : 0;
 
   return (
     <SidebarProvider className="overflow-hidden">
@@ -123,56 +120,6 @@ export default function AvailabilityPage() {
             />
           ) : (
             <>
-              <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
-                <SummaryCard
-                  title="Total Units"
-                  value={summary.total}
-                  icon={Layers}
-                  color="text-blue-500"
-                  bg="bg-blue-50"
-                />
-                <SummaryCard
-                  title="Available"
-                  value={summary.available}
-                  percentage={getPercentage(summary.available)}
-                  icon={House}
-                  color="text-green-500"
-                  bg="bg-green-50"
-                />
-                <SummaryCard
-                  title="Reservation / Processing"
-                  value={summary.processing}
-                  percentage={getPercentage(summary.processing)}
-                  icon={CalendarDays}
-                  color="text-blue-500"
-                  bg="bg-blue-50"
-                />
-                <SummaryCard
-                  title="Reserved"
-                  value={summary.reserved}
-                  percentage={getPercentage(summary.reserved)}
-                  icon={CalendarDays}
-                  color="text-orange-500"
-                  bg="bg-orange-50"
-                />
-                <SummaryCard
-                  title="Sold"
-                  value={summary.sold}
-                  percentage={getPercentage(summary.sold)}
-                  icon={Tag}
-                  color="text-red-500"
-                  bg="bg-red-50"
-                />
-                <SummaryCard
-                  title="Blocked"
-                  value={summary.blocked}
-                  percentage={getPercentage(summary.blocked)}
-                  icon={Ban}
-                  color="text-slate-500"
-                  bg="bg-slate-100"
-                />
-              </section>
-
               <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <UnitDistribution
                   available={summary.available}

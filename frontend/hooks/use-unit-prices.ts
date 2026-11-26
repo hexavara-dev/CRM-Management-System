@@ -25,7 +25,7 @@ export interface UnitPriceRow {
   status: UnitStatus;
   product: Ref;
   variant: Ref & { minPrice: number | null };
-  location: Ref & { type: string };
+  location: Ref & { type: string; path?: string };
   basePrice: number;
   priceLogTotal: number;
   adjustment: number;
@@ -71,7 +71,7 @@ export interface UnitPriceDetail {
   status: UnitStatus;
   product: Ref;
   variant: Ref & { minPrice: number | null };
-  location: Ref & { type: string };
+  location: Ref & { type: string; path?: string };
   date: string;
   basePrice: number;
   priceLogs: { id: string; categoryId: string | null; adjustmentPrice: number; effectiveStart: string; endDate: string | null; reason: string }[];

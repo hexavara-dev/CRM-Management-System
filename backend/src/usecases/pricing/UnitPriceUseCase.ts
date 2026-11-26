@@ -5,6 +5,7 @@ import {
   toDateValue,
   todayInPriceZone,
 } from './priceRules.js';
+import { loadLocationPaths } from '../product/locationPaths.js';
 import { computeUnitPrices, loadCategoryParents, loadPriceLogs } from './unitPrices.js';
 
 export type UnitPriceFilters = {
@@ -42,6 +43,16 @@ type UnitWithVariant = Prisma.ProductUnitGetPayload<{ include: typeof unitInclud
 
 function pricingVariant(unit: UnitWithVariant) {
   return unit.typeVariant ?? (unit.variant as unknown as UnitWithVariant['typeVariant']);
+}
+
+/** Harga dasar varian adalah batas bawah harga jual. */
+function assertAtLeastBase(priced: { unit: { code: string }; basePrice: bigint }[], price: number) {
+  const below = priced.filter((row) => BigInt(price) < row.basePrice);
+  if (!below.length) return;
+  const lowest = below.reduce((max, row) => (row.basePrice > max ? row.basePrice : max), BigInt(0));
+  throw new Error(
+    `Harga jual tidak boleh lebih rendah dari harga dasar varian (${below.map((row) => row.unit.code).slice(0, 5).join(', ')}${below.length > 5 ? `, dan ${below.length - 5} lainnya` : ''}): minimal Rp ${new Intl.NumberFormat('id-ID').format(lowest)}.`
+  );
 }
 
 export class UnitPriceUseCase {
@@ -102,7 +113,7 @@ export class UnitPriceUseCase {
     // (jumlah project, status, dan nilai harga jual) mencakup seluruh hasil filter,
     // lalu dipotong per halaman untuk tabel.
     const [allUnits, pendingAdjustments] = await Promise.all([
-      this.prisma.productUnit.findMany({ where, include: unitInclude, orderBy: { code: 'asc' } }),
+      this.prisma.productUnit.findMany({ where, include: unitInclude, orderBy: [{ code: 'asc' }, { id: 'asc' }] }),
       this.prisma.unitPriceAdjustment.count({ where: { tenantId, status: 'PENDING' } }),
     ]);
     const total = allUnits.length;
@@ -134,6 +145,7 @@ export class UnitPriceUseCase {
       if (unit.status !== 'SOLD') unsoldValue += price;
     }
 
+    const paths = await loadLocationPaths(this.prisma, tenantId, priced.map(({ unit }) => unit.categoryId));
     const data = priced.map(({ unit, basePrice, logTotal, amount, price }) => ({
       unitId: unit.id,
       code: unit.code,
@@ -142,7 +154,7 @@ export class UnitPriceUseCase {
       product: unit.variant.product,
       variant: { id: unit.variant.id, name: unit.variant.name, minPrice: pricingVariant(unit).minPrice },
       typeVariant: { id: pricingVariant(unit).id, name: pricingVariant(unit).name },
-      location: unit.category,
+      location: { ...unit.category, path: paths.get(unit.categoryId) ?? '' },
       basePrice,
       priceLogTotal: logTotal,
       adjustment: amount,
@@ -222,6 +234,7 @@ export class UnitPriceUseCase {
     if (unit.status === 'SOLD') throw new Error('Price of a sold unit cannot be adjusted (conflict)');
 
     const [priced] = await this.price(actor.tenantId, [unit], input.effectiveDate);
+    assertAtLeastBase([priced!], input.price);
     const data = this.adjustmentData(priced!, actor, input);
     if (data.priceAfter === data.priceBefore) throw new Error('price must differ from the current selling price');
 
@@ -281,7 +294,7 @@ export class UnitPriceUseCase {
     const units = await this.prisma.productUnit.findMany({
       where: { id: { in: unitIds }, tenantId: actor.tenantId },
       include: unitInclude,
-      orderBy: { code: 'asc' },
+      orderBy: [{ code: 'asc' }, { id: 'asc' }],
     });
     const found = new Set(units.map((u) => u.id));
     const missing = unitIds.filter((id) => !found.has(id));
@@ -296,6 +309,7 @@ export class UnitPriceUseCase {
     }
 
     const priced = await this.price(actor.tenantId, units, input.effectiveDate);
+    assertAtLeastBase(priced, input.price);
     const rows = priced
       .map((p) => this.adjustmentData(p, actor, input))
       .filter((r) => r.priceAfter !== r.priceBefore);

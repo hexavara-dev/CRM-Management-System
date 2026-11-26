@@ -57,6 +57,7 @@ export const adjustmentSchema = z.object({
   price: z
     .string()
     .regex(/^\d+$/, "Harga jual baru wajib diisi")
+    .refine((value) => Number(value) >= 1, "Harga jual minimal Rp 1")
     .refine((value) => Number(value) <= MAX_PRICE, "Harga terlalu besar"),
   reason: z
     .string()
@@ -263,11 +264,14 @@ function UnitDialog({
 function AdjustmentForm({
   unitId,
   basis,
+  basePrice,
   minPrice,
   onSaved,
 }: {
   unitId: string;
   basis: number;
+  /** Batas bawah harga jual. */
+  basePrice: number;
   minPrice: number | null;
   onSaved: () => void;
 }) {
@@ -288,6 +292,7 @@ function AdjustmentForm({
   const preview = Number(digits || 0);
   const change = filled ? preview - basis : 0;
   const belowMin = filled && minPrice !== null && preview < minPrice;
+  const belowBase = filled && preview < basePrice;
 
   return (
     <FormProvider {...form}>
@@ -306,7 +311,7 @@ function AdjustmentForm({
           }
         })}
       >
-        <PriceField helper={`Harga jual saat ini ${formatPrice(basis)}. Isi harga final yang diinginkan.`} />
+        <PriceField helper={`Harga jual saat ini ${formatPrice(basis)}. Minimal harga dasar ${formatPrice(basePrice)}.`} />
         <div>
           <FormInput
             name="effectiveDate"
@@ -331,7 +336,9 @@ function AdjustmentForm({
         <div
           className={cn(
             "rounded-lg px-4 py-3 text-sm",
-            belowMin
+            belowBase
+              ? "bg-[#FDECEC] text-[#D64545]"
+              : belowMin
               ? "bg-[#FFF1E0] text-[#D9822B]"
               : "bg-[#E5F1FA] text-[#1980C0]",
           )}
@@ -345,12 +352,13 @@ function AdjustmentForm({
           ) : (
             "Isi harga jual baru untuk melihat perubahannya."
           )}
-          {belowMin &&
+          {belowBase && ` · di bawah harga dasar ${formatPrice(basePrice)}, tidak dapat disimpan`}
+          {!belowBase && belowMin &&
             ` · di bawah harga minimum ${formatPrice(minPrice)}${PRICE_APPROVAL_ENABLED ? ", perlu approval" : ""}`}
         </div>
         <Button
           type="submit"
-          disabled={create.isPending || (filled && change === 0)}
+          disabled={create.isPending || (filled && change === 0) || belowBase}
           className="h-10 w-full rounded-lg bg-[#1980C0] text-white hover:bg-[#166ea6]"
         >
           {create.isPending
@@ -411,11 +419,8 @@ export function AdjustPriceDialog({ unitId, onOpenChange }: DialogProps) {
                 />
                 <Row
                   label="Harga minimum"
-                  value={
-                    d.variant.minPrice === null
-                      ? "Tidak ada"
-                      : formatPrice(d.variant.minPrice)
-                  }
+                  // Harga dasar varian adalah batas bawah harga jual.
+                  value={`${formatPrice(d.basePrice)} (harga dasar)`}
                 />
               </Section>
 
@@ -434,6 +439,7 @@ export function AdjustPriceDialog({ unitId, onOpenChange }: DialogProps) {
                   key={d.unitId}
                   unitId={d.unitId}
                   basis={d.sellingPrice}
+                  basePrice={d.basePrice}
                   minPrice={d.variant.minPrice}
                   onSaved={() => onOpenChange(false)}
                 />

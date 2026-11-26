@@ -283,11 +283,11 @@ export function CreateReservationDialog({
                               ? "Memuat unit..."
                               : "Pilih unit"
                         }
-                        searchPlaceholder="Cari kode unit atau tipe..."
+                        searchPlaceholder="Cari kode unit atau lokasi..."
                         loading={unitsQuery.isLoading}
                         options={(unitsQuery.data ?? []).map((unit) => ({
                           value: unit.id,
-                          label: `${unit.code} · ${unit.category.name}`,
+                          label: `${unit.code} · ${unit.category.path || unit.category.name}`,
                         }))}
                         disabled={
                           !projectId || unitsQuery.isLoading || !!unitError

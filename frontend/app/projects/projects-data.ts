@@ -1,6 +1,6 @@
 import type { UnitSummary } from "@/hooks/use-projects";
 
-// Backend hanya menyimpan aktif/nonaktif (`products.is_active`); "In Development" belum punya kolom.
+// Backend hanya menyimpan aktif/nonaktif (`products.is_active`).
 export type Status = "Active" | "Inactive";
 
 export const statusOf = (isActive: boolean): Status => (isActive ? "Active" : "Inactive");

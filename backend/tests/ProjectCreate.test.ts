@@ -41,6 +41,13 @@ describe('assertUnits', () => {
     expect(() =>
       assertUnits([{ code: 'U1', variantIndex: 0 }, { code: 'U1', variantIndex: 0 }], 1, keys)
     ).toThrow(/Duplicate unit code/);
+    expect(() =>
+      assertUnits([{ code: 'U1', variantIndex: 0, locationKey: 'a' }, { code: 'u1', variantIndex: 0, locationKey: 'a' }], 1, keys)
+    ).toThrow(/Duplicate unit code/);
+    // Nomor yang sama di lokasi lain diperbolehkan.
+    expect(() =>
+      assertUnits([{ code: 'U1', variantIndex: 0, locationKey: 'a' }, { code: 'U1', variantIndex: 0, locationKey: 'b' }], 1, new Set(['a', 'b']))
+    ).not.toThrow();
     expect(() => assertUnits([{ code: 'U1', variantIndex: 0, locationKey: 'a' }], 1, keys)).not.toThrow();
   });
 });

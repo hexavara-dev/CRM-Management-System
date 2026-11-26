@@ -122,6 +122,13 @@ async function assertReservationPrice(
   }
 }
 
+/** Unit project nonaktif tidak dapat direservasi; reservasi yang sudah ada tetap berjalan. */
+function assertProjectActive(unit: { code: string; variant?: { product: { isActive: boolean } } }) {
+  if (unit.variant?.product.isActive === false) {
+    throw new Error(`Conflict: unit ${unit.code} berada di proyek yang tidak aktif.`);
+  }
+}
+
 function responseOf(row: ReservationWithRelations) {
   const leaf = row.unit.category;
   type CategoryNode = {
@@ -306,12 +313,13 @@ export class ReservationUseCase {
       const [unit, sales] = await Promise.all([
         tx.productUnit.findFirst({
           where: { id: dto.unitId, tenantId },
-          select: { id: true, code: true, categoryId: true, typeVariantId: true, typeVariant: { select: { basePrice: true } } },
+          select: { id: true, code: true, categoryId: true, typeVariantId: true, typeVariant: { select: { basePrice: true } }, variant: { select: { product: { select: { isActive: true } } } } },
         }),
         tx.user.findFirst({ where: { id: salesId, tenantId }, select: { id: true } }),
       ]);
       if (!unit) throw new Error('Unit not found');
       if (!sales) throw new Error('Sales user not found');
+      assertProjectActive(unit);
       await assertReservationPrice(tx, tenantId, unit, dto.price);
 
       const claimed = await tx.productUnit.updateMany({
@@ -393,9 +401,10 @@ export class ReservationUseCase {
       if (price !== Number(current.price) || priceUnitId !== current.unitId) {
         const priceUnit = await tx.productUnit.findFirst({
           where: { id: priceUnitId, tenantId },
-          select: { id: true, code: true, categoryId: true, typeVariantId: true, typeVariant: { select: { basePrice: true } } },
+          select: { id: true, code: true, categoryId: true, typeVariantId: true, typeVariant: { select: { basePrice: true } }, variant: { select: { product: { select: { isActive: true } } } } },
         });
         if (!priceUnit) throw new Error('Unit not found');
+        if (priceUnitId !== current.unitId) assertProjectActive(priceUnit);
         await assertReservationPrice(tx, tenantId, priceUnit, price);
       }
 

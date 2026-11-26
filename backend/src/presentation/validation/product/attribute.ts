@@ -5,10 +5,9 @@ import type {
 import type { AttributeDefinitionInput } from '../../../usecases/product/AttributeUseCase.js';
 import { DATA_TYPES, INT_MAX } from './constants.js';
 
-/** product_attributes.value is always INT; when omitted the use case stores 0. */
+/** product_attributes.value keeps two decimals; when omitted the use case stores 0. */
 const attributeValueRule: FieldRule = {
   type: 'number',
-  integer: true,
   min: -INT_MAX,
   max: INT_MAX,
 };

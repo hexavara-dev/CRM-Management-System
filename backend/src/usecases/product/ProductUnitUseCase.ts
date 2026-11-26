@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient, ProductUnitStatus } from '@prisma/client';
 import { categoryWithDescendants } from './catalogRules.js';
+import { loadLocationPaths } from './locationPaths.js';
 import { unitSellingPrices } from '../pricing/unitPrices.js';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 
@@ -80,7 +81,7 @@ export class ProductUnitUseCase {
         where,
         skip: (filters.page - 1) * filters.limit,
         take: filters.limit,
-        orderBy: { code: 'asc' },
+        orderBy: [{ code: 'asc' }, { id: 'asc' }],
         include: {
           variant: { select: { id: true, name: true, product: { select: { id: true, name: true } } } },
           typeVariant: { select: { id: true, name: true, basePrice: true, currentPrice: true } },
@@ -90,7 +91,10 @@ export class ProductUnitUseCase {
       this.prisma.productUnit.count({ where }),
     ]);
 
-    const prices = await unitSellingPrices(this.prisma, tenantId, rows);
+    const [prices, paths] = await Promise.all([
+      unitSellingPrices(this.prisma, tenantId, rows),
+      loadLocationPaths(this.prisma, tenantId, rows.map((row) => row.categoryId)),
+    ]);
     return {
       data: rows.map((row) => {
         // currentPrice adalah harga jual unit hari ini, sama dengan Pricing.
@@ -99,6 +103,7 @@ export class ProductUnitUseCase {
           ...row,
           variant: { ...row.variant, currentPrice },
           typeVariant: { ...row.typeVariant, currentPrice },
+          category: { ...row.category, path: paths.get(row.categoryId) ?? '' },
         };
       }),
       meta: {

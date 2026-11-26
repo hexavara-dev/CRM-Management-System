@@ -79,6 +79,9 @@ function byCodeOrLegacyId<T extends { id: string; code: string }>(
   );
 }
 
+const formatSpec = (value: unknown) =>
+  new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value));
+
 function statusKey(status: ProductUnitStatus): keyof Omit<Summary, 'total'> {
   switch (status) {
     case 'AVAILABLE':
@@ -180,7 +183,8 @@ export class AvailabilityUseCase {
   async overview(tenantId: string, projectId?: string) {
     await expireOverdueReservations(this.prisma, tenantId);
     const products = await this.prisma.product.findMany({
-      where: { tenantId, ...(projectId ? { id: projectId } : {}) },
+      // Proyek nonaktif tidak dijual, jadi tidak tampil di Availability.
+      where: { tenantId, isActive: true, ...(projectId ? { id: projectId } : {}) },
       orderBy: { name: 'asc' },
       select: {
         id: true,
@@ -301,6 +305,7 @@ export class AvailabilityUseCase {
       subdistrict: true,
       city: true,
       province: true,
+      isActive: true,
       variants: {
         select: { typeVariants: { select: { stock: true } } },
       },
@@ -441,7 +446,6 @@ export class AvailabilityUseCase {
       return {
         id: unit.id,
         code: unit.code,
-        isHook: unit.isHook,
         type: unit.variant.name,
         variant: unit.typeVariant?.name ?? 'Default',
         price: unit.sellingPrice,
@@ -575,7 +579,7 @@ export class AvailabilityUseCase {
       const item = attributes.get(code);
       if (!item) return null;
       const suffix = item.attribute.unit ? ` ${item.attribute.unit}` : '';
-      return `${item.value}${suffix}`;
+      return `${formatSpec(item.value)}${suffix}`;
     };
     const price = unit.sellingPrice;
     const images = unit.media.length
@@ -583,7 +587,7 @@ export class AvailabilityUseCase {
       : await this.fallbackImages(tenantId, data.product.id, unit.variantId, unit.typeVariantId);
     const specifications = unitAttributes.map(({ attribute, value }) => ({
       key: attribute.code,
-      label: `${attribute.name}: ${value}${attribute.unit ? ` ${attribute.unit}` : ''}`,
+      label: `${attribute.name}: ${formatSpec(value)}${attribute.unit ? ` ${attribute.unit}` : ''}`,
     }));
 
     return {
@@ -591,6 +595,7 @@ export class AvailabilityUseCase {
       code: unit.code,
       projectId: data.product.id,
       projectCode: data.product.code,
+      projectActive: data.product.isActive,
       clusterCode: cluster.code,
       number: unit.name ?? unit.code,
       status: unitStatusKey(unit) === 'processing' ? 'Processing' : displayStatus(unit.status),
