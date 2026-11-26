@@ -1,6 +1,6 @@
 "use client";
 import { LabelBadge } from "@/app/crm-configuration/leads-label/label-icons";
-import { LeadLabelMultiSelect } from "@/app/leads/components/lead-label-multi-select";
+import { AddLeadForm } from "@/app/leads/components/add-lead-form";
 import { LeadArchiveDialog } from "@/app/leads/components/lead-archive-dialog";
 import {
   type LeadDateRange,
@@ -9,6 +9,7 @@ import {
 import { AppSidebar } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Badge } from "@/components/ui/badge";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
   SidebarProvider,
@@ -45,21 +47,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useLeadCampaigns } from "@/hooks/use-lead-campaigns";
 import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useArchiveLeadAction } from "@/hooks/use-lead-archive";
 import { useActiveLeadSources } from "@/hooks/use-lead-sources";
 import { useLeadsTable } from "@/hooks/use-leads-table";
 import { useLocations } from "@/hooks/use-locations";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
-import { useProject, useProjects } from "@/hooks/use-projects";
+import { useProjects } from "@/hooks/use-projects";
 import { useUsers } from "@/hooks/use-users";
 import {
-  LeadCreateFormData,
-  LeadCreateFormInput,
   LeadFormData,
   LeadFormInput,
-  leadCreateFormSchema,
   leadFormSchema,
 } from "@/schemas/lead.schema";
 import { Lead } from "@/types/lead";
@@ -68,29 +66,20 @@ import type { ColumnDef } from "@tanstack/react-table";
 import {
   ArrowUpDown,
   CalendarDays,
-  CircleDollarSign,
   Clock3,
   Columns3,
-  Crosshair,
-  Home,
   List,
-  Mail,
-  MapPin,
   Pencil,
-  Phone,
   Plus,
-  Save,
   Search,
   Archive,
   Upload,
   UserRound,
-  UsersRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   type ReactNode,
   useDeferredValue,
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -175,7 +164,7 @@ export default function LeadsPage() {
       : dateLabel(pipelinePeriod.from)
     : "Pilih rentang tanggal";
 
-  const { leads, isLoading, createLead, updateLead, serverPagination } =
+  const { leads, isLoading, updateLead, serverPagination } =
     useLeadsTable({
       filters: {
         search: deferredSearch || undefined,
@@ -428,63 +417,11 @@ export default function LeadsPage() {
     return locations.find((location) => location.id === locationId)?.name || "";
   };
 
-  const addForm = useForm<LeadCreateFormInput, unknown, LeadCreateFormData>({
-    resolver: zodResolver(leadCreateFormSchema),
-    defaultValues: {
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      stageId: "",
-      source: "",
-      gender: "",
-      salutation: "",
-      organizationName: "",
-      organizationLocation: "",
-      locationId: "",
-      age: undefined,
-      projectId: "",
-      productVariantId: "",
-      campaignId: "",
-      budget: undefined,
-      assignedUserId: "",
-      sourceId: "",
-      labelIds: [],
-      priority: "MEDIUM",
-    },
-  });
-  const selectedLeadSourceId = addForm.watch("sourceId");
-  const selectedProjectId = addForm.watch("projectId");
   const projectsQuery = useProjects({ page: 1, limit: 100, isActive: true });
-  const selectedProjectQuery = useProject(selectedProjectId || undefined);
-  const campaignsQuery = useLeadCampaigns(selectedLeadSourceId || undefined);
-  const campaigns = (campaignsQuery.data ?? []).filter(
-    (campaign) => campaign.isActive,
-  );
   const projectOptions = (projectsQuery.data?.data ?? []).map((project) => ({
     value: project.id,
     label: project.name,
   }));
-  const productVariantOptions = (selectedProjectQuery.data?.variants ?? []).map(
-    (variant) => ({
-      value: variant.id,
-      label: variant.name,
-    }),
-  );
-
-  useEffect(() => {
-    addForm.setValue("productVariantId", "");
-  }, [addForm, selectedProjectId]);
-
-  useEffect(() => {
-    addForm.setValue("campaignId", "");
-  }, [addForm, selectedLeadSourceId]);
-
-  useEffect(() => {
-    if (user?.id && !addForm.getValues("assignedUserId")) {
-      addForm.setValue("assignedUserId", user.id);
-    }
-  }, [addForm, user?.id]);
 
   const editForm = useForm<LeadFormInput, unknown, LeadFormData>({
     resolver: zodResolver(leadFormSchema),
@@ -505,20 +442,6 @@ export default function LeadsPage() {
       priority: "MEDIUM",
     },
   });
-
-  const onSubmitAdd = async (data: LeadCreateFormData) => {
-    try {
-      await createLead({
-        ...data,
-        assignedUserId:
-          user?.role === "owner" ? data.assignedUserId || user.id : user?.id,
-      });
-      addForm.reset();
-      setIsAddDialogOpen(false);
-    } catch (error) {
-      console.error("Failed to add lead:", error);
-    }
-  };
 
   const onSubmitEdit = async (data: LeadFormData) => {
     if (selectedLead) {
@@ -545,8 +468,11 @@ export default function LeadsPage() {
       <SidebarInset className="w-0 min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
-          <div className="flex flex-1 items-center justify-between">
-            <h1 className="text-lg font-semibold">Leads</h1>
+          <Separator orientation="vertical" className="mr-2 h-8 !self-center" />
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold text-[#101828]">Leads Management</h1>
+            </div>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
@@ -559,12 +485,7 @@ export default function LeadsPage() {
               </Button>
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button
-                    onClick={() => {
-                      addForm.reset();
-                      if (user?.id) addForm.setValue("assignedUserId", user.id);
-                    }}
-                  >
+                  <Button>
                     <Plus className="mr-2 h-4 w-4" />
                     Add Lead
                   </Button>
@@ -585,247 +506,7 @@ export default function LeadsPage() {
                       </div>
                     </div>
                   </DialogHeader>
-                  <FormProvider {...addForm}>
-                    <form
-                      onSubmit={addForm.handleSubmit(onSubmitAdd)}
-                      className="flex h-full min-h-0 flex-col overflow-hidden"
-                    >
-                      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 sm:px-6">
-                        <div className="grid gap-3 lg:grid-cols-2">
-                          <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
-                              <UserRound className="size-4 text-[#0B63F6]" />
-                              Informasi Personal
-                            </h3>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <div className="relative sm:col-span-2">
-                                <UserRound className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
-                                <FormInput
-                                  name="firstName"
-                                  label="Nama Lengkap *"
-                                  placeholder="Masukkan nama lengkap..."
-                                  className="border-[#C9D9F3] pl-9"
-                                />
-                              </div>
-                              <FormSelect
-                                name="gender"
-                                label="Jenis Kelamin"
-                                options={[
-                                  { value: "male", label: "Laki-laki" },
-                                  { value: "female", label: "Perempuan" },
-                                ]}
-                                placeholder="Pilih jenis kelamin"
-                                className="border-[#C9D9F3]"
-                              />
-                              <FormInput
-                                name="age"
-                                label="Umur"
-                                type="number"
-                                min={0}
-                                max={120}
-                                placeholder="Contoh: 30"
-                                className="border-[#C9D9F3]"
-                              />
-                            </div>
-                          </section>
-                          <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
-                              <Phone className="size-4 text-[#0B63F6]" />
-                              Informasi Kontak
-                            </h3>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <div className="relative">
-                                <Phone className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
-                                <FormInput
-                                  name="phone"
-                                  label="Nomor Handphone *"
-                                  placeholder="Contoh: 812 3456 7890"
-                                  className="border-[#C9D9F3] pl-9"
-                                />
-                              </div>
-                              <div className="relative">
-                                <Mail className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
-                                <FormInput
-                                  name="email"
-                                  label="Email"
-                                  type="email"
-                                  placeholder="Masukkan email..."
-                                  className="border-[#C9D9F3] pl-9"
-                                />
-                              </div>
-                              <div className="relative sm:col-span-2">
-                                <MapPin className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
-                                <FormInput
-                                  name="location"
-                                  label="Alamat"
-                                  placeholder="Masukkan alamat lengkap..."
-                                  className="border-[#C9D9F3] pl-9"
-                                />
-                              </div>
-                            </div>
-                          </section>
-                        </div>
-
-                        <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                          <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
-                            <Home className="size-4 text-[#0B63F6]" />
-                            Minat &amp; Kebutuhan
-                          </h3>
-                          <div className="grid gap-3 md:grid-cols-3">
-                            <FormSelect
-                              name="projectId"
-                              label="Project Diminati"
-                              placeholder="Pilih project"
-                              options={projectOptions}
-                              isLoading={projectsQuery.isLoading}
-                              disabled={projectOptions.length === 0}
-                              className="border-[#C9D9F3]"
-                            />
-                            <FormSelect
-                              name="productVariantId"
-                              label="Tipe Rumah"
-                              placeholder={
-                                selectedProjectId
-                                  ? "Pilih tipe rumah"
-                                  : "Pilih project dahulu"
-                              }
-                              options={productVariantOptions}
-                              isLoading={selectedProjectQuery.isLoading}
-                              disabled={
-                                !selectedProjectId ||
-                                productVariantOptions.length === 0
-                              }
-                              className="border-[#C9D9F3]"
-                            />
-                            <div className="relative">
-                              <CircleDollarSign className="pointer-events-none absolute bottom-2.5 left-3 z-10 size-4 text-[#5C78A9]" />
-                              <FormInput
-                                name="budget"
-                                label="Budget Pembelian"
-                                currency
-                                placeholder="Contoh: Rp 550.000.000"
-                                className="border-[#C9D9F3] pl-9"
-                              />
-                            </div>
-                            <div className="md:col-span-3">
-                              <FormTextarea
-                                name="notes"
-                                label="Catatan Kebutuhan / Preferensi"
-                                placeholder="Contoh: Tertarik dengan rumah 1 lantai, area dekat fasilitas umum, dan sedang menyiapkan KPR..."
-                                rows={2}
-                                className="border-[#C9D9F3]"
-                              />
-                            </div>
-                          </div>
-                        </section>
-
-                        <div className="grid gap-3 lg:grid-cols-2">
-                          <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
-                              <Crosshair className="size-4 text-[#0B63F6]" />
-                              Sumber Lead
-                            </h3>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <FormSelect
-                                name="sourceId"
-                                label="Sumber Lead *"
-                                placeholder="Pilih sumber lead"
-                                options={sources.map((source) => ({
-                                  value: source.id,
-                                  label: source.name,
-                                }))}
-                                disabled={sources.length === 0}
-                                className="border-[#C9D9F3]"
-                              />
-                              <FormSelect
-                                name="campaignId"
-                                label="Campaign (opsional)"
-                                placeholder={
-                                  selectedLeadSourceId
-                                    ? "Pilih campaign"
-                                    : "Pilih sumber dahulu"
-                                }
-                                options={campaigns.map((campaign) => ({
-                                  value: campaign.id,
-                                  label: campaign.name || "Campaign tanpa nama",
-                                }))}
-                                isLoading={campaignsQuery.isLoading}
-                                disabled={
-                                  !selectedLeadSourceId ||
-                                  campaigns.length === 0
-                                }
-                                className="border-[#C9D9F3]"
-                              />
-                            </div>
-                          </section>
-                          <section className="rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]">
-                            <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#142047]">
-                              <UsersRound className="size-4 text-[#0B63F6]" />
-                              Penugasan &amp; Pipeline
-                            </h3>
-                            <div className="grid gap-3 lg:grid-cols-3">
-                              <FormSelect
-                                name="assignedUserId"
-                                label="Assigned Sales *"
-                                placeholder="Pilih sales"
-                                options={(user?.role === "owner"
-                                  ? users
-                                  : user
-                                    ? [user]
-                                    : []
-                                ).map((sales) => ({
-                                  value: sales.id,
-                                  label: sales.name || sales.email || "User",
-                                }))}
-                                disabled={
-                                  user?.role !== "owner" || users.length === 0
-                                }
-                                className="border-[#C9D9F3]"
-                              />
-                              <FormSelect
-                                name="stageId"
-                                label="Tahapan Pipeline *"
-                                placeholder="Pilih tahapan pipeline"
-                                options={stages.map((stage) => ({
-                                  value: stage.id,
-                                  label: stage.name,
-                                }))}
-                                disabled={stages.length === 0}
-                                className="border-[#C9D9F3]"
-                              />
-                              <LeadLabelMultiSelect
-                                label="Status Qualified"
-                                className="col-span-1"
-                                labels={leadLabels}
-                                isLoading={leadLabelsQuery.isLoading}
-                              />
-                            </div>
-                          </section>
-                        </div>
-                      </div>
-                      <DialogFooter className="mt-auto shrink-0 -mx-0 -mb-0 rounded-none border-[#DCE7F8] bg-white px-5 py-3 sm:px-6">
-                        <p className="mr-auto text-xs text-[#667085]">
-                          Deal dapat dibuat setelah Lead tersimpan melalui
-                          halaman Detail Lead.
-                        </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="border-[#C9D9F3]"
-                          onClick={() => setIsAddDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          type="submit"
-                          className="bg-[#0B63F6] px-5 hover:bg-[#0755D6]"
-                        >
-                          <Save className="size-4" />
-                          Save Lead
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </FormProvider>
+                  <AddLeadForm onDone={() => setIsAddDialogOpen(false)} />
                 </DialogContent>
               </Dialog>
             </div>
@@ -861,7 +542,7 @@ export default function LeadsPage() {
                     Leads Management
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 px-4 pb-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+                <CardContent className="space-y-3 px-4 pb-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
                   <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(200px,1.4fr)_repeat(5,minmax(125px,1fr))] xl:[&_[data-slot=select-trigger]]:h-8 xl:[&_[data-slot=select-trigger]]:text-xs xl:[&_[data-slot=input]]:h-8 xl:[&_[data-slot=input]]:text-xs">
                     <label className="space-y-1">
                       <span
@@ -1008,7 +689,7 @@ export default function LeadsPage() {
                         isLoading={isLoading}
                         serverPagination={serverPagination}
                         showColumnSelector={false}
-                        tableHeaderClassName="bg-slate-200 text-slate-700"
+                    tableHeaderClassName="text-slate-700"
                         className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-2"
                         tableContainerClassName="lg:min-h-0 lg:flex-1 [&_th]:!px-2 [&_td]:!px-2 [&_th]:!py-1.5 [&_td]:!py-1.5 [&_th]:!text-[11px] [&_td]:!text-[11px] [&_.lead-list-label]:!gap-1 [&_.lead-list-label]:!px-1.5 [&_.lead-list-label]:!py-0.5 [&_.lead-list-label]:!text-[10px]"
                         compact

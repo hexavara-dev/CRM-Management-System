@@ -3,13 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Copy, Eye, FileText, Info, Pencil, Plus, Search, Trash2 } from "lucide-react";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -23,7 +23,7 @@ import {
 import { errorMessage } from "@/hooks/use-projects";
 import { pageItems } from "@/lib/pagination";
 import { cn } from "@/lib/utils";
-import { ConfigHeader } from "../config-header";
+import { ConfigHeader, ConfigNavbar } from "../config-header";
 import { LabelIcon } from "../leads-label/label-icons";
 import { PreviewDialog } from "./preview-dialog";
 
@@ -65,9 +65,7 @@ export default function FormTemplatePage() {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <ConfigNavbar />
         <div className="space-y-4 p-4">
           <ConfigHeader icon={FileText} description="Kelola template form untuk pengumpulan data Lead sesuai kebutuhan bisnis." />
 

@@ -19,6 +19,7 @@ export const DEFAULT_TEMPLATE_FIELDS: FormField[] = [
   section("section_informasi_personal", "Informasi Personal", "user"),
   systemField("name"),
   systemField("customer_gender"),
+  systemField("customer_age"),
   section("section_informasi_kontak", "Informasi Kontak", "phone"),
   systemField("phone"),
   systemField("email"),
@@ -31,23 +32,43 @@ export const DEFAULT_TEMPLATE_FIELDS: FormField[] = [
   section("section_sumber_lead", "Sumber Lead", "target"),
   systemField("lead_source"),
   systemField("lead_campaign"),
-  section("section_penugasan_status", "Penugasan & Status", "users"),
+  section("section_penugasan_status", "Penugasan & Pipeline", "users"),
   systemField("assigned_sales"),
+  systemField("lead_stage"),
   systemField("lead_temperature"),
 ];
 
 /** Tipe yang memakai lebar penuh di form dua kolom. */
 export const FULL_WIDTH_TYPES: FormFieldType[] = ["TEXTAREA", "MULTISELECT", "RADIO", "SECTION"];
 
+/*
+ * Tata letak dialog Add Lead. Dipakai bersama oleh dialog Add Lead (halaman Leads) dan pratinjau
+ * template agar yang terlihat saat menyusun template sama dengan yang dilihat sales.
+ */
+/** Section dengan field data sebanyak ini atau lebih memakai lebar penuh dialog (isi tiga kolom). */
+export const WIDE_SECTION_FIELDS = 4;
+const FULL_ROW_TYPES: FormFieldType[] = ["TEXTAREA", "MULTISELECT", "RADIO", "LEAD_LABEL"];
+export const isWideSection = (dataFieldCount: number) => dataFieldCount >= WIDE_SECTION_FIELDS;
+/** Field yang mengambil satu baris penuh di dalam kartunya. */
+export const isFullRowField = (field: Pick<FormField, "type" | "key">) =>
+  FULL_ROW_TYPES.includes(field.type) || field.key === "name";
+/** Kelas grid kartu dan isinya. */
+export const SECTION_GRID = "grid gap-3 lg:grid-cols-2";
+export const sectionSpan = (wide: boolean) => (wide ? "lg:col-span-2" : "");
+export const fieldGrid = (wide: boolean) => (wide ? "md:grid-cols-3" : "sm:grid-cols-2");
+/** Lebar dialog Add Lead; dipakai juga oleh dialog pratinjau. */
+export const ADD_LEAD_DIALOG_WIDTH = "w-[calc(100vw-2rem)] max-w-none sm:w-[calc(100vw-4rem)] sm:max-w-[1280px]";
+
 /** Teks bawaan kontrol pilihan data CRM. */
 const RELATION_PLACEHOLDERS: Partial<Record<FormFieldType, string>> = {
-  PROJECT: "Pilih project (bisa lebih dari satu)",
+  PROJECT: "Pilih project",
   PROJECT_TYPE: "Pilih tipe rumah",
   LEAD_SOURCE: "Pilih sumber lead",
   CAMPAIGN: "Pilih campaign (opsional)",
   USER: "Pilih sales",
-  LEAD_LABEL: "Pilih status lead",
+  LEAD_LABEL: "Pilih satu atau beberapa label",
   GENDER: "Pilih jenis kelamin",
+  STAGE: "Tahapan default",
 };
 
 // Satu baris; teks yang terlalu panjang terpotong agar tinggi kontrol tetap.
@@ -187,28 +208,38 @@ export function FormPreview({
           <p className="text-sm text-[#475467]">Isi data prospek sesuai informasi yang tersedia.</p>
         </div>
       )}
-      {groupBySection(fields).map((group, groupIndex) => {
-        const grid = (
-          <div className={cn("grid gap-x-6 gap-y-4", !compact && "sm:grid-cols-2")}>
-            {group.fields.map((field, index) => (
-              <div key={`${field.key ?? field.label}-${index}`} className={cn(!compact && FULL_WIDTH_TYPES.includes(field.type) && "sm:col-span-2")}>
-                <FieldLabel field={field} />
-                <FieldControl field={field} />
-                {field.helpText && <p className="mt-1 text-xs text-[#6b6b6b]">{field.helpText}</p>}
-              </div>
-            ))}
-          </div>
-        );
-        if (!group.section) return <div key={`group-${groupIndex}`}>{grid}</div>;
-        return (
-          <section key={group.section.key ?? groupIndex} className="overflow-hidden rounded-xl border border-[#E4E4E7]">
-            <SectionHeader field={group.section} className="border-b border-[#EDEDED] bg-[#F8FAFC] px-4 py-3" />
-            <div className="p-4">
-              {group.fields.length === 0 ? <p className="text-sm text-[#9ca3af]">Belum ada field di section ini.</p> : grid}
+      <div className={compact ? "grid gap-3" : SECTION_GRID}>
+        {groupBySection(fields).map((group, groupIndex) => {
+          // Sama dengan dialog Add Lead; mode compact (mobile) tetap satu kolom.
+          const wide = !compact && isWideSection(group.fields.length);
+          const grid = (
+            <div className={cn("grid gap-x-4 gap-y-4", !compact && fieldGrid(wide))}>
+              {group.fields.map((field, index) => (
+                <div key={`${field.key ?? field.label}-${index}`} className={cn("min-w-0", !compact && isFullRowField(field) && "col-span-full")}>
+                  <FieldLabel field={field} />
+                  <FieldControl field={field} />
+                  {field.helpText && <p className="mt-1 text-xs text-[#6b6b6b]">{field.helpText}</p>}
+                </div>
+              ))}
             </div>
-          </section>
-        );
-      })}
+          );
+          if (!group.section) {
+            return (
+              <div key={`group-${groupIndex}`} className={cn("rounded-xl border border-[#E4E4E7] p-4", sectionSpan(wide))}>
+                {grid}
+              </div>
+            );
+          }
+          return (
+            <section key={group.section.key ?? groupIndex} className={cn("overflow-hidden rounded-xl border border-[#E4E4E7]", sectionSpan(wide))}>
+              <SectionHeader field={group.section} className="border-b border-[#EDEDED] bg-[#F8FAFC] px-4 py-3" />
+              <div className="p-4">
+                {group.fields.length === 0 ? <p className="text-sm text-[#9ca3af]">Belum ada field di section ini.</p> : grid}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

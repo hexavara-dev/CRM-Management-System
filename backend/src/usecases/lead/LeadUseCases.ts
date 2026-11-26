@@ -268,6 +268,8 @@ export class LeadUseCases {
             organization: true,
           },
         },
+        // Label custom field dari versi template yang dipakai saat Lead dibuat.
+        formTemplateVersion: { select: { fields: true } },
         status: true,
         stage: true,
         activities: {
@@ -306,17 +308,6 @@ export class LeadUseCases {
         labelAssignments: {
           include: { label: true },
           orderBy: { createdAt: 'asc' },
-        },
-        viewings: {
-          include: {
-            status: true,
-            location: true,
-            source: true,
-            actor: { select: USER_PUBLIC_FIELDS },
-            attachments: true,
-            slot: true,
-          },
-          orderBy: { scheduledAt: 'desc' },
         },
       }
     );
@@ -574,28 +565,17 @@ export class LeadUseCases {
             },
             orderBy: { createdAt: 'desc' },
           },
-          viewings: {
-            select: {
-              id: true,
-              status: true,
-              scheduledAt: true,
-              location: true,
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-          },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
       this.leadRepository.count(where),
     ]);
 
     const mappedData = data.map((lead: any) => {
-      const { viewings, labelAssignments, ...leadData } = lead;
+      const { labelAssignments, ...leadData } = lead;
       return {
         ...leadData,
         labels: (labelAssignments ?? []).map((assignment: any) => assignment.label),
-        viewing: viewings && viewings.length > 0 ? viewings[0] : null,
       };
     });
 
