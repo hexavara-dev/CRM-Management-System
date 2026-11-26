@@ -1,6 +1,17 @@
 import type { PrismaClient } from '@prisma/client';
 
 export interface StatisticsResult {
+  totalProjectActive: number;
+  totalTypes: number;
+  totalUnits: number;
+  summaryChanges: {
+    projects: number | null;
+    types: number | null;
+    units: number | null;
+    ongoingDeals: number | null;
+    wonDeals: number | null;
+    lostDeals: number | null;
+  };
   totalLeads: number;
   ongoingDeals: number;
   wonDeals: number;
@@ -13,6 +24,18 @@ export interface StatisticsResult {
   recentLeads: any[]; // Returning raw Prisma objects
   recentDeals: any[];
   pendingTasks: any[];
+  leadPipeline: Array<{ id: string; name: string; color: string | null; count: number }>;
+  dealPipeline: Array<{ id: string; name: string; color: string | null; count: number }>;
+  upcomingVisits: any[];
+  availability: {
+    available: number;
+    processing: number;
+    reserved: number;
+    sold: number;
+    blocked: number;
+    notYetCreated: number;
+    total: number;
+  };
 }
 
 export class StatisticsUseCases {
@@ -32,6 +55,12 @@ export class StatisticsUseCases {
             },
           }
         : {};
+
+    const currentMonthStart = new Date();
+    currentMonthStart.setDate(1);
+    currentMonthStart.setHours(0, 0, 0, 0);
+    const percentageChange = (current: number, previous: number) =>
+      previous === 0 ? (current === 0 ? 0 : null) : Math.round(((current - previous) / previous) * 100);
 
     // 1. Total Leads
     const totalLeads = await this.prisma.lead.count({
@@ -228,7 +257,108 @@ export class StatisticsUseCases {
       },
     });
 
+    const [totalProjectActive, totalTypes, totalUnits, leadStages, dealStages] =
+      await Promise.all([
+        this.prisma.product.count({ where: { tenantId, isActive: true } }),
+        this.prisma.productVariant.count({ where: { tenantId } }),
+        this.prisma.productUnit.count({ where: { tenantId } }),
+        this.prisma.stage.findMany({
+          where: { tenantId, entityType: 'lead', isActive: true },
+          orderBy: { position: 'asc' },
+          select: { id: true, name: true, color: true },
+        }),
+        this.prisma.stage.findMany({
+          where: { tenantId, entityType: 'deal', isActive: true },
+          orderBy: { position: 'asc' },
+          select: { id: true, name: true, color: true },
+        }),
+      ]);
+
+    const [previousProjects, previousTypes, previousUnits, previousOngoingDeals, previousWonDeals, previousLostDeals] =
+      await Promise.all([
+        this.prisma.product.count({ where: { tenantId, isActive: true, createdAt: { lt: currentMonthStart } } }),
+        this.prisma.productVariant.count({ where: { tenantId, createdAt: { lt: currentMonthStart } } }),
+        this.prisma.productUnit.count({ where: { tenantId, createdAt: { lt: currentMonthStart } } }),
+        this.prisma.deal.count({ where: { tenantId, createdAt: { lt: currentMonthStart }, stage: { isTerminalStage: false } } }),
+        this.prisma.deal.count({ where: { tenantId, createdAt: { lt: currentMonthStart }, stage: { isWonStage: true } } }),
+        this.prisma.deal.count({ where: { tenantId, createdAt: { lt: currentMonthStart }, status: { isFailedStatus: true } } }),
+      ]);
+
+    const [leadStageCounts, dealStageCounts, upcomingVisits, unitStatusCounts, stockTotals] =
+      await Promise.all([
+        this.prisma.lead.groupBy({
+          by: ['stageId'],
+          // Sama dengan daftar Leads Management: Lead yang diarsipkan tidak dihitung.
+          where: { tenantId, isDeleted: false, archivedAt: null, stageId: { not: null } },
+          _count: { _all: true },
+        }),
+        this.prisma.deal.groupBy({
+          by: ['stageId'],
+          where: { tenantId, stageId: { not: null } },
+          _count: { _all: true },
+        }),
+        this.prisma.viewing.findMany({
+          where: { tenantId, scheduledAt: { gte: new Date() } },
+          orderBy: { scheduledAt: 'asc' },
+          take: 5,
+          select: {
+            id: true,
+            scheduledAt: true,
+            durationMinutes: true,
+            name: true,
+            customer: { select: { firstName: true, lastName: true } },
+            location: { select: { name: true } },
+          },
+        }),
+        this.prisma.productUnit.groupBy({
+          by: ['status'],
+          where: { tenantId },
+          _count: { _all: true },
+        }),
+        this.prisma.productTypeVariant.aggregate({
+          where: { tenantId },
+          _sum: { stock: true },
+        }),
+      ]);
+
+    const countByStage = new Map(
+      [...leadStageCounts, ...dealStageCounts].map((item) => [
+        item.stageId,
+        item._count._all,
+      ])
+    );
+    const leadPipeline = leadStages.map((stage) => ({
+      ...stage,
+      count: countByStage.get(stage.id) ?? 0,
+    }));
+    const dealPipeline = dealStages.map((stage) => ({
+      ...stage,
+      count: countByStage.get(stage.id) ?? 0,
+    }));
+
+    const availabilityCounts = new Map(
+      unitStatusCounts.map((item) => [item.status, item._count._all])
+    );
+    const available = availabilityCounts.get('AVAILABLE') ?? 0;
+    const processing = availabilityCounts.get('BOOKED') ?? 0;
+    const reserved = availabilityCounts.get('RESERVED') ?? 0;
+    const sold = availabilityCounts.get('SOLD') ?? 0;
+    const blocked = availabilityCounts.get('BLOCKED') ?? 0;
+    const declaredStock = Number(stockTotals._sum.stock ?? 0);
+    const notYetCreated = Math.max(declaredStock - totalUnits, 0);
+
     return {
+      totalProjectActive,
+      totalTypes,
+      totalUnits,
+      summaryChanges: {
+        projects: percentageChange(totalProjectActive, previousProjects),
+        types: percentageChange(totalTypes, previousTypes),
+        units: percentageChange(totalUnits, previousUnits),
+        ongoingDeals: percentageChange(ongoingDeals, previousOngoingDeals),
+        wonDeals: percentageChange(wonDeals, previousWonDeals),
+        lostDeals: percentageChange(lostDeals, previousLostDeals),
+      },
       totalLeads,
       ongoingDeals,
       wonDeals,
@@ -241,6 +371,18 @@ export class StatisticsUseCases {
       recentLeads,
       recentDeals,
       pendingTasks,
+      leadPipeline,
+      dealPipeline,
+      upcomingVisits,
+      availability: {
+        available,
+        processing,
+        reserved,
+        sold,
+        blocked,
+        notYetCreated,
+        total: available + processing + reserved + sold + blocked + notYetCreated,
+      },
     };
   }
 }
