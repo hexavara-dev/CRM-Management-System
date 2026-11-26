@@ -3,7 +3,8 @@
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { AvailabilityEmptyState } from "@/components/availability/availability-empty-state";
 import { AvailabilityIntegrityWarning } from "@/components/availability/availability-integrity-warning";
 import { AvailabilityState } from "@/components/availability/availability-state";
@@ -16,7 +17,7 @@ import { ClusterUnitList } from "@/components/availability/cluster/unit-list";
 import { ClusterAvailabilityOverview } from "@/components/availability/detail/cluster-overview";
 import { ProjectAvailabilityHeader } from "@/components/availability/detail/project-header";
 import { ProjectAvailabilitySummary } from "@/components/availability/detail/project-summary";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useProjectAvailability } from "@/hooks/use-availability";
 import { errorMessage } from "@/hooks/use-projects";
 
@@ -49,9 +50,7 @@ export default function AvailabilityDetailPage() {
       <AppSidebar />
 
       <SidebarInset className="min-w-0 bg-white">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 lg:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader title="Availability" breadcrumbs={["Availability & Reservation", "Availability"]} />
 
         <main className="min-h-screen px-4 pb-8 pt-4 lg:px-5">
           {availability.isLoading ? (

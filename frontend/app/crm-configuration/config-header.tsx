@@ -28,27 +28,6 @@ export function ConfigHeader({
   const title = trail[trail.length - 1] ?? "";
   return (
     <div className="space-y-4">
-      {trail.length > 0 && (
-        <Breadcrumb>
-          <BreadcrumbList className="gap-1 text-sm sm:gap-1.5">
-            {trail.map((crumb, index) => {
-              const isLast = index === trail.length - 1;
-              return (
-                <React.Fragment key={crumb}>
-                  <BreadcrumbItem>
-                    {isLast ? (
-                      <BreadcrumbPage className="font-medium text-[#1f1f1f]">{crumb}</BreadcrumbPage>
-                    ) : (
-                      <span className="text-[#1980C0]">{crumb}</span>
-                    )}
-                  </BreadcrumbItem>
-                  {!isLast && <BreadcrumbSeparator className="[&>svg]:size-3.5" />}
-                </React.Fragment>
-              );
-            })}
-          </BreadcrumbList>
-        </Breadcrumb>
-      )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#E5F1FA] text-[#1980C0] sm:size-14">
@@ -65,6 +44,7 @@ export function ConfigHeader({
   );
 }
 
+/** Navbar breadcrumb untuk halaman CRM Configuration agar sejajar dengan navbar global. */
 export function ConfigNavbar() {
   const trail = getBreadcrumbTrail(usePathname());
   return <PageHeader title={trail[trail.length - 1] ?? ""} breadcrumbs={trail} />;

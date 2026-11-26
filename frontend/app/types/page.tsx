@@ -1,7 +1,7 @@
 "use client";
 
-import { PageHeading } from "@/components/PageHeading";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
+import { AppSidebar } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { TypeGallery, typeGalleryPhotos } from "@/components/projects/type-gallery";
 import { NoImagePlaceholder } from "@/components/projects/no-image-placeholder";
@@ -281,14 +281,10 @@ export default function TypesPage() {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader title="Types" breadcrumbs={["Product Management", "Types"]} />
         <main className="space-y-4 p-4">
-          <PageHeading
-            title="Types"
-            actions={
-              <div className="flex items-center gap-2">
+          <div className="flex justify-end">
+            <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -324,9 +320,8 @@ export default function TypesPage() {
                   Tambah Tipe
                 </Button>
               )}
-              </div>
-            }
-          />
+            </div>
+          </div>
           <p className="-mt-3 text-sm text-[#475467]">
             Kelola tipe unit (rumah) di setiap project perumahan.
           </p>

@@ -11,8 +11,8 @@ import {
   RefreshCw,
   Search,
 } from "lucide-react";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
-import { PageHeading } from "@/components/PageHeading";
+import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -57,26 +57,22 @@ export default function ProjectsPage() {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader
+          title="Projects"
+          breadcrumbs={["Product Management", "Projects"]}
+          actions={
+            <Button
+              asChild
+              className="h-10 rounded-xl bg-[#1980C0] px-4 text-sm text-white hover:bg-[#166ea6]"
+            >
+              <Link href="/projects/create">
+                <Plus className="size-4" />
+                Add Property
+              </Link>
+            </Button>
+          }
+        />
         <div className="space-y-4 p-4">
-          <PageHeading
-            actions={
-              <Button
-                asChild
-                className="h-10 rounded-xl bg-[#1980C0] px-4 text-sm text-white hover:bg-[#166ea6]"
-              >
-                <Link href="/projects/create">
-                  <Plus className="size-4" />
-                  Add Property
-                </Link>
-              </Button>
-            }
-          />
-
-          <hr className="border-[#EDEDED]" />
-
           <div className="grid gap-3 sm:grid-cols-3">
             <SummaryCard
               label="Total Project"

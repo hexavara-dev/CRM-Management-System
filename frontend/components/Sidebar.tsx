@@ -126,10 +126,10 @@ const defaultUser: SidebarUser = {
 
 
 const NAV_BUTTON_CLASS =
-  "h-[31px] whitespace-nowrap rounded-md pl-5 pr-3 text-sm font-medium text-[#4f4f4f] hover:bg-[#e9e8ec] hover:text-[#4f4f4f] data-[active=true]:!bg-[#1980c0] data-[active=true]:!text-white [&>svg]:size-4";
+  "h-[31px] whitespace-nowrap rounded-md pl-5 pr-3 text-sm font-medium text-[#4f4f4f] hover:bg-[#e9e8ec] hover:text-[#4f4f4f] data-[active=true]:!bg-[#1980c0] data-[active=true]:!text-white data-[active=true]:[&>svg]:!text-white [&>svg]:size-4";
 
 const NAV_SUB_BUTTON_CLASS =
-  "h-[31px] whitespace-nowrap rounded-md pl-[44px] pr-3 text-sm font-medium text-[#4f4f4f] hover:bg-[#e9e8ec] hover:text-[#4f4f4f] data-[active=true]:!bg-[#1980c0] data-[active=true]:!text-white [&>svg]:size-4";
+  "h-[31px] whitespace-nowrap rounded-md pl-[44px] pr-3 text-sm font-medium text-[#4f4f4f] hover:bg-[#e9e8ec] hover:text-[#4f4f4f] data-[active=true]:!bg-[#1980c0] data-[active=true]:!text-white data-[active=true]:[&>svg]:!text-white [&>svg]:size-4";
 
 function isPathActive(pathname: string, url: string) {
   return url === "/" ? pathname === "/" : pathname.startsWith(url);
@@ -334,7 +334,7 @@ export function AppSidebar({
     <Sidebar variant={variant} side={side} collapsible={collapsible}>
       <SidebarHeader>
         <SidebarMenu>
-          <SidebarMenuItem className="flex items-center gap-1">
+          <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="min-w-0 flex-1">
               <Link href="/">
                 <div className="flex items-center gap-2">
@@ -350,7 +350,6 @@ export function AppSidebar({
                 </div>
               </Link>
             </SidebarMenuButton>
-            <SidebarTrigger className="size-7 shrink-0 border border-[#E4E4E7] bg-white" />
           </SidebarMenuItem>
         </SidebarMenu>
 

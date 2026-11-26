@@ -8,10 +8,11 @@ import { toast } from "sonner";
 import { useCreateProject, useUpdateProject } from "@/hooks/use-projects";
 import { buildProjectPayload } from "./build-payload";
 import { PageHeading } from "@/components/PageHeading";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { compressImage } from "@/lib/compress-image";
 import { newPhotoFiles } from "@/lib/photos";
 import { cn } from "@/lib/utils";
@@ -220,9 +221,7 @@ export function ProjectWizard({
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader title={projectId ? "Edit Project" : "Create Project"} breadcrumbs={["Product Management", "Projects", projectId ? "Edit Project" : "Create Project"]} />
         <div className="space-y-4 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <PageHeading

@@ -1,6 +1,7 @@
 "use client";
 
 import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +25,7 @@ export default function CustomerProfilePage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="min-w-0 bg-[#F9FAFB]">
+        <PageHeader title="Detail Customer" breadcrumbs={["Customers", "Detail Customer"]} />
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-[#667085]">
             Memuat profil Customer...

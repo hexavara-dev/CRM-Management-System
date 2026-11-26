@@ -257,7 +257,7 @@ export function HierarchyStep({
               </div>
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-[#E4E4E7]">
                 <table className="w-full min-w-[600px] text-left text-xs">
-                  <thead className="sticky top-0 z-10 bg-[#F8FAFC] text-[#1f1f1f]">
+                  <thead className="sticky top-0 z-10 bg-surface text-[#1f1f1f]">
                     <tr>
                       {["Lokasi", "Sublokasi", "Unit", ...CHILD_STATUSES.map(({ label }) => label), ""].map((heading, index) => (
                         <th key={heading || index} className={cn("h-10 whitespace-nowrap px-3 font-medium", index > 1 && "text-center")}>{heading}</th>
@@ -312,7 +312,7 @@ export function HierarchyStep({
               <ScrollArea className="min-h-0 flex-1 rounded-lg border border-[#E4E4E7]">
                 <div className="min-w-[560px] overflow-x-auto">
                 <Table className="text-xs">
-                  <TableHeader className="sticky top-0 z-10 bg-white">
+                  <TableHeader className="sticky top-0 z-10">
                     <TableRow>
                       {["No Unit", "Type", "Status Unit", "Action"].map((h) => (
                         <TableHead key={h} className="h-10 whitespace-nowrap text-xs font-medium text-[#1f1f1f]">{h}</TableHead>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
 import { ReservationFilters } from "@/components/reservation/reservation-filters";
 import { ReservationSummary } from "@/components/reservation/reservation-summary";
 import { ReservationTable } from "@/components/reservation/reservation-table";
@@ -15,11 +15,12 @@ import type {
 } from "@/components/reservation/reservation-types";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import {
   reservationErrorMessage,
   useReservations,
 } from "@/hooks/use-reservations";
-import { ChevronRight, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
 const PAGE_SIZE = 10;
@@ -77,42 +78,24 @@ export default function ReservationPage() {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center px-4 pt-3 lg:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader
+          title="Reservation"
+          breadcrumbs={["Availability & Reservation", "Reservation"]}
+          actions={
+            <Button
+              type="button"
+              size="lg"
+              className="px-4 shadow-[0_5px_14px_rgba(11,127,232,0.22)]"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              <Plus data-icon="inline-start" />
+              Buat Reservasi
+            </Button>
+          }
+        />
 
         <main className="min-w-0 px-4 py-5 sm:px-6 lg:px-7 lg:py-6">
           <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0">
-                <nav
-                  aria-label="Breadcrumb"
-                  className="mb-2 flex items-center gap-1 text-xs font-medium text-gray-500"
-                >
-                  <span>Availability &amp; Reservation</span>
-                  <ChevronRight aria-hidden="true" className="size-3" />
-                  <span className="text-primary">Reservation</span>
-                </nav>
-                <h1 className="text-2xl font-bold tracking-[-0.025em] text-navy-900">
-                  Reservation
-                </h1>
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500">
-                  Daftar unit yang telah direservasi beserta detail pemesan,
-                  harga, dan sales terkait.
-                </p>
-              </div>
-
-              <Button
-                type="button"
-                size="lg"
-                className="self-start px-4 shadow-[0_5px_14px_rgba(11,127,232,0.22)] sm:self-auto"
-                onClick={() => setIsCreateDialogOpen(true)}
-              >
-                <Plus data-icon="inline-start" />
-                Buat Reservasi
-              </Button>
-            </div>
-
             <ReservationSummary summary={data?.summary ?? emptySummary} />
 
             <section

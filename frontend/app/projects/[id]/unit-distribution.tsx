@@ -480,7 +480,7 @@ export function UnitDistribution({ projectId }: { projectId: string }) {
             >
               <div className="min-w-[980px] pb-2">
                 <table className="w-full text-left text-[11px] [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-                  <thead className="sticky top-0 z-10 bg-[#F6F7F9] text-[#6b6b6b]">
+                  <thead className="sticky top-0 z-10 bg-surface text-[#6b6b6b]">
                     <tr>
                       <th className="px-3 py-2 font-medium">Lokasi</th>
                       <th className="px-3 py-2 font-medium">Level</th>

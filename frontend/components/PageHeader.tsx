@@ -31,8 +31,12 @@ export function PageHeader({ title, breadcrumbs = [], actions }: PageHeaderProps
                   <span className="contents" key={`${crumb}-${index}`}>
                     <BreadcrumbItem>
                       {index === breadcrumbs.length - 1 ? (
-                        <BreadcrumbPage className="font-medium text-[#101828]">{crumb}</BreadcrumbPage>
-                      ) : crumb}
+                        <BreadcrumbPage className="font-medium text-[#101828]">
+                          {crumb}
+                        </BreadcrumbPage>
+                      ) : (
+                        crumb
+                      )}
                     </BreadcrumbItem>
                     {index < breadcrumbs.length - 1 && <BreadcrumbSeparator />}
                   </span>
