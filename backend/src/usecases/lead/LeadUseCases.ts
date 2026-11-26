@@ -309,6 +309,17 @@ export class LeadUseCases {
           include: { label: true },
           orderBy: { createdAt: 'asc' },
         },
+        viewings: {
+          include: {
+            status: true,
+            location: true,
+            source: true,
+            actor: { select: USER_PUBLIC_FIELDS },
+            attachments: true,
+            slot: true,
+          },
+          orderBy: { scheduledAt: 'desc' },
+        },
       }
     );
     if (!lead) {
@@ -565,6 +576,16 @@ export class LeadUseCases {
             },
             orderBy: { createdAt: 'desc' },
           },
+          viewings: {
+            select: {
+              id: true,
+              status: true,
+              scheduledAt: true,
+              location: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
@@ -572,10 +593,11 @@ export class LeadUseCases {
     ]);
 
     const mappedData = data.map((lead: any) => {
-      const { labelAssignments, ...leadData } = lead;
+      const { viewings, labelAssignments, ...leadData } = lead;
       return {
         ...leadData,
         labels: (labelAssignments ?? []).map((assignment: any) => assignment.label),
+        viewing: viewings && viewings.length > 0 ? viewings[0] : null,
       };
     });
 
