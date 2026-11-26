@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,13 +38,11 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronsUpDown,
-  ExternalLink,
   MoreVertical,
   Pencil,
   Trash2,
 } from "lucide-react";
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ViewingStatusPill } from "./viewing-status-pill";
 
 export type ViewingSortField =
@@ -142,25 +139,6 @@ export function ViewingsTable({
   onEdit,
   onDelete,
 }: ViewingsTableProps) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  const allSelected =
-    viewings.length > 0 &&
-    viewings.every((viewing) => selectedIds.has(viewing.id));
-
-  const toggleAll = (checked: boolean) =>
-    setSelectedIds(
-      checked ? new Set(viewings.map((viewing) => viewing.id)) : new Set(),
-    );
-
-  const toggleOne = (id: string, checked: boolean) =>
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-
   const total = meta?.total ?? viewings.length;
   const totalPages = meta?.totalPages ?? 1;
   const from = total === 0 ? 0 : (page - 1) * limit + 1;
@@ -174,15 +152,8 @@ export function ViewingsTable({
     <div className="space-y-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
       <div className="overflow-auto rounded-xl border bg-white lg:min-h-0 lg:flex-1">
         <Table className="text-xs [&_th]:h-9 [&_th]:px-2.5 [&_td]:px-2.5 [&_td]:py-2">
-          <TableHeader className="bg-slate-50/80">
+          <TableHeader>
             <TableRow>
-              <TableHead className="w-8">
-                <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={(checked) => toggleAll(checked === true)}
-                  aria-label="Pilih semua visit"
-                />
-              </TableHead>
               <TableHead>
                 <SortableHead
                   label="Tanggal Visit"
@@ -219,7 +190,7 @@ export function ViewingsTable({
             {isLoading ? (
               Array.from({ length: 5 }).map((_, row) => (
                 <TableRow key={`loading-${row}`}>
-                  {Array.from({ length: 9 }).map((__, cell) => (
+                  {Array.from({ length: 8 }).map((__, cell) => (
                     <TableCell key={`loading-${row}-${cell}`}>
                       <Skeleton className="h-6 w-full" />
                     </TableCell>
@@ -229,7 +200,7 @@ export function ViewingsTable({
             ) : viewings.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={8}
                   className="h-28 text-center text-sm text-muted-foreground"
                 >
                   {isError
@@ -244,19 +215,7 @@ export function ViewingsTable({
                 return (
                   <TableRow
                     key={viewing.id}
-                    data-state={
-                      selectedIds.has(viewing.id) ? "selected" : undefined
-                    }
                   >
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedIds.has(viewing.id)}
-                        onCheckedChange={(checked) =>
-                          toggleOne(viewing.id, checked === true)
-                        }
-                        aria-label={`Pilih visit ${getViewingCustomerName(viewing)}`}
-                      />
-                    </TableCell>
                     <TableCell>
                       <div className="leading-tight whitespace-nowrap">
                         <div className="text-xs font-semibold">
@@ -314,20 +273,12 @@ export function ViewingsTable({
                             <Pencil className="h-4 w-4" />
                             Edit Visit
                           </DropdownMenuItem>
-                          {viewing.leadId ? (
-                            <DropdownMenuItem asChild>
-                              <Link href={`/leads/${viewing.leadId}?tab=visit`}>
-                                <ExternalLink className="h-4 w-4" />
-                                Detail Lead
-                              </Link>
-                            </DropdownMenuItem>
-                          ) : null}
                           <DropdownMenuItem
                             variant="destructive"
                             onSelect={() => onDelete(viewing)}
                           >
                             <Trash2 className="h-4 w-4" />
-                            Hapus
+                            Hapus Visit
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

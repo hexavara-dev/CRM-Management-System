@@ -14,17 +14,16 @@ import {
 } from "react-hook-form";
 import { LabelText } from "./label-text";
 import { Input } from "./input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "./popover";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { ChevronDown } from "lucide-react";
+import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+import { ErrorText } from "./error-text";
 
 export type SelectOptions = {
   label: string;
   value: string;
+  color?: string | null;
 };
 
 type InputSelectProps = {
@@ -34,6 +33,7 @@ type InputSelectProps = {
   label?: string;
   placeholder?: string;
   disabled?: boolean;
+  required?: boolean;
   labelClassname?: string;
   validation?: RegisterOptions;
   searchable?: boolean;
@@ -43,6 +43,7 @@ type InputSelectProps = {
   searchPlaceholder?: string;
   onSearchChange?: (value: string) => void;
   onValueChange?: (value: string) => void;
+  renderOption?: (option: SelectOptions, selected: boolean) => ReactNode;
 } & React.HTMLAttributes<HTMLSelectElement>;
 
 export default function FormSelect({
@@ -51,6 +52,7 @@ export default function FormSelect({
   labelClassname,
   className,
   disabled,
+  required = false,
   isLoading,
   placeholder,
   validation,
@@ -62,6 +64,7 @@ export default function FormSelect({
   searchPlaceholder = "Search...",
   onSearchChange,
   onValueChange,
+  renderOption,
 }: InputSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [internalSearch, setInternalSearch] = useState("");
@@ -85,13 +88,20 @@ export default function FormSelect({
         );
         const visibleOptions = filterOptionsBySearch
           ? options.filter((option) =>
-              option.label.toLowerCase().includes(currentSearch.trim().toLowerCase()),
+              option.label
+                .toLowerCase()
+                .includes(currentSearch.trim().toLowerCase()),
             )
           : options;
 
         return (
           <div>
-            {label && <LabelText className={labelClassname}>{label}</LabelText>}
+            {label && (
+              <LabelText className={labelClassname}>
+                {label}
+                {required && <span className="ml-1 text-destructive">*</span>}
+              </LabelText>
+            )}
             {searchable ? (
               <Popover
                 open={isOpen}
@@ -111,9 +121,14 @@ export default function FormSelect({
                       error && "border-destructive",
                       className,
                     )}
+                    aria-invalid={!!error}
                   >
                     <span className="truncate">
-                      {selectedOption?.label || placeholder || "Select an option"}
+                      {selectedOption && renderOption
+                        ? renderOption(selectedOption, true)
+                        : selectedOption?.label ||
+                        placeholder ||
+                        "Select an option"}
                     </span>
                     <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </button>
@@ -122,7 +137,9 @@ export default function FormSelect({
                   align="start"
                   portalContainer={
                     portalInsideDialog
-                      ? triggerRef.current?.closest<HTMLElement>("[data-slot='dialog-content']")
+                      ? triggerRef.current?.closest<HTMLElement>(
+                          "[data-slot='dialog-content']",
+                        )
                       : undefined
                   }
                   className="z-[999] w-[var(--radix-popover-trigger-width)] p-2"
@@ -154,7 +171,9 @@ export default function FormSelect({
                             if (filterOptionsBySearch) setInternalSearch("");
                           }}
                         >
-                          {option.label}
+                          {renderOption
+                            ? renderOption(option, option.value === field.value)
+                            : option.label}
                         </button>
                       ))
                     ) : (
@@ -176,6 +195,7 @@ export default function FormSelect({
               >
                 <SelectTrigger
                   className={cn(className, error && "border-destructive")}
+                  aria-invalid={!!error}
                 >
                   <SelectValue placeholder={placeholder} />
                 </SelectTrigger>
@@ -194,6 +214,7 @@ export default function FormSelect({
                 </SelectContent>
               </Select>
             )}
+            {error && <ErrorText>{error.message?.toString()}</ErrorText>}
           </div>
         );
       }}

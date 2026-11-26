@@ -24,12 +24,11 @@ import {
   getViewingSalesName,
 } from "@/lib/viewing-display";
 import type { Viewing } from "@/types/viewing";
-import { ExternalLink, MapPin, Pencil, Trash2, UserRound } from "lucide-react";
-import Link from "next/link";
+import { MapPin, Pencil, Trash2, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ViewingStatusPill, resolveStatusColor } from "./viewing-status-pill";
 
-const MAX_PREVIEW_ITEMS_PER_DAY = 3;
+const MAX_PREVIEW_ITEMS_PER_DAY = 2;
 const WEEKDAY_LABELS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 
 function toDateKey(value: Date | string) {
@@ -156,8 +155,8 @@ export function ViewingsCalendar({
 
   return (
     <>
-      <div className="max-h-[calc(100dvh-250px)] overflow-auto rounded-xl border bg-white">
-        <div className="min-w-225">
+      <div className="flex min-h-0 flex-1 overflow-auto rounded-xl border bg-white">
+        <div className="flex min-h-full min-w-225 flex-1 flex-col">
           <div className="grid grid-cols-7 border-b bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-500">
             {WEEKDAY_LABELS.map((dayName) => (
               <div
@@ -169,7 +168,12 @@ export function ViewingsCalendar({
             ))}
           </div>
 
-          <div className="grid grid-cols-7">
+          <div
+            className="grid flex-1 grid-cols-7"
+            style={{
+              gridTemplateRows: `repeat(${calendarDays.length / 7}, minmax(6rem, 1fr))`,
+            }}
+          >
             {calendarDays.map((day) => {
               const dateKey = toDateKey(day);
               const dayViewings = groupedViewingsByDate.get(dateKey) || [];
@@ -184,7 +188,7 @@ export function ViewingsCalendar({
                 return (
                   <div
                     key={dateKey}
-                    className="min-h-24 border-r border-b bg-white p-2 last:border-r-0 lg:min-h-20"
+                    className="min-h-24 border-r border-b bg-white p-2 last:border-r-0"
                   >
                     <span className="text-sm text-slate-300">
                       {day.getDate()}
@@ -196,7 +200,7 @@ export function ViewingsCalendar({
               return (
                 <div
                   key={dateKey}
-                  className="min-h-24 cursor-pointer border-r border-b bg-white p-2 transition-colors last:border-r-0 hover:bg-slate-50/60 lg:min-h-20"
+                  className="min-h-24 cursor-pointer border-r border-b bg-white p-2 transition-colors last:border-r-0 hover:bg-slate-50/60"
                   role="button"
                   tabIndex={0}
                   onClick={() => openDateDialog(dateKey)}
@@ -287,7 +291,7 @@ export function ViewingsCalendar({
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
               <div className="min-w-160">
                 <Table>
-                  <TableHeader className="bg-muted/50">
+                  <TableHeader>
                     <TableRow>
                       <TableHead>Customer</TableHead>
                       <TableHead>Sales</TableHead>
@@ -344,20 +348,6 @@ export function ViewingsCalendar({
                               }}
                             >
                               <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                            <Button
-                              asChild
-                              size="sm"
-                              variant="outline"
-                              disabled={!viewing.leadId}
-                            >
-                              <Link
-                                href={`/leads/${viewing.leadId}?tab=visit`}
-                                className="inline-flex items-center gap-1.5"
-                              >
-                                <ExternalLink className="size-3.5" />
-                                Detail Lead
-                              </Link>
                             </Button>
                           </div>
                         </TableCell>

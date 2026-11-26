@@ -9,10 +9,11 @@ import type { Pagination } from "@/types/api";
 import { Viewing } from "@/types/viewing";
 
 type UpsertViewingPayload = {
-  leadId: string;
+  customerId: string;
   actorId?: string;
   statusId?: string;
   sourceId?: string;
+  unitId?: string;
   locationId?: string;
   scheduledAt: string;
   durationMinutes?: number;

@@ -1,18 +1,18 @@
 import { z } from "zod";
 
 export const viewingFormSchema = z.object({
-  leadId: z.string().min(1, "Lead is required"),
+  customerId: z.string().min(1, "Nama Customer wajib dipilih"),
   actorId: z.string().optional(),
   statusId: z.string().optional(),
-  sourceId: z.string().optional(),
-  locationId: z.string().optional(),
-  scheduledAt: z.string().min(1, "Visit date is required"),
-  durationMinutes: z
-    .string()
-    .refine(
-      (value) => /^\d+$/.test(value) && Number(value) >= 15 && Number(value) <= 480,
-      "Duration must be between 15 and 480 minutes",
-    ),
+  projectId: z.string().min(1, "Proyek wajib dipilih"),
+  unitId: z.string().min(1, "Unit wajib dipilih"),
+  visitDate: z.string().min(1, "Tanggal visit wajib diisi"),
+  visitTime: z.string().min(1, "Jam visit wajib diisi"),
+  durationMinutes: z.string().min(1, "Durasi wajib dipilih").refine(
+    (value) =>
+      /^\d+$/.test(value) && Number(value) >= 15 && Number(value) <= 480,
+    "Durasi harus antara 15 sampai 480 menit",
+  ),
   notes: z.string().optional(),
 });
 

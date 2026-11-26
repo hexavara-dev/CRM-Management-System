@@ -4,7 +4,7 @@ const DEFAULT_DURATION_MINUTES = 60;
 const EMPTY = "-";
 
 export function getViewingCustomerName(viewing: Viewing): string {
-  const customer = viewing.lead?.customer;
+  const customer = viewing.customer;
   if (customer) {
     const fullName = `${customer.firstName} ${customer.lastName ?? ""}`.trim();
     if (fullName) return fullName;
@@ -13,15 +13,15 @@ export function getViewingCustomerName(viewing: Viewing): string {
 }
 
 export function getViewingPhone(viewing: Viewing): string {
-  return viewing.lead?.customer?.phoneNumber || EMPTY;
+  return viewing.customer?.phoneNumber || EMPTY;
 }
 
 export function getViewingSalesName(viewing: Viewing): string {
-  return viewing.lead?.assignedUser?.name || EMPTY;
+  return viewing.actor?.name || EMPTY;
 }
 
 export function getViewingProjectName(viewing: Viewing): string {
-  return viewing.lead?.project?.name || EMPTY;
+  return viewing.unit?.variant.product.name || EMPTY;
 }
 
 export function getViewingEndAt(viewing: Viewing): Date {

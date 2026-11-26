@@ -66,43 +66,26 @@ export async function seedViewingSchedule(
     return;
   }
 
-  const projects = await prisma.product.findMany({
-    where: { tenantId, isActive: true },
-    orderBy: { code: 'asc' },
-    select: { id: true },
-  });
-  if (projects.length === 0) {
-    console.log('Skipped visit schedule seed: no active projects (seed reservation data first).');
-    return;
-  }
-
   const statusIds: string[] = [];
   for (const definition of STATUS_DEFINITIONS) {
     const existing = await prisma.status.findFirst({
       where: { tenantId, type: 'viewing', name: definition.name },
       select: { id: true },
     });
-    const status =
-      existing ??
-      (await prisma.status.create({
-        data: { tenantId, type: 'viewing', isSystemStatus: false, ...definition },
-        select: { id: true },
-      }));
+    const status = existing
+      ? await prisma.status.update({
+          where: { id: existing.id },
+          data: { color: definition.color, priority: definition.priority },
+          select: { id: true },
+        })
+      : await prisma.status.create({
+          data: { tenantId, type: 'viewing', isSystemStatus: false, ...definition },
+          select: { id: true },
+        });
     statusIds.push(status.id);
   }
 
-  const [leadStage, leadStatus] = await Promise.all([
-    prisma.stage.findFirst({
-      where: { tenantId, entityType: 'lead', isDefaultStage: true },
-      select: { id: true },
-    }),
-    prisma.status.findFirst({
-      where: { tenantId, type: 'lead', isDefaultStatus: true },
-      select: { id: true },
-    }),
-  ]);
-
-  // Lokasi + unit untuk tiap visit, supaya Jadwal Visit / Informasi Survey di Detail Lead terisi.
+  // Lokasi + unit untuk tiap visit.
   let places = await prisma.inventorySlot.findMany({
     where: { tenantId },
     orderBy: [{ locationId: 'asc' }, { label: 'asc' }],
@@ -155,27 +138,11 @@ export async function seedViewingSchedule(
       }));
 
     const sales = salesUsers[index % salesUsers.length]!;
-    const lead =
-      (await prisma.lead.findFirst({
-        where: { tenantId, customerId: customer.id },
-        select: { id: true },
-      })) ??
-      (await prisma.lead.create({
-        data: {
-          tenantId,
-          customerId: customer.id,
-          assignedUserId: sales.id,
-          projectId: projects[index % projects.length]!.id,
-          stageId: leadStage?.id ?? null,
-          statusId: leadStatus?.id ?? null,
-        },
-        select: { id: true },
-      }));
 
     await prisma.viewing.create({
       data: {
         tenantId,
-        leadId: lead.id,
+        customerId: customer.id,
         actorId: sales.id,
         locationId: place.locationId,
         slotId: place.id,

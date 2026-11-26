@@ -52,7 +52,12 @@ const FormInput = React.forwardRef<HTMLInputElement, InputProps>(
         rules={validation}
         render={({ field }) => (
           <div className="w-full">
-            {label && <LabelText className={labelClassname}>{label}</LabelText>}
+            {label && (
+              <LabelText className={labelClassname}>
+                {label}
+                {props.required && <span className="ml-1 text-destructive">*</span>}
+              </LabelText>
+            )}
             {currency ? <RupiahInput
               {...props}
               name={field.name}
