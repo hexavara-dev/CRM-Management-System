@@ -1,5 +1,6 @@
 "use client";
 
+import { AddDealDialog } from "@/app/deals/components/add-deal-dialog";
 import { DealsPipelineTab } from "@/app/deals/components/deals-pipeline-tab";
 import { AppSidebar } from "@/components/Sidebar";
 import { Badge } from "@/components/ui/badge";
@@ -175,6 +176,7 @@ export default function DealsPage() {
   const [tab, setTab] = useState("list");
   const [filters, setFilters] = useState<DealFilters>({ page: 1, limit: 10 });
   const [search, setSearch] = useState("");
+  const [isAddOpen, setIsAddOpen] = useState(false);
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const { deals, pagination, summary, isLoading, deleteDeal, isDeleting } =
@@ -233,14 +235,9 @@ export default function DealsPage() {
             <FileText className="size-4" aria-hidden="true" />
           </span>
           <h1 className="text-lg font-semibold">Deals</h1>
-          <Button
-            type="button"
-            disabled
-            title="Form Add Deal belum tersedia (dikerjakan di CRM-71)."
-            className="ml-auto"
-          >
+          <Button type="button" className="ml-auto" onClick={() => setIsAddOpen(true)}>
             <Plus className="size-4" />
-            Add Deal
+            Tambah Deal
           </Button>
         </header>
         <main className="space-y-3 p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
@@ -261,7 +258,8 @@ export default function DealsPage() {
                 Pipeline
               </TabsTrigger>
             </TabsList>
-            <section className="mt-3">
+            <section className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
               <h2 className="text-base font-semibold">
                 {tab === "list" ? "Deals Management" : "Deals Pipeline"}
               </h2>
@@ -270,6 +268,7 @@ export default function DealsPage() {
                   ? "Kelola dan pantau progres transaksi dari Lead yang telah dikonversi."
                   : "Pantau progres penjualan (deals) berdasarkan fase transaksi."}
               </p>
+              </div>
             </section>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Kpi
@@ -770,6 +769,12 @@ export default function DealsPage() {
           </Tabs>
         </main>
       </SidebarInset>
+      {isAddOpen && (
+        <AddDealDialog
+          onClose={() => setIsAddOpen(false)}
+          onCreated={(deal) => router.push(`/deals/${deal.id}`)}
+        />
+      )}
       <ConfirmModal
         isOpen={!!removeId}
         onClose={() => setRemoveId(null)}

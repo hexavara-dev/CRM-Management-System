@@ -11,6 +11,9 @@ import { LeadArchiveController } from './presentation/controllers/LeadArchiveCon
 import { LeadArchiveUseCase } from './usecases/lead/LeadArchiveUseCase.js';
 import { DealController } from './presentation/controllers/DealController.js';
 import { DealUseCases } from './usecases/deal/DealUseCases.js';
+import { CreateDealUseCase } from './usecases/deal/CreateDealUseCase.js';
+import { MAX_DEAL_DOCUMENTS } from './usecases/deal/dealDocuments.js';
+import { CreateDealController } from './presentation/controllers/CreateDealController.js';
 import { AuthController } from './presentation/controllers/AuthController.js';
 import { AuthUseCases } from './usecases/auth/AuthUseCases.js';
 import { authMiddleware, requireRole } from './presentation/middlewares/AuthMiddleware.js';
@@ -227,6 +230,12 @@ const statisticsController = new StatisticsController(statisticsUseCases);
 app.get('/api/statistics', authMiddleware, (req, res) =>
   statisticsController.getStatistics(req, res)
 );
+
+// Tambah Deal dari Lead yang ada. Didaftarkan sebelum CRUD generik agar rutenya menang.
+const createDeal = new CreateDealController(new CreateDealUseCase(prisma));
+const dealDocumentUploads = upload.array('documents', MAX_DEAL_DOCUMENTS);
+app.get('/api/lead/deal-options', authMiddleware, createDeal.leadOptions);
+app.post('/api/deal', authMiddleware, dealDocumentUploads, createDeal.create);
 
 // Archive routes are explicit: archive state is not generic Lead CRUD.
 const leadArchiveController = new LeadArchiveController(new LeadArchiveUseCase(prisma));

@@ -1,3 +1,4 @@
+import { invalidateDealData } from "@/hooks/use-create-deal";
 import api from "@/lib/api";
 import { apiErrorMessage } from "@/lib/api-error";
 import type {
@@ -36,7 +37,7 @@ export function useDealDetailWorkflow(dealId: string) {
 
   const invalidate = () => {
     client.invalidateQueries({ queryKey: ["deal", dealId] });
-    client.invalidateQueries({ queryKey: ["deals"] });
+    invalidateDealData(client);
     client.invalidateQueries({ queryKey: ["deal-history", dealId] });
     client.invalidateQueries({ queryKey: ["deal-payments", dealId] });
     client.invalidateQueries({ queryKey: ["deal-lost-requests", dealId] });

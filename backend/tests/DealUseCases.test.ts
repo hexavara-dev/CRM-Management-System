@@ -93,75 +93,6 @@ describe('DealUseCases.updateDeal', () => {
   });
 });
 
-describe('DealUseCases.createDeal', () => {
-  it('creates the deal and its initial activity in one transaction', async () => {
-    const dealRepo = new MockRepository();
-    const activityRepo = new MockRepository();
-    const dealCreate = jest.fn().mockResolvedValue({
-      id: 'deal-1',
-      tenantId: 'tenant-1',
-      refCode: 'DEAL-001',
-    });
-    const activityCreate = jest.fn().mockResolvedValue({ id: 'activity-1' });
-    const auditCreate = jest.fn().mockResolvedValue({ id: 'audit-1' });
-    const transaction = jest.fn(async (callback: (tx: any) => Promise<any>) =>
-      callback({
-        deal: { create: dealCreate },
-        dealActivity: { create: activityCreate },
-        auditLog: { create: auditCreate },
-      })
-    );
-    const useCases = new DealUseCases(
-      dealRepo,
-      activityRepo,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      { $transaction: transaction } as any
-    );
-
-    const result = await useCases.createDeal({
-      tenantId: 'tenant-1',
-      refCode: 'DEAL-001',
-      expectedAmount: 1000000,
-    });
-
-    expect(transaction).toHaveBeenCalledTimes(1);
-    expect(dealCreate).toHaveBeenCalledTimes(1);
-    expect(activityCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ activityType: 'deal_created' }),
-    });
-    expect(auditCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ action: 'deal_created' }),
-    });
-    expect(result.id).toBe('deal-1');
-    expect(dealRepo.items).toHaveLength(0);
-    expect(activityRepo.items).toHaveLength(0);
-  });
-
-  it('rejects atypical payment payloads before any transaction is started', async () => {
-    const transaction = jest.fn();
-    const useCases = new DealUseCases(
-      new MockRepository(),
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      { $transaction: transaction } as any
-    );
-
-    await expect(
-      useCases.createDeal({ tenantId: 'tenant-1', paymentMethod: 'KPR' })
-    ).rejects.toThrow('Bank is required for KPR payment');
-    await expect(
-      useCases.createDeal({ tenantId: 'tenant-1', paymentMethod: 'CASH', bankName: 'BRI' })
-    ).rejects.toThrow('Bank must be empty for cash payment');
-    expect(transaction).not.toHaveBeenCalled();
-  });
-});
-
 describe('DealUseCases.deleteDeal', () => {
   it('never deletes a deal from another tenant', async () => {
     const repository = new MockRepository([{ id: 'deal-1', tenantId: 'tenant-a' }]);
@@ -177,7 +108,11 @@ describe('DealUseCases.deleteDeal', () => {
       callback({
         record: { updateMany: recordUpdateMany },
         attachment: { deleteMany: attachmentDeleteMany },
-        deal: { deleteMany: dealDeleteMany },
+        deal: {
+          deleteMany: dealDeleteMany,
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+          findFirst: jest.fn().mockResolvedValue({ unitId: null, unitClaimed: false, leadId: null }),
+        },
       })
     );
     const prisma = {

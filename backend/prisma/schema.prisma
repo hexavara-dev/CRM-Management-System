@@ -136,6 +136,7 @@ model Stage {
   deals           Deal[]
   leads           Lead[]
   evidences       StageEvidenceRequirement[]
+  documents       Attachment[]
   tenant          Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, terminalGuard])
@@ -307,6 +308,8 @@ model Deal {
   lostReason          String?        @map("lost_reason")
   lostNotes           String?        @map("lost_notes")
   unitId              String?        @map("unit_id") @db.VarChar(36)
+  /// Deal memegang status unit; Deal lama bernilai false dan tidak mengubah status unit.
+  unitClaimed         Boolean        @default(false) @map("unit_claimed")
   paymentMethod       DealPaymentMethod @default(CASH) @map("payment_method")
   bankName            String?        @map("bank_name") @db.VarChar(150)
   notes               String?        @db.Text
@@ -698,6 +701,10 @@ model Attachment {
   fileUrl   String   @map("file_url")
   fileType  String?  @map("file_type")
   fileSize  Int?     @map("file_size")
+  /// Nama dokumen persyaratan saat diunggah; ID evidence berganti setiap konfigurasi disimpan.
+  documentName    String? @map("document_name") @db.VarChar(150)
+  documentStageId String? @map("document_stage_id") @db.VarChar(36)
+  documentStage   Stage?  @relation(fields: [documentStageId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now()) @map("created_at") @db.DateTime(6)
   deal      Deal?    @relation(fields: [dealId], references: [id])
   lead      Lead?    @relation(fields: [leadId], references: [id])
@@ -709,6 +716,7 @@ model Attachment {
   leadActivityId String? @map("lead_activity_id") @db.VarChar(36)
   leadActivity   LeadActivity? @relation(fields: [leadActivityId], references: [id], onDelete: SetNull)
 
+  @@index([documentStageId])
   @@map("attachment")
 }
 
@@ -1164,6 +1172,9 @@ model StageEvidenceRequirement {
   /// Daftar tipe file yang diizinkan, mis. ["PDF","DOC"].
   fileTypes  Json    @map("file_types")
   isRequired Boolean @default(true) @map("is_required")
+  description String? @db.VarChar(255)
+  /// Khusus Deal: jenis pembayaran yang memerlukan dokumen ini; null = semua.
+  paymentMethods Json? @map("payment_methods")
   sortOrder  Int     @default(0) @map("sort_order")
   stage      Stage   @relation(fields: [stageId], references: [id], onDelete: Cascade)
   tenant     Company @relation(fields: [tenantId], references: [id], onDelete: Cascade)

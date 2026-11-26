@@ -50,6 +50,8 @@ const schema = z.object({
         name: z.string().trim().min(1, "Nama evidence wajib diisi").max(150, "Maksimal 150 karakter"),
         fileTypes: z.array(z.enum(["PDF", "DOC", "IMAGE", "SHEET"])).min(1, "Pilih minimal satu tipe file"),
         isRequired: z.boolean(),
+        description: z.string().max(255, "Maksimal 255 karakter"),
+        paymentMethods: z.array(z.enum(["CASH", "KPR", "KPR_SHARIA"])),
       }),
     )
     .max(MAX_EVIDENCES)
@@ -97,6 +99,19 @@ function FlagToggle({
   );
 }
 
+const PAYMENT_METHODS = [
+  { value: "CASH", label: "Tunai" },
+  { value: "KPR", label: "KPR" },
+  { value: "KPR_SHARIA", label: "KPR Syariah" },
+] as const;
+
+const paymentLabel = (methods: string[]) =>
+  methods.length === 0 || methods.length === PAYMENT_METHODS.length
+    ? "Semua pembayaran"
+    : PAYMENT_METHODS.filter((m) => methods.includes(m.value))
+        .map((m) => m.label)
+        .join(", ");
+
 const typeLabel = (types: EvidenceFileType[]) =>
   types.length === 0
     ? "Pilih tipe file"
@@ -138,7 +153,14 @@ export function StageDialog({
       isDefaultStage: stage?.isDefaultStage ?? false,
       isTerminalStage: stage?.isTerminalStage ?? false,
       isWonStage: stage?.isWonStage ?? false,
-      evidences: stage?.evidences.map(({ name, fileTypes, isRequired }) => ({ name, fileTypes, isRequired })) ?? [],
+      evidences:
+        stage?.evidences.map(({ name, fileTypes, isRequired, description, paymentMethods }) => ({
+          name,
+          fileTypes,
+          isRequired,
+          description: description ?? "",
+          paymentMethods: paymentMethods ?? [],
+        })) ?? [],
     });
   }, [open, stage, form]);
 
@@ -175,7 +197,12 @@ export function StageDialog({
                     isDefaultStage: data.isDefaultStage,
                     isTerminalStage: data.isTerminalStage,
                     ...(isDeal ? { isWonStage: data.isWonStage } : {}),
-                    evidences: data.evidences.map((e) => ({ ...e, name: e.name.trim() })),
+                    evidences: data.evidences.map((e) => ({
+                      ...e,
+                      name: e.name.trim(),
+                      description: e.description.trim() || null,
+                      paymentMethods: e.paymentMethods.length ? e.paymentMethods : null,
+                    })),
                   },
                 });
                 onOpenChange(false);
@@ -340,6 +367,7 @@ export function StageDialog({
                       </h3>
                       <p className="text-sm text-[#475467]">
                         Dokumen, file, atau bukti yang wajib diunggah ketika {copy.item} dipindahkan ke tahapan ini.
+                        {isDeal && " Evidence tahapan pertama menjadi Dokumen Persyaratan di form Tambah Deal."}
                       </p>
                     </div>
                     <Button
@@ -347,7 +375,7 @@ export function StageDialog({
                       variant="ghost"
                       size="sm"
                       disabled={evidences.fields.length >= MAX_EVIDENCES}
-                      onClick={() => evidences.append({ name: "", fileTypes: ["PDF"], isRequired: true })}
+                      onClick={() => evidences.append({ name: "", fileTypes: ["PDF"], isRequired: true, description: "", paymentMethods: [] })}
                       className="text-[#1980C0] hover:text-[#1980C0]"
                     >
                       <Plus className="size-4" />
@@ -362,8 +390,8 @@ export function StageDialog({
                   ) : (
                     <div className="overflow-x-auto rounded-lg border border-[#E4E4E7]">
                       <div className="grid min-w-[560px] grid-cols-[1fr_200px_64px_40px] gap-3 bg-[#F8FAFC] px-3 py-2 text-sm font-medium text-[#1f1f1f]">
-                        <span>Nama Evidence</span>
-                        <span>Tipe File</span>
+                        <span>{isDeal ? "Nama & Keterangan" : "Nama Evidence"}</span>
+                        <span>{isDeal ? "Tipe File & Pembayaran" : "Tipe File"}</span>
                         <span>Wajib</span>
                         <span>
                           <span className="sr-only">Aksi</span>
@@ -372,6 +400,7 @@ export function StageDialog({
                       {evidences.fields.map((item, index) => {
                         const nameError = form.formState.errors.evidences?.[index]?.name?.message;
                         const typeError = form.formState.errors.evidences?.[index]?.fileTypes?.message;
+                        const descriptionError = form.formState.errors.evidences?.[index]?.description?.message;
                         return (
                           <div
                             key={item.id}
@@ -449,6 +478,58 @@ export function StageDialog({
                             >
                               <Trash2 className="size-4" />
                             </Button>
+                            {isDeal && (
+                              <>
+                                <div>
+                                  <input
+                                    {...form.register(`evidences.${index}.description`)}
+                                    aria-label={`Keterangan evidence ${index + 1}`}
+                                    placeholder="Keterangan (opsional)"
+                                    className={cn(
+                                      "h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus:ring-1 focus:ring-ring",
+                                      descriptionError && "border-destructive",
+                                    )}
+                                  />
+                                  {descriptionError && <ErrorText className="mt-1">{descriptionError}</ErrorText>}
+                                </div>
+                                <Controller
+                                  control={form.control}
+                                  name={`evidences.${index}.paymentMethods`}
+                                  render={({ field }) => (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <button
+                                          type="button"
+                                          aria-label={`Jenis pembayaran evidence ${index + 1}`}
+                                          className="flex min-h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-1 text-left text-sm shadow-sm"
+                                        >
+                                          <span>{paymentLabel(field.value ?? [])}</span>
+                                          <ChevronDown className="size-4 shrink-0 opacity-50" />
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start" className="min-w-48">
+                                        {PAYMENT_METHODS.map((method) => (
+                                          <DropdownMenuCheckboxItem
+                                            key={method.value}
+                                            checked={field.value?.includes(method.value)}
+                                            onSelect={(e) => e.preventDefault()}
+                                            onCheckedChange={(checked) =>
+                                              field.onChange(
+                                                checked
+                                                  ? [...(field.value ?? []), method.value]
+                                                  : (field.value ?? []).filter((v) => v !== method.value),
+                                              )
+                                            }
+                                          >
+                                            {method.label}
+                                          </DropdownMenuCheckboxItem>
+                                        ))}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )}
+                                />
+                              </>
+                            )}
                           </div>
                         );
                       })}

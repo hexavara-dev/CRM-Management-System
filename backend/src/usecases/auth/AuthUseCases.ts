@@ -4,6 +4,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { IRepository } from '../../domain/repositories/IRepository.js';
 import { defaultLeadActivityTypes } from '../crm/LeadActivityTypeUseCase.js';
 import { defaultProjectFacilities } from '../product/projectFacilities.js';
+import { defaultFinancingBanks } from '../deal/defaultFinancingBanks.js';
 
 // Masa berlaku sesi: token JWT dan cookie memakai nilai yang sama (365 hari).
 export const SESSION_DAYS = 365;
@@ -105,6 +106,7 @@ export class AuthUseCases {
         });
         await tx.leadActivityType.createMany({ data: defaultLeadActivityTypes(tenant.id) });
         await tx.attribute.createMany({ data: defaultProjectFacilities(tenant.id) });
+        await tx.financingBank.createMany({ data: defaultFinancingBanks(tenant.id) });
         return { tenant, user };
       });
       newTenant = result.tenant;
