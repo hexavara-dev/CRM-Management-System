@@ -4,11 +4,12 @@ import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { reservationErrorMessage, useReservationDetail } from "@/hooks/use-reservations";
 
 const rupiah = new Intl.NumberFormat("id-ID", {
@@ -25,9 +26,7 @@ export default function ReservationSummaryPage() {
     <SidebarProvider className="overflow-hidden bg-[#f8fafc]">
       <AppSidebar />
       <SidebarInset className="min-w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 lg:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader title="Reservation Summary" breadcrumbs={["Availability & Reservation", "Reservation", "Summary"]} />
         <main className="mx-auto w-full max-w-3xl px-4 py-8 md:px-6">
           {reservation.isLoading ? (
             <AvailabilityState loading message="Memuat ringkasan reservasi..." />

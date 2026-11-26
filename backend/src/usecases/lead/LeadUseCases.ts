@@ -268,6 +268,8 @@ export class LeadUseCases {
             organization: true,
           },
         },
+        // Label custom field dari versi template yang dipakai saat Lead dibuat.
+        formTemplateVersion: { select: { fields: true } },
         status: true,
         stage: true,
         activities: {
@@ -585,7 +587,7 @@ export class LeadUseCases {
             take: 1,
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
       this.leadRepository.count(where),
     ]);

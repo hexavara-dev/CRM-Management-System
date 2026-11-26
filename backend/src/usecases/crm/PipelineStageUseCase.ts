@@ -6,7 +6,17 @@ export type PipelineEntity = (typeof PIPELINE_ENTITIES)[number];
 export const EVIDENCE_FILE_TYPES = ['PDF', 'DOC', 'IMAGE', 'SHEET'] as const;
 export type EvidenceFileType = (typeof EVIDENCE_FILE_TYPES)[number];
 
-export type EvidenceInput = { name: string; fileTypes: EvidenceFileType[]; isRequired: boolean };
+export const EVIDENCE_PAYMENT_METHODS = ['CASH', 'KPR', 'KPR_SHARIA'] as const;
+export type EvidencePaymentMethod = (typeof EVIDENCE_PAYMENT_METHODS)[number];
+
+export type EvidenceInput = {
+  name: string;
+  fileTypes: EvidenceFileType[];
+  isRequired: boolean;
+  description?: string | null;
+  /** Khusus Deal; null berarti semua jenis pembayaran. */
+  paymentMethods?: EvidencePaymentMethod[] | null;
+};
 
 export type PipelineStageInput = {
   name?: string;
@@ -55,19 +65,23 @@ function present(stage: StageRow, entity: PipelineEntity) {
       name: evidence.name,
       fileTypes: evidence.fileTypes,
       isRequired: evidence.isRequired,
+      description: evidence.description,
+      paymentMethods: evidence.paymentMethods,
       sortOrder: evidence.sortOrder,
     })),
     itemCount: entity === 'lead' ? stage._count.leads : stage._count.deals,
   };
 }
 
-const evidenceRows = (tenantId: string, stageId: string, evidences: EvidenceInput[]) =>
+const evidenceRows = (tenantId: string, stageId: string, entity: PipelineEntity, evidences: EvidenceInput[]) =>
   evidences.map((evidence, index) => ({
     tenantId,
     stageId,
     name: evidence.name,
     fileTypes: evidence.fileTypes,
     isRequired: evidence.isRequired,
+    description: evidence.description ?? null,
+    ...(entity === 'deal' && evidence.paymentMethods ? { paymentMethods: evidence.paymentMethods } : {}),
     sortOrder: index,
   }));
 
@@ -216,7 +230,7 @@ export class PipelineStageUseCase {
         },
       });
       if (input.evidences?.length) {
-        await tx.stageEvidenceRequirement.createMany({ data: evidenceRows(tenantId, stage.id, input.evidences) });
+        await tx.stageEvidenceRequirement.createMany({ data: evidenceRows(tenantId, stage.id, entity, input.evidences) });
       }
       // Tahapan baru masuk sebelum tahapan akhir (atau menjadi pertama/terakhir sesuai tandanya).
       await normalizePositions(tx, tenantId, entity);
@@ -260,7 +274,7 @@ export class PipelineStageUseCase {
       if (input.evidences !== undefined) {
         await tx.stageEvidenceRequirement.deleteMany({ where: { tenantId, stageId: id } });
         if (input.evidences.length) {
-          await tx.stageEvidenceRequirement.createMany({ data: evidenceRows(tenantId, id, input.evidences) });
+          await tx.stageEvidenceRequirement.createMany({ data: evidenceRows(tenantId, id, entity, input.evidences) });
         }
       }
     });

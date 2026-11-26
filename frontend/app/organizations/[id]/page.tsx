@@ -1,6 +1,7 @@
 "use client";
 
 import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,21 +56,17 @@ export default function OrganizationDetailPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-1 h-4" />
-          <Link
-            href="/organizations"
-            className="inline-flex items-center cursor-pointer"
-          >
-            <Button variant="ghost" size="icon" className="size-8">
-              <ArrowLeft className="size-4 text-muted-foreground" />
-            </Button>
-          </Link>
-          <div className="flex flex-1 items-center justify-between">
-            <h1 className="text-lg font-semibold">{organization.name}</h1>
-          </div>
-        </header>
+        <PageHeader
+          title={organization.name}
+          breadcrumbs={["Organizations", organization.name]}
+          actions={
+            <Link href="/organizations" className="inline-flex items-center">
+              <Button variant="ghost" size="icon" className="size-8" aria-label="Kembali ke Organizations">
+                <ArrowLeft className="size-4 text-muted-foreground" />
+              </Button>
+            </Link>
+          }
+        />
 
         <div className="p-4 md:p-6 space-y-6">
           <Card>

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronLeft, ChevronRight, Columns3, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
-import { ConfigHeader } from "@/app/crm-configuration/config-header";
+import { ChevronLeft, ChevronRight, Columns3, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { FacilityIcon } from "@/components/projects/facility-icon";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -65,27 +65,23 @@ export default function FacilityConfigurationPage() {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader
+          title="Konfigurasi Fasilitas"
+          breadcrumbs={["Product Management", "Konfigurasi Fasilitas"]}
+          actions={
+            canWrite ? (
+              <Button
+                type="button"
+                onClick={() => setDialog({ open: true })}
+                className="bg-[#1980C0] text-white hover:bg-[#166ea6]"
+              >
+                <Plus className="size-4" />
+                Tambah Fasilitas
+              </Button>
+            ) : undefined
+          }
+        />
         <div className="space-y-4 p-4">
-          <ConfigHeader
-            icon={Sparkles}
-            description="Atur fasilitas yang dapat dipilih pada project sesuai kebutuhan perusahaan."
-            actions={
-              canWrite && (
-                <Button
-                  type="button"
-                  onClick={() => setDialog({ open: true })}
-                  className="bg-[#1980C0] text-white hover:bg-[#166ea6]"
-                >
-                  <Plus className="size-4" />
-                  Tambah Fasilitas
-                </Button>
-              )
-            }
-          />
-
           <section className="space-y-4 rounded-xl border border-[#E4E4E7] bg-white p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="relative sm:w-80">

@@ -92,7 +92,7 @@ export function ClusterAvailabilityOverview({
         <div className="mt-4 overflow-hidden rounded-xl border border-[#e5e9ef] bg-white">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1050px] text-left text-sm">
-              <thead className="bg-[#f7f9fb] text-[#475467]">
+              <thead className="bg-surface text-[#475467]">
                 <tr className="border-b border-[#e5e9ef]">
                   <th className="px-4 py-3 font-semibold">Hierarchy</th>
                   <th className="px-3 py-3 font-semibold">Level</th>

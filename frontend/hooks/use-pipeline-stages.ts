@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/components/auth/auth-provider";
 import { errorMessage } from "@/hooks/use-projects";
+import type { DealPaymentMethod } from "@/types/deal";
 
 export type PipelineEntity = "lead" | "deal";
 export type EvidenceFileType = "PDF" | "DOC" | "IMAGE" | "SHEET";
@@ -19,6 +20,9 @@ export interface StageEvidence {
   name: string;
   fileTypes: EvidenceFileType[];
   isRequired: boolean;
+  description: string | null;
+  /** Khusus Deal; null berarti semua jenis pembayaran. */
+  paymentMethods: DealPaymentMethod[] | null;
 }
 
 export interface PipelineStage {
@@ -76,7 +80,13 @@ export function useSavePipelineStage(entity: PipelineEntity) {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: async ({ id, data }: { id?: string; data: PipelineStagePayload }) => {
-      const evidences = data.evidences.map(({ name, fileTypes, isRequired }) => ({ name, fileTypes, isRequired }));
+      const evidences = data.evidences.map(({ name, fileTypes, isRequired, description, paymentMethods }) => ({
+        name,
+        fileTypes,
+        isRequired,
+        description,
+        paymentMethods,
+      }));
       const body = { ...data, evidences };
       return id
         ? (await api.put<PipelineStage>(`/api/pipeline-stages/${id}`, body)).data

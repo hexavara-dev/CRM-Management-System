@@ -25,7 +25,7 @@ const row = (over: Record<string, unknown> = {}) => ({
   isWonStage: false,
   defaultGuard: null,
   terminalGuard: null,
-  evidences: [{ id: 'e-1', tenantId: 't-1', stageId: 's-1', name: 'Foto', fileTypes: ['IMAGE'], isRequired: true, sortOrder: 0 }],
+  evidences: [{ id: 'e-1', tenantId: 't-1', stageId: 's-1', name: 'Foto', fileTypes: ['IMAGE'], isRequired: true, description: null, sortOrder: 0 }],
   _count: { leads: 0, deals: 0 },
   ...over,
 });
@@ -86,7 +86,7 @@ describe('PipelineStageUseCase', () => {
       data: expect.objectContaining({ tenantId: 't-1', entityType: 'lead', position: 5, color: '#F59E0B', probability: 60 }),
     });
     expect(db.tx.stageEvidenceRequirement.createMany).toHaveBeenCalledWith({
-      data: [{ tenantId: 't-1', stageId: 's-new', name: 'Foto Kunjungan', fileTypes: ['IMAGE'], isRequired: true, sortOrder: 0 }],
+      data: [{ tenantId: 't-1', stageId: 's-new', name: 'Foto Kunjungan', fileTypes: ['IMAGE'], isRequired: true, description: null, sortOrder: 0 }],
     });
   });
 
@@ -373,7 +373,7 @@ describe('pipeline stage validation', () => {
       name: 'Follow Up',
       probability: 60,
       color: '#F59E0B',
-      evidences: [{ name: 'Foto', fileTypes: ['IMAGE', 'PDF'], isRequired: true }],
+      evidences: [{ name: 'Foto', fileTypes: ['IMAGE', 'PDF'], isRequired: true, description: null, paymentMethods: null }],
     });
   });
 
@@ -383,6 +383,16 @@ describe('pipeline stage validation', () => {
     expect(() => validatePipelineStageCreate({ ...base, color: 'orange' })).toThrow(/hex color/);
     expect(() => validatePipelineStageCreate({ ...base, entity: 'task' })).toThrow(/entity must be one of/);
     expect(() => validatePipelineStageUpdate({ position: 2 })).toThrow(/Unsupported field/);
+  });
+
+  it('normalizes the payment methods of deal documents', () => {
+    const methods = (paymentMethods: unknown) =>
+      validatePipelineStageUpdate({ evidences: [{ name: 'A', fileTypes: ['PDF'], paymentMethods }] }).evidences![0]!.paymentMethods;
+    expect(methods(['KPR_SHARIA', 'KPR', 'KPR'])).toEqual(['KPR', 'KPR_SHARIA']);
+    expect(methods(['CASH', 'KPR', 'KPR_SHARIA'])).toBeNull();
+    expect(methods([])).toBeNull();
+    expect(methods(null)).toBeNull();
+    expect(() => methods(['CARD'])).toThrow(/paymentMethods/);
   });
 
   it('validates evidences', () => {

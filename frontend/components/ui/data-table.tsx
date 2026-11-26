@@ -156,7 +156,7 @@ export function DataTable<TData, TValue>({
           )}
         </div>
       )}
-      <div className={cn("overflow-auto rounded-md border", tableContainerClassName)}>
+      <div className={cn("overflow-auto rounded-lg border border-[#E4E7EC] bg-white", tableContainerClassName)}>
         <Table className={useColumnSizing ? "table-fixed" : undefined} style={useColumnSizing ? (fillAvailableWidth ? { width: "100%", minWidth: table.getTotalSize() } : { width: table.getTotalSize() }) : undefined}>
           <TableHeader className={tableHeaderClassName}>
             {table.getHeaderGroups().map((headerGroup) => (
