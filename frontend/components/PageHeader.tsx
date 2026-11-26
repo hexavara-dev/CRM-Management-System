@@ -11,7 +11,11 @@ import {
 } from "@/components/ui/breadcrumb";
 import type { ReactNode } from "react";
 
-type PageHeaderProps = { title: string; breadcrumbs?: string[]; actions?: ReactNode };
+type PageHeaderProps = {
+  title: string;
+  breadcrumbs?: string[];
+  actions?: ReactNode;
+};
 
 export function PageHeader({ title, breadcrumbs = [], actions }: PageHeaderProps) {
   return (
@@ -26,14 +30,18 @@ export function PageHeader({ title, breadcrumbs = [], actions }: PageHeaderProps
                 {breadcrumbs.map((crumb, index) => (
                   <span className="contents" key={`${crumb}-${index}`}>
                     <BreadcrumbItem>
-                      {index === breadcrumbs.length - 1 ? <BreadcrumbPage className="font-medium text-[#101828]">{crumb}</BreadcrumbPage> : crumb}
+                      {index === breadcrumbs.length - 1 ? (
+                        <BreadcrumbPage className="font-medium text-[#101828]">{crumb}</BreadcrumbPage>
+                      ) : crumb}
                     </BreadcrumbItem>
                     {index < breadcrumbs.length - 1 && <BreadcrumbSeparator />}
                   </span>
                 ))}
               </BreadcrumbList>
             </Breadcrumb>
-          ) : <h1 className="truncate text-lg font-semibold text-[#101828]">{title}</h1>}
+          ) : (
+            <h1 className="truncate text-lg font-semibold text-[#101828]">{title}</h1>
+          )}
         </div>
         {actions}
       </div>
