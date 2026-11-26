@@ -127,6 +127,14 @@ describe('field keys', () => {
 
   it('rejects relation types on custom fields and dependent system fields without their parent', () => {
     expect(() => assignFieldKeys([field('Proyek', { type: 'PROJECT' })])).toThrow(/only available for system fields/);
+    expect(() => assignFieldKeys([field('Tahap', { type: 'STAGE' })])).toThrow(/only available for system fields/);
+    // Field sistem baru: tipe dikunci server.
+    const [age, stage] = assignFieldKeys([
+      { ...field('Usia'), key: 'customer_age', type: 'TEXT' },
+      { ...field('Fase'), key: 'lead_stage', type: 'TEXT' },
+    ]).filter((f) => f.key === 'customer_age' || f.key === 'lead_stage');
+    expect(age).toMatchObject({ key: 'customer_age', type: 'NUMBER', label: 'Usia', standard: true });
+    expect(stage).toMatchObject({ key: 'lead_stage', type: 'STAGE', label: 'Fase', standard: true });
     expect(() => assignFieldKeys([{ ...field('Tipe'), key: 'interest_types' }])).toThrow(/requires interest_projects/);
     expect(() =>
       assignFieldKeys([{ ...field('Proyek'), key: 'interest_projects' }, { ...field('Tipe'), key: 'interest_types' }])

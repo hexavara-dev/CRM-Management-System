@@ -252,6 +252,24 @@ function LeadStageProgress({
   );
 }
 
+/** Isian custom field dengan label dari versi template saat Lead dibuat. */
+function customFieldRows(lead: Lead) {
+  const values = lead.customValues ?? {};
+  const fields = lead.formTemplateVersion?.fields ?? [];
+  return Object.entries(values)
+    .filter(([, value]) => value !== null && value !== undefined && value !== "")
+    .map(([key, value]) => {
+      const field = fields.find((item) => item.key === key && !item.standard);
+      let text: string;
+      if (Array.isArray(value)) text = value.join(", ");
+      else if (typeof value === "boolean") text = value ? "Ya" : "Tidak";
+      else if (field?.type === "CURRENCY" && typeof value === "number") text = moneyFull.format(value);
+      else if (field?.type === "DATE" && typeof value === "string") text = date(value);
+      else text = String(value);
+      return { key, label: field?.label ?? key.replace(/_/g, " "), value: text };
+    });
+}
+
 export function OverviewTab({
   lead,
   stages,
@@ -270,6 +288,7 @@ export function OverviewTab({
     .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt))[0];
   const typeImageUrl = lead.productVariant?.media?.[0]?.fileUrl;
   const priority = PRIORITY[lead.priority ?? "MEDIUM"];
+  const customRows = customFieldRows(lead);
 
   return (
     <div className="grid items-start gap-3 xl:grid-cols-2">
@@ -320,7 +339,7 @@ export function OverviewTab({
             <Field
               label="Umur"
               value={
-                lead.customer.age !== undefined
+                lead.customer.age != null
                   ? `${lead.customer.age} tahun`
                   : undefined
               }
@@ -343,6 +362,16 @@ export function OverviewTab({
             />
           </dl>
         </Card>
+
+        {customRows.length > 0 && (
+          <Card title="Informasi Tambahan" icon={FileText}>
+            <dl className="grid gap-3 md:grid-cols-2">
+              {customRows.map((row) => (
+                <Field key={row.key} label={row.label} value={row.value} />
+              ))}
+            </dl>
+          </Card>
+        )}
       </div>
 
       <div className="min-w-0 space-y-3">

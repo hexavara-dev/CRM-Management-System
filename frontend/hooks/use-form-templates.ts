@@ -19,7 +19,15 @@ export type CustomFieldType =
   | "EMAIL";
 
 /** Tipe data CRM; hanya untuk field sistem. */
-export type RelationFieldType = "PROJECT" | "PROJECT_TYPE" | "LEAD_SOURCE" | "CAMPAIGN" | "USER" | "LEAD_LABEL" | "GENDER";
+export type RelationFieldType =
+  | "PROJECT"
+  | "PROJECT_TYPE"
+  | "LEAD_SOURCE"
+  | "CAMPAIGN"
+  | "USER"
+  | "LEAD_LABEL"
+  | "GENDER"
+  | "STAGE";
 
 export type FormFieldType = CustomFieldType | RelationFieldType | "SECTION";
 
@@ -78,12 +86,18 @@ export const SYSTEM_FIELDS = {
   assigned_sales: { label: "Assigned Sales", type: "USER", always: true, source: "Daftar tim (kosong = pembuat Lead)" },
   customer_gender: { label: "Jenis Kelamin", type: "GENDER", options: ["Laki-laki", "Perempuan"], source: "Data customer" },
   customer_address: { label: "Alamat", type: "TEXTAREA", source: "Data customer" },
-  interest_projects: { label: "Project Diminati", type: "PROJECT", source: "Product Management (bisa lebih dari satu)" },
+  interest_projects: { label: "Project Diminati", type: "PROJECT", source: "Product Management (satu project per Lead)" },
   interest_types: { label: "Tipe Rumah", type: "PROJECT_TYPE", requires: "interest_projects", source: "Tipe dari project yang dipilih" },
   lead_budget: { label: "Budget Pembelian", type: "CURRENCY", source: "Data Lead" },
   lead_notes: { label: "Catatan Kebutuhan / Preferensi", type: "TEXTAREA", source: "Data Lead" },
   lead_campaign: { label: "Campaign", type: "CAMPAIGN", requires: "lead_source", source: "Campaign dari sumber lead yang dipilih" },
-  lead_temperature: { label: "Status Lead", type: "LEAD_LABEL", source: "Leads Label (Temperature)" },
+  lead_temperature: {
+    label: "Status Qualified",
+    type: "LEAD_LABEL",
+    source: "Leads Label (bisa lebih dari satu; maksimal satu Temperature)",
+  },
+  customer_age: { label: "Umur", type: "NUMBER", source: "Data customer" },
+  lead_stage: { label: "Tahapan Pipeline", type: "STAGE", source: "Pipeline Leads (kosong = tahapan default)" },
 } satisfies Record<string, SystemFieldDefinition>;
 
 export type SystemFieldKey = keyof typeof SYSTEM_FIELDS;

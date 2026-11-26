@@ -50,7 +50,8 @@ import {
   Type,
   Database,
 } from "lucide-react";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
+import { ConfigNavbar } from "../config-header";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -64,7 +65,7 @@ import { ErrorText } from "@/components/ui/error-text";
 import { LabelText } from "@/components/ui/label-text";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import {
   CHOICE_TYPES,
   SYSTEM_FIELD_KEYS,
@@ -81,7 +82,15 @@ import {
 import { cn } from "@/lib/utils";
 import { LEAD_LABEL_ICONS, LabelIcon } from "../leads-label/label-icons";
 import { Switch } from "../leads-label/toggle";
-import { DEFAULT_TEMPLATE_FIELDS, FULL_WIDTH_TYPES, FieldControl, FieldLabel, FormPreview, SectionHeader } from "./form-preview";
+import {
+  ADD_LEAD_DIALOG_WIDTH,
+  DEFAULT_TEMPLATE_FIELDS,
+  FULL_WIDTH_TYPES,
+  FieldControl,
+  FieldLabel,
+  FormPreview,
+  SectionHeader,
+} from "./form-preview";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const DEFAULT_COLOR = "#3B82F6";
@@ -528,28 +537,8 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <ConfigNavbar />
         <div className="space-y-4 p-4">
-          <Breadcrumb>
-            <BreadcrumbList className="gap-1 text-sm sm:gap-1.5">
-              <BreadcrumbItem>
-                <span className="text-[#1980C0]">CRM Configuration</span>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="[&>svg]:size-3.5" />
-              <BreadcrumbItem>
-                <Link href={LIST_URL} onClick={(e) => { e.preventDefault(); leave(); }} className="text-[#1980C0] hover:underline">
-                  Konfigurasi Form Template
-                </Link>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="[&>svg]:size-3.5" />
-              <BreadcrumbItem>
-                <BreadcrumbPage className="font-medium text-[#1f1f1f]">{template ? "Edit Template" : "Tambah Template"}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#E5F1FA] text-[#1980C0] sm:size-14">
@@ -956,7 +945,7 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
       </SidebarInset>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-h-[90vh] gap-5 overflow-y-auto p-4 sm:max-w-3xl sm:p-6">
+        <DialogContent className={cn("max-h-[90vh] gap-5 overflow-y-auto p-4 sm:p-6", ADD_LEAD_DIALOG_WIDTH)}>
           <DialogHeader>
             <DialogTitle>Preview Form</DialogTitle>
             <DialogDescription>Tampilan form saat sales menambah Lead (belum disimpan).</DialogDescription>
