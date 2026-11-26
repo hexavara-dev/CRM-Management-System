@@ -26,7 +26,12 @@ export type PipelineStageInput = {
 
 const include = {
   evidences: { orderBy: { sortOrder: 'asc' } },
-  _count: { select: { leads: true, deals: true } },
+  _count: {
+    select: {
+      leads: { where: { isDeleted: false, archivedAt: null } },
+      deals: true,
+    },
+  },
 } satisfies Prisma.StageInclude;
 
 type StageRow = Prisma.StageGetPayload<{ include: typeof include }>;

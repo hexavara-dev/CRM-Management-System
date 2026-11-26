@@ -52,4 +52,3 @@ export function PageHeader({ title, breadcrumbs = [], actions }: PageHeaderProps
     </header>
   );
 }
-
