@@ -1,9 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Building2, FileText, Flag, FolderOpen, Handshake, Mail, Phone, Save, UserRound, type LucideIcon } from "lucide-react";
+import { id as idLocale } from "date-fns/locale";
+import { Building2, CalendarDays, ChevronDown, Coins, FileText, Flag, FolderOpen, Handshake, House, Info, Landmark, Mail, Phone, Save, UserRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -11,10 +12,10 @@ import { LabelBadge } from "@/app/crm-configuration/leads-label/label-icons";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorText } from "@/components/ui/error-text";
-import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RupiahInput } from "@/components/ui/rupiah-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Textarea } from "@/components/ui/textarea";
 import { useCreateDeal, useDealLeadOptions, type DealLeadOption } from "@/hooks/use-create-deal";
 import { useFinancingBanks } from "@/hooks/use-financing-banks";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
@@ -26,14 +27,23 @@ import type { Deal } from "@/types/deal";
 import { DealDocumentsTable, dealDocuments } from "./deal-documents";
 
 const PAYMENTS = [
-  { value: "CASH", label: "Tunai" },
-  { value: "KPR", label: "KPR" },
-  { value: "KPR_SHARIA", label: "KPR Syariah" },
+  { value: "CASH", label: "Tunai", icon: Coins },
+  { value: "KPR", label: "KPR", icon: Landmark },
+  { value: "KPR_SHARIA", label: "KPR Syariah", icon: Landmark },
 ] as const;
 
 const MAX_AMOUNT = 999_999_999_999;
 /** Tanggal hari ini (WIB) sebagai YYYY-MM-DD, sama dengan backend. */
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
+/** YYYY-MM-DD <-> Date lokal tanpa pergeseran zona waktu. */
+const toDate = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1);
+};
+const toValue = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+const dateLabel = (value: string) =>
+  new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(toDate(value));
 
 const schema = z
   .object({
@@ -50,7 +60,6 @@ const schema = z
       .string()
       .min(1, "Target closing wajib diisi.")
       .refine((value) => value >= today(), "Target closing tidak boleh sebelum hari ini."),
-    notes: z.string().max(10000, "Catatan maksimal 10.000 karakter."),
   })
   .superRefine((data, context) => {
     if (data.paymentMethod !== "CASH" && !data.financingBankId) {
@@ -74,7 +83,7 @@ function Section({ icon: Icon, title, description, aside, children }: {
             <Icon className="size-5" />
           </span>
           <div>
-            <h3 className="font-semibold text-[#1f1f1f]">{title}</h3>
+            <h3 className="text-lg font-bold text-[#1f1f1f]">{title}</h3>
             {description && <p className="text-sm text-[#475467]">{description}</p>}
           </div>
         </div>
@@ -85,8 +94,10 @@ function Section({ icon: Icon, title, description, aside, children }: {
   );
 }
 
-function Field({ label, required = true, error, hint, children }: {
+function Field({ label, required = true, info, error, hint, children }: {
   label: string;
+  /** Penjelasan singkat, tampil saat ikon info disorot. */
+  info?: string;
   required?: boolean;
   error?: string;
   hint?: ReactNode;
@@ -94,8 +105,13 @@ function Field({ label, required = true, error, hint, children }: {
 }) {
   return (
     <div className="min-w-0">
-      <p className="mb-1.5 text-sm font-medium text-[#1f1f1f]">
+      <p className="mb-1.5 flex items-center gap-1 text-sm font-semibold text-[#1f1f1f]">
         {label} {required && <span className="text-[#D64545]">*</span>}
+        {info && (
+          <span title={info} aria-label={info} className="inline-flex text-[#1980C0]">
+            <Info className="size-4" />
+          </span>
+        )}
       </p>
       {children}
       {error ? <ErrorText className="mt-1">{error}</ErrorText> : hint && <p className="mt-1 text-xs text-[#6b6b6b]">{hint}</p>}
@@ -111,7 +127,7 @@ function LeadCard({ lead }: { lead: DealLeadOption }) {
       </span>
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-semibold text-[#1f1f1f]">{lead.name}</span>
+          <span className="text-lg font-bold text-[#1f1f1f]">{lead.name}</span>
           {lead.labels.map((label) => (
             <LabelBadge key={label.id} name={label.name} color={label.color} icon={label.icon} />
           ))}
@@ -129,7 +145,7 @@ function LeadCard({ lead }: { lead: DealLeadOption }) {
         <Building2 className="size-5 shrink-0 text-[#1980C0]" />
         <div>
           <p className="text-xs text-[#6b6b6b]">Project Diminati</p>
-          <p className="text-sm font-medium text-[#1f1f1f]">{lead.project?.name ?? "-"}</p>
+          <p className="text-sm font-semibold text-[#1f1f1f]">{lead.project?.name ?? "-"}</p>
         </div>
       </div>
     </div>
@@ -151,6 +167,8 @@ export function AddDealDialog({
   const create = useCreateDeal();
   const [files, setFiles] = useState<Record<string, File>>({});
   const [showMissing, setShowMissing] = useState(false);
+  const [closingOpen, setClosingOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -161,12 +179,11 @@ export function AddDealDialog({
       paymentMethod: "CASH",
       financingBankId: "",
       expectedClosingDate: "",
-      notes: "",
     },
   });
-  const [selectedLeadId, pickedProjectId, unitId, paymentMethod] = useWatch({
+  const [selectedLeadId, pickedProjectId, unitId, paymentMethod, closingDate] = useWatch({
     control: form.control,
-    name: ["leadId", "projectId", "unitId", "paymentMethod"],
+    name: ["leadId", "projectId", "unitId", "paymentMethod", "expectedClosingDate"],
   });
   const errors = form.formState.errors;
   const lead = leads.data?.find((item) => item.id === selectedLeadId);
@@ -176,8 +193,10 @@ export function AddDealDialog({
   const stage = stages.data?.find((item) => item.isDefaultStage && item.isActive);
   const documents = dealDocuments(stage?.evidences ?? [], paymentMethod);
   const required = documents.filter((item) => item.isRequired);
-  const completed = required.filter((item) => files[item.name]).length;
-  const progress = required.length ? Math.round((completed / required.length) * 100) : 100;
+  const missingRequired = required.filter((item) => !files[item.name]).length;
+  const uploaded = documents.filter((item) => files[item.name]).length;
+  const progress = documents.length ? Math.round((uploaded / documents.length) * 100) : 100;
+  const paymentLabel = PAYMENTS.find((p) => p.value === paymentMethod)?.label;
 
   const pickProject = (id: string) => {
     form.setValue("projectId", id, { shouldValidate: form.formState.isSubmitted });
@@ -197,7 +216,7 @@ export function AddDealDialog({
         return;
       }
       setShowMissing(true);
-      if (completed < required.length) {
+      if (missingRequired > 0) {
         toast.error("Lengkapi dokumen wajib terlebih dahulu.");
         return;
       }
@@ -210,7 +229,7 @@ export function AddDealDialog({
             paymentMethod: data.paymentMethod,
             financingBankId: data.paymentMethod === "CASH" ? null : data.financingBankId,
             expectedClosingDate: data.expectedClosingDate,
-            notes: data.notes.trim() || null,
+            notes: null,
           },
           documents: documents.flatMap(({ name }) => (files[name] ? [{ name, file: files[name] }] : [])),
         });
@@ -236,13 +255,13 @@ export function AddDealDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && !create.isPending && onClose()}>
-      <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
+      <DialogContent ref={contentRef} className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <DialogHeader className="flex-row items-center gap-4 border-b border-[#EDEDED] p-4 text-left sm:px-6">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[#E5F1FA] text-[#1980C0]">
-            <Handshake className="size-6" />
+          <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-[#E5F1FA] text-[#1980C0]">
+            <Handshake className="size-7" />
           </span>
           <div>
-            <DialogTitle>Tambah Deal</DialogTitle>
+            <DialogTitle className="text-lg font-bold">Tambah Deal</DialogTitle>
             <DialogDescription>
               Buat data deal baru dari leads yang sudah ada dan lengkapi informasi serta dokumen persyaratannya.
             </DialogDescription>
@@ -263,13 +282,14 @@ export function AddDealDialog({
         ) : (
           <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:px-6">
-              <Section icon={UserRound} title="Pilih Lead">
+              <Section icon={FileText} title="Pilih Lead">
                 <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,320px)_1fr]">
                   <Field label="Lead" error={errors.leadId?.message}>
                     <SearchableSelect
                       value={lead?.id}
                       onChange={(id) => pickLead(leads.data?.find((item) => item.id === id))}
                       placeholder="Pilih Lead"
+                      icon={UserRound}
                       searchPlaceholder="Cari nama, telepon, atau email"
                       options={(leads.data ?? []).map((item) => ({
                         value: item.id,
@@ -292,6 +312,7 @@ export function AddDealDialog({
                       value={pickedProjectId || undefined}
                       onChange={(id) => pickProject(id ?? "")}
                       placeholder="Pilih project"
+                      icon={Building2}
                       options={projectOptions.map((item) => ({ value: item.id, label: item.name }))}
                       clearable={false}
                       invalid={!!errors.projectId}
@@ -311,10 +332,11 @@ export function AddDealDialog({
                         form.setValue("amount", next ? String(next.typeVariant.currentPrice) : "", { shouldValidate: form.formState.isSubmitted });
                       }}
                       placeholder="Pilih unit"
+                      icon={House}
                       options={(units.data ?? []).map((item) => ({
                         value: item.id,
-                        label: `${item.code} (${item.variant.name} - ${item.typeVariant.name})`,
-                        hint: formatRupiah(Number(item.typeVariant.currentPrice)),
+                        label: `${item.code} (${item.variant.name})`,
+                        hint: `${item.typeVariant.name} · ${formatRupiah(Number(item.typeVariant.currentPrice))}`,
                       }))}
                       loading={units.isLoading}
                       disabled={!pickedProjectId}
@@ -340,23 +362,29 @@ export function AddDealDialog({
                           value={field.value}
                           onBlur={field.onBlur}
                           onValueChange={field.onChange}
+                          leading={
+                            <>
+                              <Coins className="size-4 text-[#6b6b6b]" />
+                              <span className="text-[#1f1f1f]">Rp</span>
+                            </>
+                          }
                           className={cn("h-10", errors.amount && "border-destructive")}
                         />
                       )}
                     />
                   </Field>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)_minmax(0,1fr)]">
                   <Field label="Jenis Pembayaran">
                     <Controller
                       control={form.control}
                       name="paymentMethod"
                       render={({ field }) => (
-                        <div role="radiogroup" aria-label="Jenis Pembayaran" className="grid grid-cols-3 gap-2">
+                        <div role="radiogroup" aria-label="Jenis Pembayaran" className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_1.3fr]">
                           {PAYMENTS.map((payment) => (
                             <label
                               key={payment.value}
-                              className="flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-1.5 text-sm has-[:checked]:border-[#1980C0] has-[:checked]:bg-[#F6FAFD] has-[:checked]:font-medium has-[:checked]:text-[#1980C0]"
+                              className="flex h-10 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md border border-input px-3 text-sm has-[:checked]:border-[#1980C0] has-[:checked]:bg-[#F6FAFD] has-[:checked]:font-medium has-[:checked]:text-[#1980C0]"
                             >
                               <input
                                 type="radio"
@@ -369,6 +397,7 @@ export function AddDealDialog({
                                   form.clearErrors("financingBankId");
                                 }}
                               />
+                              <payment.icon aria-hidden="true" className="size-4 shrink-0" />
                               {payment.label}
                             </label>
                           ))}
@@ -377,15 +406,44 @@ export function AddDealDialog({
                     />
                   </Field>
                   <Field label="Target Closing" error={errors.expectedClosingDate?.message}>
-                    <Input
-                      type="date"
-                      min={today()}
-                      aria-label="Target Closing"
-                      className={cn("h-10", errors.expectedClosingDate && "border-destructive")}
-                      {...form.register("expectedClosingDate")}
-                    />
+                    <Popover open={closingOpen} onOpenChange={setClosingOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="Target Closing"
+                          aria-invalid={!!errors.expectedClosingDate || undefined}
+                          className={cn(
+                            "flex h-10 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive",
+                            !closingDate && "text-muted-foreground",
+                          )}
+                        >
+                          <CalendarDays aria-hidden="true" className="size-4 shrink-0 text-[#6b6b6b]" />
+                          <span className="flex-1 text-left">{closingDate ? dateLabel(closingDate) : "Pilih tanggal"}</span>
+                          <ChevronDown className="size-4 shrink-0 opacity-50" />
+                        </button>
+                      </PopoverTrigger>
+                      {/* Dirender di dalam dialog agar kalender bisa diklik. */}
+                      <PopoverContent align="start" portalContainer={contentRef.current} className="z-[999] w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          locale={idLocale}
+                          selected={closingDate ? toDate(closingDate) : undefined}
+                          defaultMonth={closingDate ? toDate(closingDate) : undefined}
+                          disabled={{ before: toDate(today()) }}
+                          onSelect={(date) => {
+                            form.setValue("expectedClosingDate", date ? toValue(date) : "", { shouldValidate: form.formState.isSubmitted });
+                            setClosingOpen(false);
+                          }}
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </Field>
-                  <Field label="Fase Deal" required={false} hint="Fase awal sesuai konfigurasi Deals Pipeline.">
+                  <Field
+                    label="Fase Deal"
+                    required={false}
+                    info="Fase awal deal diambil otomatis dari tahapan pertama Deals Pipeline."
+                    hint="Fase awal deal sesuai pengaturan pipeline deal."
+                  >
                     <div className="flex min-h-10 items-center gap-2 rounded-md bg-[#E5F1FA] px-3 py-1.5 text-sm font-medium text-[#1980C0]">
                       <Flag className="size-4 shrink-0" />
                       {stage?.name} (Otomatis)
@@ -407,6 +465,7 @@ export function AddDealDialog({
                             value={field.value || undefined}
                             onChange={(id) => field.onChange(id ?? "")}
                             placeholder="Pilih bank"
+                            icon={Landmark}
                             options={(banks.data ?? []).map((bank) => ({ value: bank.id, label: bank.name }))}
                             loading={banks.isLoading}
                             clearable={false}
@@ -418,25 +477,22 @@ export function AddDealDialog({
                     </Field>
                   </div>
                 )}
-                <Field label="Catatan" required={false} error={errors.notes?.message}>
-                  <Textarea rows={2} aria-label="Catatan" placeholder="Catatan awal Deal (opsional)" {...form.register("notes")} />
-                </Field>
               </Section>
 
               <Section
                 icon={FolderOpen}
                 title="Dokumen Persyaratan"
-                description={`Lengkapi dokumen sesuai tahapan deal (${stage?.name}) dan jenis pembayaran (${PAYMENTS.find((p) => p.value === paymentMethod)?.label}).`}
+                description={`Lengkapi dokumen sesuai dengan tahapan deal (${stage?.name}) dan jenis pembayaran (${paymentLabel}).`}
                 aside={
-                  <div className="w-full shrink-0 sm:w-56">
+                  <div className="w-full shrink-0 sm:w-80">
                     <p className="mb-1 text-sm">
-                      Dokumen wajib {completed}/{required.length} lengkap
+                      Dokumen {uploaded}/{documents.length} lengkap
                     </p>
                     <div className="flex items-center gap-2">
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#E5F1FA]">
                         <div className="h-full bg-[#1980C0]" style={{ width: `${progress}%` }} />
                       </div>
-                      <span className="text-sm">{progress}%</span>
+                      <span className="text-sm font-semibold">{progress}%</span>
                     </div>
                   </div>
                 }
@@ -445,6 +501,8 @@ export function AddDealDialog({
                   documents={documents}
                   files={files}
                   showMissing={showMissing}
+                  stageName={stage?.name}
+                  paymentLabel={paymentLabel}
                   onChange={(name, file) =>
                     setFiles((current) => {
                       const next = { ...current };
@@ -457,10 +515,10 @@ export function AddDealDialog({
               </Section>
             </div>
             <div className="flex flex-col-reverse gap-2 border-t border-[#EDEDED] p-4 sm:flex-row sm:justify-between sm:px-6">
-              <Button type="button" variant="outline" onClick={onClose} disabled={create.isPending}>
+              <Button type="button" variant="outline" size="lg" className="px-6" onClick={onClose} disabled={create.isPending}>
                 Batal
               </Button>
-              <Button type="submit" disabled={create.isPending} className="bg-[#1980C0] text-white hover:bg-[#166ea6]">
+              <Button type="submit" size="lg" disabled={create.isPending} className="bg-[#1980C0] px-6 text-white hover:bg-[#166ea6]">
                 <Save className="size-4" />
                 {create.isPending ? "Menyimpan..." : "Simpan Deal"}
               </Button>

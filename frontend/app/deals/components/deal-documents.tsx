@@ -86,12 +86,16 @@ export function DealDocumentsTable({
   documents,
   files,
   showMissing,
+  stageName,
+  paymentLabel,
   onChange,
 }: {
   documents: DealDocument[];
   files: Record<string, File>;
   /** Tandai dokumen wajib yang belum ada (setelah mencoba simpan). */
   showMissing: boolean;
+  stageName?: string;
+  paymentLabel?: string;
   onChange: (name: string, file: File | undefined) => void;
 }) {
   return (
@@ -101,7 +105,7 @@ export function DealDocumentsTable({
           <thead className="bg-[#F8FAFC] text-left">
             <tr>
               <th className="w-12 px-3 py-2.5 font-medium">No</th>
-              <th className="px-3 py-2.5 font-medium">Nama Dokumen</th>
+              <th className="px-3 py-2.5 font-medium" colSpan={2}>Nama Dokumen</th>
               <th className="px-3 py-2.5 font-medium">Keterangan</th>
               <th className="w-40 px-3 py-2.5 font-medium">Status</th>
               <th className="w-72 px-3 py-2.5 font-medium">File</th>
@@ -114,18 +118,16 @@ export function DealDocumentsTable({
               return (
                 <tr key={document.name} className={cn("border-t border-[#EDEDED]", missing && showMissing && "bg-[#FDECEC]")}>
                   <td className="px-3 py-2.5">{index + 1}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-[#1f1f1f]">{document.name}</span>
-                      <span
-                        className={cn(
-                          "rounded-md px-2 py-0.5 text-xs font-medium",
-                          document.isRequired ? "bg-[#FDECEC] text-[#D64545]" : "bg-[#EEF0F4] text-[#475467]",
-                        )}
-                      >
-                        {document.isRequired ? "Wajib" : "Opsional"}
-                      </span>
-                    </div>
+                  <td className="px-3 py-2.5 font-semibold text-[#1f1f1f]">{document.name}</td>
+                  <td className="w-24 px-3 py-2.5 text-right">
+                    <span
+                      className={cn(
+                        "rounded-md px-2 py-0.5 text-xs font-medium",
+                        document.isRequired ? "bg-[#FDECEC] text-[#D64545]" : "bg-[#EEF0F4] text-[#475467]",
+                      )}
+                    >
+                      {document.isRequired ? "Wajib" : "Opsional"}
+                    </span>
                   </td>
                   <td className="px-3 py-2.5 text-[#475467]">{document.description ?? "-"}</td>
                   <td className="px-3 py-2.5">
@@ -136,7 +138,7 @@ export function DealDocumentsTable({
                       )}
                     >
                       {file ? <CircleCheck className="size-4" /> : missing ? <CircleX className="size-4" /> : <CircleMinus className="size-4" />}
-                      {file ? "Siap diunggah" : missing ? "Belum ada" : "Opsional"}
+                      {file ? "Sudah diupload" : missing ? "Belum diupload" : "Belum ada"}
                     </span>
                   </td>
                   <td className="px-3 py-2">
@@ -172,8 +174,11 @@ export function DealDocumentsTable({
       </div>
       <p className="flex items-start gap-2 rounded-lg bg-[#F6FAFD] p-3 text-sm text-[#475467]">
         <Info className="mt-0.5 size-4 shrink-0 text-[#1980C0]" />
-        Daftar dokumen mengikuti konfigurasi tahapan pertama Deals Pipeline dan jenis pembayaran. Dokumen wajib harus dilampirkan
-        sebelum Deal dapat disimpan.
+        <span>
+          Daftar dokumen mengikuti konfigurasi Form Template untuk Deal (tahap {stageName ?? "-"}, pembayaran {paymentLabel ?? "-"}).
+          <br />
+          Dokumen wajib harus diunggah sebelum deal dapat disimpan.
+        </span>
       </p>
     </>
   );

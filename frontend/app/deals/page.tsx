@@ -235,14 +235,9 @@ export default function DealsPage() {
             <FileText className="size-4" aria-hidden="true" />
           </span>
           <h1 className="text-lg font-semibold">Deals</h1>
-          <Button
-            type="button"
-            disabled
-            title="Form Add Deal belum tersedia (dikerjakan di CRM-71)."
-            className="ml-auto"
-          >
+          <Button type="button" className="ml-auto" onClick={() => setIsAddOpen(true)}>
             <Plus className="size-4" />
-            Add Deal
+            Tambah Deal
           </Button>
         </header>
         <main className="space-y-3 p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
@@ -274,14 +269,6 @@ export default function DealsPage() {
                   : "Pantau progres penjualan (deals) berdasarkan fase transaksi."}
               </p>
               </div>
-              <Button
-                type="button"
-                className="bg-[#1980C0] text-white hover:bg-[#166ea6]"
-                onClick={() => setIsAddOpen(true)}
-              >
-                <Plus className="size-4" />
-                Tambah Deal
-              </Button>
             </section>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <Kpi
