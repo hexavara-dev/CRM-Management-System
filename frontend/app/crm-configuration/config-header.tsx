@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { getBreadcrumbTrail } from "@/components/PageHeading";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -62,4 +63,9 @@ export function ConfigHeader({
       </div>
     </div>
   );
+}
+
+export function ConfigNavbar() {
+  const trail = getBreadcrumbTrail(usePathname());
+  return <PageHeader title={trail[trail.length - 1] ?? ""} breadcrumbs={trail} />;
 }

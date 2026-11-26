@@ -62,6 +62,12 @@ export interface Lead {
     actor?: User | null;
   }[];
   needsNotes?: string | null;
+  /** Isian custom field dari form Add Lead berbasis template. */
+  customValues?: Record<string, unknown> | null;
+  /** Versi template saat Lead dibuat; sumber label custom field. */
+  formTemplateVersion?: {
+    fields: { key?: string; label: string; type: string; standard?: boolean }[];
+  } | null;
 }
 
 export type ArchivedLead = Pick<

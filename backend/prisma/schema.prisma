@@ -187,6 +187,7 @@ model Customer {
   phoneNumber      String?        @map("phone_number") @db.VarChar(30)
   email            String?        @db.VarChar(255)
   gender           String?        @db.VarChar(20)
+  age              Int?
   salutation       String?        @db.VarChar(20)
   attachedDocument String?        @map("attached_document")
   location         String?

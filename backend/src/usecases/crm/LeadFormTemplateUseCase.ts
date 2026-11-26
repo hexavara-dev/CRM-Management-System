@@ -24,6 +24,7 @@ export const RELATION_FIELD_TYPES = [
   'USER',
   'LEAD_LABEL',
   'GENDER',
+  'STAGE',
 ] as const;
 
 /** Pengelompok field; tidak menyimpan data. */
@@ -77,7 +78,11 @@ export const SYSTEM_FIELDS = {
   lead_budget: { label: 'Budget Pembelian', type: 'CURRENCY' },
   lead_notes: { label: 'Catatan Kebutuhan / Preferensi', type: 'TEXTAREA' },
   lead_campaign: { label: 'Campaign', type: 'CAMPAIGN', requires: 'lead_source' },
-  lead_temperature: { label: 'Status Lead', type: 'LEAD_LABEL' },
+  /** Beberapa label aktif; maksimal satu Temperature. */
+  lead_temperature: { label: 'Status Qualified', type: 'LEAD_LABEL' },
+  customer_age: { label: 'Umur', type: 'NUMBER' },
+  /** Kosong = tahapan default Lead. */
+  lead_stage: { label: 'Tahapan Pipeline', type: 'STAGE' },
 } as const satisfies Record<string, SystemDefinition>;
 
 export type SystemFieldKey = keyof typeof SYSTEM_FIELDS;
