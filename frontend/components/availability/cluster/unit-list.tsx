@@ -52,7 +52,7 @@ export function ClusterUnitList({
     <section className="mt-4 overflow-hidden rounded-xl border border-[#e5e9ef] bg-white">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] text-left text-[11px]">
-          <thead className="bg-[#f7f9fb] text-[#475467]">
+          <thead className="bg-surface text-[#475467]">
             <tr className="border-b border-[#e5e9ef]">
               <th className="px-4 py-3 font-semibold">Unit</th>
               <th className="px-3 py-3 font-semibold">Status</th>

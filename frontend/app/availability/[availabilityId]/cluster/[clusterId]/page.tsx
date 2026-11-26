@@ -13,7 +13,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { AvailabilityEmptyState } from "@/components/availability/availability-empty-state";
 import { AvailabilityIntegrityWarning } from "@/components/availability/availability-integrity-warning";
 import { AvailabilityState } from "@/components/availability/availability-state";
@@ -28,7 +29,7 @@ import { ClusterAvailabilityOverview } from "@/components/availability/detail/cl
 import { availabilityPath, clusterPath } from "@/components/availability/routes";
 import { SimplePagination } from "@/components/availability/simple-pagination";
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useClusterAvailability } from "@/hooks/use-availability";
 import { errorMessage } from "@/hooks/use-projects";
 
@@ -75,9 +76,7 @@ export default function ClusterDetailPage() {
       <AppSidebar />
 
       <SidebarInset className="min-w-0 bg-white">
-        <header className="flex shrink-0 items-center px-4 pt-3 lg:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader title="Cluster" breadcrumbs={["Availability & Reservation", "Availability", "Cluster"]} />
 
         <main className="min-h-screen px-4 pb-8 pt-4 lg:px-5">
           {availability.isLoading ? (

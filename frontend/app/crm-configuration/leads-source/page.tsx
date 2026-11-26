@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Megaphone, Pencil, Plus, Search, Target, Trash2 } from "lucide-react";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
-import { ConfigHeader } from "../config-header";
+import { AppSidebar } from "@/components/Sidebar";
+import { ConfigHeader, ConfigNavbar } from "../config-header";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -61,9 +61,7 @@ export default function LeadsSourcePage() {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <ConfigNavbar />
         <div className="space-y-4 p-4">
           <ConfigHeader
             icon={Target}

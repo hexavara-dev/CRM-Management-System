@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { PageHeading } from "@/components/PageHeading";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
+import { AppSidebar } from "@/components/Sidebar";
 import { AvailabilityEmptyState } from "@/components/availability/availability-empty-state";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { AvailabilityTable } from "@/components/availability/availability-table";
@@ -51,30 +51,28 @@ export default function AvailabilityPage() {
       <AppSidebar />
 
       <SidebarInset className="min-w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader
+          title="Availability"
+          breadcrumbs={["Availability & Reservation", "Availability"]}
+          actions={
+            <div className="w-full sm:w-64">
+              <SearchableSelect
+                value={projectId === "all" ? undefined : projectId}
+                onChange={(value) => setProjectId(value ?? "all")}
+                placeholder="Semua proyek"
+                options={projects.map((project) => ({
+                  value: String(project.id),
+                  label: project.name,
+                }))}
+                loading={isLoading}
+                disabled={isLoading || isError || projects.length === 0}
+                disabledHint={placeholder}
+              />
+            </div>
+          }
+        />
 
         <main className="space-y-5 p-4 md:p-6">
-          <PageHeading
-            actions={
-              <div className="w-full sm:w-64">
-                <SearchableSelect
-                  value={projectId === "all" ? undefined : projectId}
-                  onChange={(value) => setProjectId(value ?? "all")}
-                  placeholder="Semua proyek"
-                  options={projects.map((project) => ({
-                    value: String(project.id),
-                    label: project.name,
-                  }))}
-                  loading={isLoading}
-                  disabled={isLoading || isError || projects.length === 0}
-                  disabledHint={placeholder}
-                />
-              </div>
-            }
-          />
-
           {availability.isLoading || isLoading ? (
             <AvailabilityState loading message="Memuat data availability..." />
           ) : availability.isError || isError ? (

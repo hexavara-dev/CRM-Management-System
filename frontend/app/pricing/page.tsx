@@ -8,8 +8,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
-import { PageHeading } from "@/components/PageHeading";
+import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -163,14 +163,8 @@ export default function PricingPage() {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader title="Pricing" breadcrumbs={["Pricing Management", "Pricing"]} />
         <div className="space-y-4 p-4">
-          <PageHeading />
-
-          <hr className="border-[#EDEDED]" />
-
           <div className={cn("grid grid-cols-2 gap-3", PRICE_APPROVAL_ENABLED ? "lg:grid-cols-5" : "lg:grid-cols-4")}>
             {selectedProject ? (
               <StatCard label="Project" value={selectedProject.name} color="text-[#1980C0]" hint="Filter project aktif" />

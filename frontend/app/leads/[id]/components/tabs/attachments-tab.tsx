@@ -214,7 +214,7 @@ export function AttachmentsTab({
       ) : (
         <div className="rounded-lg border bg-background overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/50">
+            <TableHeader>
               <TableRow>
                 <TableHead className="w-[35%]">Nama Dokumen</TableHead>
                 <TableHead>Kategori</TableHead>

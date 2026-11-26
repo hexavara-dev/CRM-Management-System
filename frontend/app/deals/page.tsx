@@ -2,6 +2,7 @@
 
 import { DealsPipelineTab } from "@/app/deals/components/deals-pipeline-tab";
 import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -21,11 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type DealFilters, useDeals } from "@/hooks/use-deals";
 import { useFinancingBanks } from "@/hooks/use-financing-banks";
@@ -140,9 +137,9 @@ function Kpi({
 }) {
   return (
     <Card className={`min-w-0 overflow-hidden border p-2.5 ${className}`}>
-      <div className="flex items-start gap-2">
+      <div className="flex items-stretch gap-2">
         <span
-          className={`flex size-8 shrink-0 items-center justify-center rounded-full ${iconClassName}`}
+          className={`flex w-9 shrink-0 items-center justify-center self-stretch rounded-lg ${iconClassName}`}
         >
           <Icon className="size-4" aria-hidden="true" />
         </span>
@@ -227,24 +224,21 @@ export default function DealsPage() {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0 min-w-0">
-        <header className="flex h-16 items-center gap-3 border-b px-4">
-          <SidebarTrigger />
-          <span className="flex size-7 items-center justify-center rounded-md border border-[#B2DDFF] bg-[#EFF8FF] text-[#1570EF]">
-            <FileText className="size-4" aria-hidden="true" />
-          </span>
-          <h1 className="text-lg font-semibold">Deals</h1>
-          <Button
-            type="button"
-            disabled
-            title="Form Add Deal belum tersedia (dikerjakan di CRM-71)."
-            className="ml-auto"
-          >
-            <Plus className="size-4" />
-            Add Deal
-          </Button>
-        </header>
-        <main className="space-y-3 p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
-          <Tabs value={tab} onValueChange={setTab} className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+        <PageHeader
+          title="Deals Management"
+          actions={
+            <Button
+              type="button"
+              disabled
+              title="Form Add Deal belum tersedia (dikerjakan di CRM-71)."
+            >
+              <Plus className="size-4" />
+              Add Deal
+            </Button>
+          }
+        />
+        <main className="min-w-0 space-y-3 p-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden">
+          <Tabs value={tab} onValueChange={setTab} className="min-w-0 space-y-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <TabsList className="h-10 w-fit gap-0.5 overflow-hidden rounded-2xl border border-[#E4E7EC] bg-[#F7F8FA] p-1 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
               <TabsTrigger
                 value="list"
@@ -261,7 +255,7 @@ export default function DealsPage() {
                 Pipeline
               </TabsTrigger>
             </TabsList>
-            <section className="mt-3">
+            <section>
               <h2 className="text-base font-semibold">
                 {tab === "list" ? "Deals Management" : "Deals Pipeline"}
               </h2>
@@ -311,10 +305,10 @@ export default function DealsPage() {
               />
             </div>
             <div
-              className={`grid items-start gap-2 rounded-xl border p-2 sm:grid-cols-2 ${
+              className={`min-w-0 grid items-start gap-3 rounded-xl border border-[#E4E7EC] bg-white p-3 sm:grid-cols-2 [&>div]:min-w-0 ${
                 tab === "list"
-                  ? "xl:grid-cols-[minmax(190px,1.8fr)_minmax(190px,1.5fr)_repeat(5,minmax(110px,1fr))]"
-                  : "xl:grid-cols-[minmax(190px,1.8fr)_minmax(190px,1.5fr)_repeat(4,minmax(110px,1fr))_auto]"
+                  ? "xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1.5fr)_repeat(5,minmax(0,1fr))]"
+                  : "xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1.5fr)_repeat(4,minmax(0,1fr))_minmax(0,auto)]"
               } xl:[&_[data-slot=select-trigger]]:h-8 xl:[&_[data-slot=select-trigger]]:text-xs xl:[&_[data-slot=input]]:h-8 xl:[&_[data-slot=input]]:text-xs`}
             >
               <div className="relative pt-[21px]">
@@ -339,8 +333,8 @@ export default function DealsPage() {
                       variant="outline"
                       className="w-full justify-start font-normal"
                     >
-                      <CalendarDays className="mr-2 size-4 text-muted-foreground" />
-                      {periodLabel}
+                      <CalendarDays className="mr-2 size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 truncate">{periodLabel}</span>
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-auto p-0">
@@ -525,11 +519,11 @@ export default function DealsPage() {
                 </div>
               )}
             </div>
-            <TabsContent value="list" className="mt-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-              <Card className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+            <TabsContent value="list" className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+              <Card className="rounded-xl border border-[#E4E7EC] py-0 shadow-none lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
                 <div className="overflow-auto lg:min-h-0 lg:flex-1">
                   <table className="w-full min-w-[1160px] table-fixed text-xs">
-                    <thead className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                    <thead className="border-b bg-surface text-left text-xs text-muted-foreground">
                       <tr>
                         {[
                           "No.",
@@ -756,7 +750,7 @@ export default function DealsPage() {
                 </footer>
               </Card>
             </TabsContent>
-            <TabsContent value="pipeline" className="mt-3 lg:min-h-0 lg:flex-1">
+            <TabsContent value="pipeline" className="lg:min-h-0 lg:flex-1">
               <DealsPipelineTab
                 filters={{
                   ...filters,

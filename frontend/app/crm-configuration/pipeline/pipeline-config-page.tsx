@@ -19,11 +19,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowUpDown, Columns3, Eye, GripVertical, Info, Pencil, Plus, Save, Trash2, X } from "lucide-react";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -36,7 +36,7 @@ import {
 } from "@/hooks/use-pipeline-stages";
 import { errorMessage } from "@/hooks/use-projects";
 import { cn } from "@/lib/utils";
-import { ConfigHeader } from "../config-header";
+import { ConfigHeader, ConfigNavbar } from "../config-header";
 import { Switch } from "../leads-label/toggle";
 import { PIPELINE_COPY } from "./copy";
 import { PreviewDialog } from "./preview-dialog";
@@ -194,9 +194,7 @@ export function PipelineConfigPage({ entity }: { entity: PipelineEntity }) {
     <SidebarProvider className="overflow-hidden">
       <AppSidebar />
       <SidebarInset className="w-0">
-        <header className="flex shrink-0 items-center gap-2 px-4 pt-3 empty:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <ConfigNavbar />
         <div className="space-y-4 p-4">
           <ConfigHeader
             icon={Columns3}

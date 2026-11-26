@@ -226,7 +226,7 @@ export function TasksTab({
       ) : (
         <div className="rounded-lg border bg-background overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/50">
+            <TableHeader>
               <TableRow>
                 <TableHead className="w-[45%]">Task</TableHead>
                 <TableHead>Due Date</TableHead>

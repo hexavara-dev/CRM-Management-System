@@ -374,7 +374,7 @@ export function PreviewStep({
         <SectionCard title="Unit distribution by blok">
           <div className="max-h-72 overflow-auto rounded-lg border border-[#E4E4E7]">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-[#F8FAFC]">
+            <thead className="sticky top-0 z-10 bg-surface">
               <tr className="border-b border-[#E4E4E7] text-left text-[#475467]">
                 <th className="px-4 py-2.5 font-medium">Cluster</th>
                 <th className="px-4 py-2.5 font-medium">Blok</th>

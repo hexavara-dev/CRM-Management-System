@@ -6,7 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { CreateReservationDialog } from "@/app/reservation/create-reservation-dialog";
-import { AppSidebar, SidebarOpenTrigger } from "@/components/Sidebar";
+import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import { AvailabilityEmptyState } from "@/components/availability/availability-empty-state";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { clusterPath } from "@/components/availability/routes";
@@ -17,7 +18,7 @@ import { SpecificationCard } from "@/components/availability/unit/specification-
 import { UnitGallery } from "@/components/availability/unit/unit-gallery";
 import { UnitInfoCard } from "@/components/availability/unit/unit-info-card";
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAvailabilityUnit } from "@/hooks/use-availability";
 import { errorMessage } from "@/hooks/use-projects";
 
@@ -40,9 +41,7 @@ export default function UnitDetailPage() {
     <SidebarProvider className="overflow-hidden bg-[#f8fafc]">
       <AppSidebar />
       <SidebarInset className="min-w-0 bg-white">
-        <header className="flex shrink-0 items-center px-4 pt-3 lg:hidden">
-          <SidebarOpenTrigger />
-        </header>
+        <PageHeader title="Unit" breadcrumbs={["Availability & Reservation", "Availability", "Cluster", "Unit"]} />
         <main className="min-h-screen px-4 pb-8 pt-4 lg:px-5">
           {unit.isLoading ? (
             <AvailabilityState loading message="Memuat detail unit..." />

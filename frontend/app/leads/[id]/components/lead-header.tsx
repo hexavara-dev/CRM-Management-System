@@ -3,6 +3,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 import type { Lead } from "@/types/lead";
 import { Archive, ArrowLeft, CalendarDays, Edit, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -25,6 +26,7 @@ export function LeadHeader({ lead, onEditClick, onConvertClick, onArchiveClick }
     <header className="shrink-0 border-b bg-white px-4 py-3">
       <div className="mb-3 flex items-center gap-2 text-xs text-[#475467]">
         <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-8 !self-center" />
         <Button type="button" variant="ghost" size="icon-sm" aria-label="Kembali" onClick={() => router.back()}><ArrowLeft className="size-4" /></Button>
         <button type="button" onClick={() => router.push("/leads")} className="font-medium hover:text-[#0B63F6]">Leads</button>
         <span>›</span><span className="font-semibold text-[#101828]">Detail Lead</span>

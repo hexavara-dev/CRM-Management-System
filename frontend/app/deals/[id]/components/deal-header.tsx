@@ -1,6 +1,8 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +54,8 @@ export function DealHeader({
   return (
     <header className="border-b border-[#EAECF0] bg-white px-4 py-3">
       <div className="mb-3 flex items-center gap-2 text-xs text-[#667085]">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-8 !self-center" />
         <Button
           variant="ghost"
           size="icon"
