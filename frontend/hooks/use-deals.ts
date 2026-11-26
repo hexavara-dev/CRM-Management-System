@@ -1,3 +1,4 @@
+import { invalidateDealData } from "@/hooks/use-create-deal";
 import api from "@/lib/api";
 import { apiErrorMessage } from "@/lib/api-error";
 import type { Deal, DealPaymentMethod, DealSummary } from "@/types/deal";
@@ -51,10 +52,7 @@ export function useDeals(filters: DealFilters = {}, enabled = true) {
       (await api.get<DealResponse>("/api/deal", { params: filters })).data,
     enabled,
   });
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["deals"] });
-    queryClient.invalidateQueries({ queryKey: ["pipeline-stages"] });
-  };
+  const invalidate = () => invalidateDealData(queryClient);
   const update = useMutation({
     mutationFn: async ({
       id,

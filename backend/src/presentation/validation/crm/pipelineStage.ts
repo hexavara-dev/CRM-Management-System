@@ -1,8 +1,10 @@
 import { validateBody, type FieldRule } from '../../../infrastructure/utils/RequestValidation.js';
 import {
   EVIDENCE_FILE_TYPES,
+  EVIDENCE_PAYMENT_METHODS,
   PIPELINE_ENTITIES,
   type EvidenceInput,
+  type EvidencePaymentMethod,
   type PipelineEntity,
   type PipelineStageInput,
 } from '../../../usecases/crm/PipelineStageUseCase.js';
@@ -26,7 +28,19 @@ const evidenceRules: Record<string, FieldRule> = {
   name: { type: 'string', required: true, max: 150 },
   fileTypes: { type: 'array', required: true },
   isRequired: { type: 'boolean' },
+  description: { type: 'string', nullable: true, allowEmpty: true, max: 255 },
+  paymentMethods: { type: 'array', nullable: true },
 };
+
+/** Kosong atau mencakup semua jenis pembayaran disimpan sebagai null. */
+function evidencePayments(value: unknown[] | null | undefined): EvidencePaymentMethod[] | null {
+  if (!value) return null;
+  if (value.some((method) => !(EVIDENCE_PAYMENT_METHODS as readonly unknown[]).includes(method))) {
+    throw new Error(`paymentMethods must be one of: ${EVIDENCE_PAYMENT_METHODS.join(', ')}`);
+  }
+  const methods = EVIDENCE_PAYMENT_METHODS.filter((method) => value.includes(method));
+  return methods.length === 0 || methods.length === EVIDENCE_PAYMENT_METHODS.length ? null : methods;
+}
 
 export function parsePipelineEntity(value: unknown): PipelineEntity {
   if (typeof value !== 'string' || !(PIPELINE_ENTITIES as readonly string[]).includes(value)) {
@@ -38,7 +52,13 @@ export function parsePipelineEntity(value: unknown): PipelineEntity {
 function validateEvidences(value: unknown[]): EvidenceInput[] {
   if (value.length > MAX_EVIDENCES) throw new Error(`evidences must contain at most ${MAX_EVIDENCES} items`);
   const evidences = value.map((item) => {
-    const data = validateBody(item, evidenceRules) as { name: string; fileTypes: unknown[]; isRequired?: boolean };
+    const data = validateBody(item, evidenceRules) as {
+      name: string;
+      fileTypes: unknown[];
+      isRequired?: boolean;
+      description?: string | null;
+      paymentMethods?: unknown[] | null;
+    };
     const types = [...new Set(data.fileTypes)];
     if (types.length === 0 || types.some((t) => !(EVIDENCE_FILE_TYPES as readonly unknown[]).includes(t))) {
       throw new Error(`fileTypes must contain at least one of: ${EVIDENCE_FILE_TYPES.join(', ')}`);
@@ -47,6 +67,8 @@ function validateEvidences(value: unknown[]): EvidenceInput[] {
       name: data.name.trim(),
       fileTypes: types as EvidenceInput['fileTypes'],
       isRequired: data.isRequired ?? true,
+      description: data.description?.trim() || null,
+      paymentMethods: evidencePayments(data.paymentMethods),
     };
   });
   const names = evidences.map((e) => e.name.toLowerCase());

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, X, type LucideIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ export function SearchableSelect({
   className,
   triggerClassName,
   searchPlaceholder = "Ketik untuk mencari...",
+  icon: Icon,
 }: {
   value: string | undefined;
   onChange: (value: string | undefined) => void;
@@ -46,6 +47,8 @@ export function SearchableSelect({
   /** Kelas tombol pemicu (tinggi/ukuran teks). */
   triggerClassName?: string;
   searchPlaceholder?: string;
+  /** Ikon di kiri teks tombol. */
+  icon?: LucideIcon;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -85,7 +88,8 @@ export function SearchableSelect({
               triggerClassName,
             )}
           >
-            <span className="truncate">{disabled && disabledHint ? disabledHint : (selected?.label ?? placeholder)}</span>
+            {Icon && <Icon aria-hidden="true" className="size-4 shrink-0 text-[#6b6b6b]" />}
+            <span className={cn("truncate", Icon && "flex-1 text-left")}>{disabled && disabledHint ? disabledHint : (selected?.label ?? placeholder)}</span>
             <ChevronDown className="size-4 shrink-0 opacity-50" />
           </button>
         </PopoverTrigger>
