@@ -183,7 +183,8 @@ export class AvailabilityUseCase {
   async overview(tenantId: string, projectId?: string) {
     await expireOverdueReservations(this.prisma, tenantId);
     const products = await this.prisma.product.findMany({
-      where: { tenantId, ...(projectId ? { id: projectId } : {}) },
+      // Proyek nonaktif tidak dijual, jadi tidak tampil di Availability.
+      where: { tenantId, isActive: true, ...(projectId ? { id: projectId } : {}) },
       orderBy: { name: 'asc' },
       select: {
         id: true,

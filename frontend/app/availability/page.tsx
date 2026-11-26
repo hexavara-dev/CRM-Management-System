@@ -33,6 +33,7 @@ export default function AvailabilityPage() {
   const { data, isLoading, isError, error } = useProjects({
     page: 1,
     limit: 100,
+    isActive: true,
   });
 
   const projects = data?.data ?? [];

@@ -45,6 +45,16 @@ function pricingVariant(unit: UnitWithVariant) {
   return unit.typeVariant ?? (unit.variant as unknown as UnitWithVariant['typeVariant']);
 }
 
+/** Harga dasar varian adalah batas bawah harga jual. */
+function assertAtLeastBase(priced: { unit: { code: string }; basePrice: bigint }[], price: number) {
+  const below = priced.filter((row) => BigInt(price) < row.basePrice);
+  if (!below.length) return;
+  const lowest = below.reduce((max, row) => (row.basePrice > max ? row.basePrice : max), BigInt(0));
+  throw new Error(
+    `Harga jual tidak boleh lebih rendah dari harga dasar varian (${below.map((row) => row.unit.code).slice(0, 5).join(', ')}${below.length > 5 ? `, dan ${below.length - 5} lainnya` : ''}): minimal Rp ${new Intl.NumberFormat('id-ID').format(lowest)}.`
+  );
+}
+
 export class UnitPriceUseCase {
   constructor(private prisma: PrismaClient) {}
 
@@ -224,6 +234,7 @@ export class UnitPriceUseCase {
     if (unit.status === 'SOLD') throw new Error('Price of a sold unit cannot be adjusted (conflict)');
 
     const [priced] = await this.price(actor.tenantId, [unit], input.effectiveDate);
+    assertAtLeastBase([priced!], input.price);
     const data = this.adjustmentData(priced!, actor, input);
     if (data.priceAfter === data.priceBefore) throw new Error('price must differ from the current selling price');
 
@@ -298,6 +309,7 @@ export class UnitPriceUseCase {
     }
 
     const priced = await this.price(actor.tenantId, units, input.effectiveDate);
+    assertAtLeastBase(priced, input.price);
     const rows = priced
       .map((p) => this.adjustmentData(p, actor, input))
       .filter((r) => r.priceAfter !== r.priceBefore);
