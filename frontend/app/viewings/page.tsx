@@ -11,6 +11,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   Dialog,
@@ -30,10 +31,9 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useLeads } from "@/hooks/use-leads";
-import { useLocations } from "@/hooks/use-locations";
+import { useCustomers } from "@/hooks/use-customers";
+import { useDealUnits } from "@/hooks/use-deals";
 import { useProjects } from "@/hooks/use-projects";
-import { useSources } from "@/hooks/use-sources";
 import { useStatuses } from "@/hooks/use-statuses";
 import { useUsers } from "@/hooks/use-users";
 import { useViewings } from "@/hooks/use-viewings";
@@ -66,24 +66,35 @@ const TABLE_PAGE_SIZE = 10;
 const CALENDAR_PAGE_SIZE = 100;
 const DEFAULT_DURATION = "60";
 const DURATION_PRESETS = [30, 45, 60, 90, 120, 180];
+const FALLBACK_STATUS_COLORS = [
+  "#2563EB",
+  "#16A34A",
+  "#7C3AED",
+  "#DC2626",
+  "#EA580C",
+  "#0891B2",
+];
 
 const EMPTY_FORM: ViewingFormData = {
-  leadId: "",
+  customerId: "",
   actorId: "",
   statusId: "",
-  sourceId: "",
-  locationId: "",
-  scheduledAt: "",
+  projectId: "",
+  unitId: "",
+  visitDate: "",
+  visitTime: "",
   durationMinutes: DEFAULT_DURATION,
   notes: "",
 };
 
-/** Value for <input type="datetime-local"> in the browser's time zone. */
-function toLocalInputValue(value: string | Date): string {
+function toLocalDateAndTime(value: string | Date) {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) return { visitDate: "", visitTime: "" };
   const pad = (part: number) => String(part).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return {
+    visitDate: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    visitTime: `${pad(date.getHours())}:${pad(date.getMinutes())}`,
+  };
 }
 
 function ViewModeToggle({
@@ -127,26 +138,16 @@ function ViewModeToggle({
 
 export default function ViewingsPage() {
   const { user } = useAuth();
-  const { locations } = useLocations();
-  const [leadSearch, setLeadSearch] = useState("");
-  const debouncedLeadSearch = useDebouncedValue(leadSearch);
-  const { leads, isFetching: isSearchingLeads } = useLeads({
-    getAll: true,
-    useServerPagination: true,
-    page: 1,
-    limit: 20,
-    additionalParams: debouncedLeadSearch
-      ? { search: debouncedLeadSearch }
-      : undefined,
-  });
+  const [customerSearch, setCustomerSearch] = useState("");
+  const debouncedCustomerSearch = useDebouncedValue(customerSearch);
+  const { customers: customerResponse, isLoading: isCustomersLoading } =
+    useCustomers();
+  const customers = customerResponse?.data ?? [];
   const { users, isLoading: isUsersLoading } = useUsers();
   const { data: projectList, isLoading: isProjectsLoading } = useProjects({
     page: 1,
     limit: 100,
     isActive: true,
-  });
-  const { sources: viewingSources } = useSources({
-    additionalParams: { type: "viewing" },
   });
   const { statuses: viewingStatuses, isLoading: isStatusesLoading } =
     useStatuses({
@@ -247,25 +248,20 @@ export default function ViewingsPage() {
     }
   }, [meta, page]);
 
-  const leadOptions = useMemo(() => {
-    const options = leads.map((lead) => ({
-      value: lead.id,
-      label:
-        `${lead.customer.firstName} ${lead.customer.lastName || ""}`.trim(),
-    }));
-    const selectedLead = selectedViewing?.lead;
-    if (
-      selectedLead?.customer &&
-      !options.some((option) => option.value === selectedLead.id)
-    ) {
-      options.unshift({
-        value: selectedLead.id,
-        label:
-          `${selectedLead.customer.firstName} ${selectedLead.customer.lastName || ""}`.trim(),
-      });
-    }
-    return options;
-  }, [leads, selectedViewing]);
+  const customerOptions = useMemo(() => {
+    const query = debouncedCustomerSearch.trim().toLocaleLowerCase();
+    return customers
+      .filter((customer) => {
+        if (!query) return true;
+        return `${customer.firstName} ${customer.lastName ?? ""} ${customer.phoneNumber ?? ""}`
+          .toLocaleLowerCase()
+          .includes(query);
+      })
+      .map((customer) => ({
+        value: customer.id,
+        label: `${customer.firstName} ${customer.lastName || ""}`.trim(),
+      }));
+  }, [customers, debouncedCustomerSearch]);
 
   const salesOptions = useMemo(
     () =>
@@ -284,29 +280,14 @@ export default function ViewingsPage() {
 
   const statusOptions = useMemo(
     () =>
-      viewingStatuses.map((status) => ({
+      viewingStatuses.map((status, index) => ({
         value: status.id,
         label: status.name,
+        color:
+          status.color ||
+          FALLBACK_STATUS_COLORS[index % FALLBACK_STATUS_COLORS.length],
       })),
     [viewingStatuses],
-  );
-
-  const unitsOptions = useMemo(
-    () =>
-      locations.map((location) => ({
-        value: location.id,
-        label: location.name,
-      })),
-    [locations],
-  );
-
-  const sourceOptions = useMemo(
-    () =>
-      viewingSources.map((source) => ({
-        value: source.id,
-        label: source.name,
-      })),
-    [viewingSources],
   );
 
   const durationOptions = useMemo(() => {
@@ -328,20 +309,33 @@ export default function ViewingsPage() {
     defaultValues: EMPTY_FORM,
   });
 
+  const addProjectId = addForm.watch("projectId");
+  const editProjectId = editForm.watch("projectId");
+  const { data: addUnits = [], isLoading: isAddUnitsLoading } =
+    useDealUnits(addProjectId);
+  const { data: editUnits = [], isLoading: isEditUnitsLoading } =
+    useDealUnits(editProjectId);
+  const unitOptions = (units: typeof addUnits) =>
+    units.map((unit) => ({
+      value: unit.id,
+      label: `${unit.code} (${unit.variant.name}) - ${unit.typeVariant.name}`,
+    }));
+
   const buildPayload = (data: ViewingFormData) => {
-    const lead = leads.find((item) => item.id === data.leadId);
+    const customer = customers.find((item) => item.id === data.customerId);
     return {
-      leadId: data.leadId,
+      customerId: data.customerId,
       actorId: data.actorId || undefined,
       statusId: data.statusId || undefined,
-      sourceId: data.sourceId || undefined,
-      locationId: data.locationId || undefined,
-      scheduledAt: new Date(data.scheduledAt).toISOString(),
+      unitId: data.unitId,
+      scheduledAt: new Date(
+        `${data.visitDate}T${data.visitTime}`,
+      ).toISOString(),
       durationMinutes: Number(data.durationMinutes),
-      name: lead
-        ? `${lead.customer.firstName} ${lead.customer.lastName || ""}`.trim()
+      name: customer
+        ? `${customer.firstName} ${customer.lastName || ""}`.trim()
         : undefined,
-      email: lead?.customer?.email || undefined,
+      email: customer?.email || undefined,
       notes: data.notes,
     };
   };
@@ -372,12 +366,13 @@ export default function ViewingsPage() {
   const openEditDialog = (viewing: Viewing) => {
     setSelectedViewing(viewing);
     editForm.reset({
-      leadId: viewing.leadId || "",
+      customerId: viewing.customerId,
       actorId: viewing.actorId || "",
       statusId: viewing.statusId || "",
-      sourceId: viewing.sourceId || "",
-      locationId: viewing.location?.id || "",
-      scheduledAt: toLocalInputValue(viewing.scheduledAt),
+      projectId:
+        viewing.unit?.variant.product.id || "",
+      unitId: viewing.unitId || "",
+      ...toLocalDateAndTime(viewing.scheduledAt),
       durationMinutes: String(viewing.durationMinutes ?? DEFAULT_DURATION),
       notes: viewing.notes || "",
     });
@@ -429,6 +424,7 @@ export default function ViewingsPage() {
       <SidebarInset className="w-0 min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-8 !self-center" />
           <div className="flex flex-1 items-center justify-between">
             <Breadcrumb>
               <BreadcrumbList>
@@ -455,7 +451,7 @@ export default function ViewingsPage() {
                 <DialogHeader>
                   <DialogTitle>Add Visit Schedule</DialogTitle>
                   <DialogDescription>
-                    Create a visit plan from existing leads.
+                    Buat jadwal visit untuk customer.
                   </DialogDescription>
                 </DialogHeader>
                 <FormProvider {...addForm}>
@@ -464,16 +460,51 @@ export default function ViewingsPage() {
                     className="grid grid-cols-2 gap-4"
                   >
                     <FormSelect
-                      name="leadId"
-                      label="Nama User"
-                      placeholder="Select lead"
-                      options={leadOptions}
+                      name="customerId"
+                      label="Nama Customer"
+                      required
+                      placeholder="Pilih customer"
+                      options={customerOptions}
                       className="col-span-2"
                       searchable
-                      searchValue={leadSearch}
-                      searchPlaceholder="Search lead name, email, or phone..."
-                      onSearchChange={setLeadSearch}
-                      isLoading={isSearchingLeads}
+                      filterOptionsBySearch
+                      portalInsideDialog
+                      searchValue={customerSearch}
+                      searchPlaceholder="Cari nama atau nomor HP customer..."
+                      onSearchChange={setCustomerSearch}
+                      isLoading={isCustomersLoading}
+                    />
+                    <FormSelect
+                      name="projectId"
+                      label="Proyek"
+                      required
+                      placeholder="Pilih proyek"
+                      options={projectOptions}
+                      className="col-span-1"
+                      searchable
+                      filterOptionsBySearch
+                      portalInsideDialog
+                      disabled={
+                        isProjectsLoading || projectOptions.length === 0
+                      }
+                      onValueChange={() => addForm.setValue("unitId", "")}
+                    />
+                    <FormSelect
+                      name="unitId"
+                      label="Unit"
+                      required
+                      placeholder={
+                        addProjectId
+                          ? "Pilih unit"
+                          : "Pilih proyek terlebih dahulu"
+                      }
+                      options={unitOptions(addUnits)}
+                      className="col-span-1"
+                      searchable
+                      filterOptionsBySearch
+                      portalInsideDialog
+                      disabled={!addProjectId || isAddUnitsLoading}
+                      isLoading={isAddUnitsLoading}
                     />
                     <FormSelect
                       name="actorId"
@@ -481,16 +512,28 @@ export default function ViewingsPage() {
                       placeholder="Select sales"
                       options={salesOptions}
                       className="col-span-1"
+                      searchable
+                      filterOptionsBySearch
+                      portalInsideDialog
                     />
                     <FormInput
-                      name="scheduledAt"
-                      label="Tanggal & Jam Visit"
-                      type="datetime-local"
+                      name="visitDate"
+                      label="Tanggal Visit"
+                      required
+                      type="date"
+                      className="col-span-1"
+                    />
+                    <FormInput
+                      name="visitTime"
+                      label="Jam Visit"
+                      required
+                      type="time"
                       className="col-span-1"
                     />
                     <FormSelect
                       name="durationMinutes"
                       label="Durasi"
+                      required
                       placeholder="Select duration"
                       options={durationOptions}
                       className="col-span-1"
@@ -500,24 +543,20 @@ export default function ViewingsPage() {
                       label="Status"
                       placeholder="Select viewing status"
                       options={statusOptions}
+                      renderOption={(option) => (
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="truncate">{option.label}</span>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {option.color || "#64748B"}
+                          </span>
+                          <span
+                            className="size-3 shrink-0 rounded-full border border-black/10"
+                            style={{ backgroundColor: option.color || "#64748B" }}
+                          />
+                        </span>
+                      )}
                       className="col-span-1"
                       disabled={statusOptions.length === 0}
-                    />
-                    <FormSelect
-                      name="locationId"
-                      label="Units"
-                      placeholder="Select units"
-                      options={unitsOptions}
-                      className="col-span-1"
-                      disabled={unitsOptions.length === 0}
-                    />
-                    <FormSelect
-                      name="sourceId"
-                      label="Source"
-                      placeholder="Select source"
-                      options={sourceOptions}
-                      className="col-span-1"
-                      disabled={sourceOptions.length === 0}
                     />
                     <div className="col-span-2">
                       <FormTextarea
@@ -621,34 +660,77 @@ export default function ViewingsPage() {
             >
               {user?.role === "owner" && (
                 <FormSelect
-                  name="leadId"
-                  label="Lead Name"
-                  placeholder="Select lead"
-                  options={leadOptions}
+                  name="customerId"
+                  label="Nama Customer"
+                  required
+                  placeholder="Pilih customer"
+                  options={customerOptions}
                   className="col-span-2"
                   searchable
-                  searchValue={leadSearch}
-                  searchPlaceholder="Search lead name, email, or phone..."
-                  onSearchChange={setLeadSearch}
-                  isLoading={isSearchingLeads}
+                  filterOptionsBySearch
+                  portalInsideDialog
+                  searchValue={customerSearch}
+                  searchPlaceholder="Cari nama atau nomor HP customer..."
+                  onSearchChange={setCustomerSearch}
+                  isLoading={isCustomersLoading}
                 />
               )}
+              <FormSelect
+                name="projectId"
+                label="Proyek"
+                required
+                placeholder="Pilih proyek"
+                options={projectOptions}
+                className="col-span-1"
+                searchable
+                filterOptionsBySearch
+                portalInsideDialog
+                disabled={isProjectsLoading || projectOptions.length === 0}
+                onValueChange={() => editForm.setValue("unitId", "")}
+              />
+              <FormSelect
+                name="unitId"
+                label="Unit"
+                required
+                placeholder={
+                  editProjectId ? "Pilih unit" : "Pilih proyek terlebih dahulu"
+                }
+                options={unitOptions(editUnits)}
+                className="col-span-1"
+                searchable
+                filterOptionsBySearch
+                portalInsideDialog
+                disabled={!editProjectId || isEditUnitsLoading}
+                isLoading={isEditUnitsLoading}
+              />
               <FormSelect
                 name="actorId"
                 label="PIC Visit"
                 placeholder="Select sales"
                 options={salesOptions}
                 className="col-span-1"
+                searchable
+                filterOptionsBySearch
+                portalInsideDialog
               />
               <FormInput
-                name="scheduledAt"
-                label="Tanggal & Jam Visit"
-                type="datetime-local"
+                name="visitDate"
+                label="Tanggal Visit"
+                required
+                type="date"
+                className="col-span-1"
+              />
+              <FormInput
+                name="visitTime"
+                label="Jam Visit"
+                required
+                type="time"
                 className="col-span-1"
               />
               <FormSelect
                 name="durationMinutes"
                 label="Durasi"
+                required
                 placeholder="Select duration"
                 options={durationOptions}
                 className="col-span-1"
@@ -658,16 +740,20 @@ export default function ViewingsPage() {
                 label="Status"
                 placeholder="Select viewing status"
                 options={statusOptions}
+                renderOption={(option) => (
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{option.label}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {option.color || "#64748B"}
+                    </span>
+                    <span
+                      className="size-3 shrink-0 rounded-full border border-black/10"
+                      style={{ backgroundColor: option.color || "#64748B" }}
+                    />
+                  </span>
+                )}
                 className="col-span-1"
                 disabled={statusOptions.length === 0}
-              />
-              <FormSelect
-                name="sourceId"
-                label="Source"
-                placeholder="Select source"
-                options={sourceOptions}
-                className="col-span-1"
-                disabled={sourceOptions.length === 0}
               />
               <div className="col-span-2">
                 <FormTextarea

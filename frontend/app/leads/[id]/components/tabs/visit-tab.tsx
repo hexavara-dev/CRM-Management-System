@@ -36,7 +36,7 @@ import {
   UploadCloud,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 
 type EvidenceFormData = {
@@ -59,14 +59,9 @@ interface VisitTabProps {
 }
 
 export function VisitTab({ leadId }: VisitTabProps) {
-  const {
-    viewings,
-    isLoading,
-    uploadEvidence,
-    failViewing,
-    isUploadingEvidence,
-    isFailing,
-  } = useViewings();
+  const { uploadEvidence, failViewing, isUploadingEvidence, isFailing } =
+    useViewings();
+  const isLoading = false;
 
   const [selectedViewing, setSelectedViewing] = useState<Viewing | null>(null);
   const [isEvidenceDialogOpen, setIsEvidenceDialogOpen] = useState(false);
@@ -80,17 +75,7 @@ export function VisitTab({ leadId }: VisitTabProps) {
     defaultValues: { reason: "" },
   });
 
-  const leadViewings = useMemo(
-    () =>
-      viewings
-        .filter((viewing) => viewing.leadId === leadId)
-        .sort(
-          (a, b) =>
-            new Date(b.scheduledAt).getTime() -
-            new Date(a.scheduledAt).getTime(),
-        ),
-    [viewings, leadId],
-  );
+  const leadViewings: Viewing[] = [];
 
   const openEvidenceDialog = (viewing: Viewing) => {
     setSelectedViewing(viewing);
@@ -145,8 +130,8 @@ export function VisitTab({ leadId }: VisitTabProps) {
             Visit Schedule
           </h2>
           <p className="text-sm text-muted-foreground">
-            Kelola jadwal visit lead ini. Visit ditandai selesai setelah bukti
-            diunggah.
+            Jadwal visit dikelola dari halaman Visit Schedule. Visit ditandai
+            selesai setelah bukti diunggah.
           </p>
         </div>
       </div>
@@ -163,14 +148,14 @@ export function VisitTab({ leadId }: VisitTabProps) {
             </EmptyMedia>
             <EmptyTitle>Belum ada jadwal visit</EmptyTitle>
             <EmptyDescription>
-              Tambah jadwal visit untuk lead ini dari halaman Viewing / Visit.
+              Tambah jadwal visit dari halaman Visit Schedule.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
         <div className="rounded-lg border bg-background overflow-hidden">
           <Table>
-            <TableHeader className="bg-muted/50">
+            <TableHeader>
               <TableRow>
                 <TableHead>Visit Date</TableHead>
                 <TableHead>PIC Visit</TableHead>

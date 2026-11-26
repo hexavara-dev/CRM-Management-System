@@ -16,16 +16,16 @@ export class ViewingUseCase {
     dto: CreateViewingDTO | UpdateViewingDTO,
     tenantId: string
   ) {
-    const [slot, lead, location, source, actor, status] = await Promise.all([
+    const [slot, customer, location, source, unit, actor, status] = await Promise.all([
       dto.slotId
         ? this.prisma.inventorySlot.findFirst({
             where: { id: dto.slotId, tenantId },
             select: { id: true },
           })
         : undefined,
-      dto.leadId
-        ? this.prisma.lead.findFirst({
-            where: { id: dto.leadId, tenantId, isDeleted: false },
+      dto.customerId
+        ? this.prisma.customer.findFirst({
+            where: { id: dto.customerId, tenantId },
             select: { id: true },
           })
         : undefined,
@@ -41,6 +41,12 @@ export class ViewingUseCase {
             select: { id: true },
           })
         : undefined,
+      dto.unitId
+        ? this.prisma.productUnit.findFirst({
+            where: { id: dto.unitId, tenantId },
+            select: { id: true },
+          })
+        : undefined,
       dto.actorId
         ? this.prisma.user.findFirst({ where: { id: dto.actorId, tenantId }, select: { id: true } })
         : undefined,
@@ -53,9 +59,10 @@ export class ViewingUseCase {
     ]);
 
     if (dto.slotId && !slot) throw new Error('Inventory slot not found');
-    if (dto.leadId && !lead) throw new Error('Lead not found');
+    if (dto.customerId && !customer) throw new Error('Customer not found');
     if (dto.locationId && !location) throw new Error('Location not found');
     if (dto.sourceId && !source) throw new Error('Source not found');
+    if (dto.unitId && !unit) throw new Error('Project unit not found');
     if (dto.actorId && !actor) throw new Error('Actor not found');
     if (dto.statusId && !status) throw new Error('Status not found');
   }
@@ -75,6 +82,7 @@ export class ViewingUseCase {
 
     const data: Prisma.ViewingCreateInput = {
       tenant: { connect: { id: dto.tenantId } },
+      customer: { connect: { id: dto.customerId } },
       scheduledAt: dto.scheduledAt,
     };
 
@@ -83,9 +91,9 @@ export class ViewingUseCase {
     if (dto.notes !== undefined) data.notes = dto.notes;
     if (dto.durationMinutes !== undefined) data.durationMinutes = dto.durationMinutes;
     if (dto.slotId) data.slot = { connect: { id: dto.slotId } };
-    if (dto.leadId) data.lead = { connect: { id: dto.leadId } };
     if (dto.locationId) data.location = { connect: { id: dto.locationId } };
     if (dto.sourceId) data.source = { connect: { id: dto.sourceId } };
+    if (dto.unitId) data.unit = { connect: { id: dto.unitId } };
     if (dto.actorId) data.actor = { connect: { id: dto.actorId } };
 
     if (dto.statusId) {
@@ -103,9 +111,10 @@ export class ViewingUseCase {
       {
         status: true,
         slot: true,
-        lead: { include: { customer: true } },
+        customer: true,
         location: true,
         source: true,
+        unit: { select: { id: true, code: true, name: true, variant: { select: { product: { select: { id: true, name: true, code: true } } } } } },
         actor: {
           select: {
             id: true,
@@ -142,15 +151,10 @@ export class ViewingUseCase {
         include: {
           status: true,
           slot: true,
-          lead: {
-            include: {
-              customer: true,
-              assignedUser: { select: { id: true, name: true } },
-              project: { select: { id: true, name: true, code: true } },
-            },
-          },
+          customer: true,
           location: true,
           source: true,
+          unit: { select: { id: true, code: true, name: true, variant: { select: { product: { select: { id: true, name: true, code: true } } } } } },
           actor: {
             select: {
               id: true,
@@ -200,14 +204,16 @@ export class ViewingUseCase {
     if (dto.slotId) data.slot = { connect: { id: dto.slotId } };
     else if (dto.slotId === null) data.slot = { disconnect: true };
 
-    if (dto.leadId) data.lead = { connect: { id: dto.leadId } };
-    else if (dto.leadId === null) data.lead = { disconnect: true };
+    if (dto.customerId) data.customer = { connect: { id: dto.customerId } };
 
     if (dto.locationId) data.location = { connect: { id: dto.locationId } };
     else if (dto.locationId === null) data.location = { disconnect: true };
 
     if (dto.sourceId) data.source = { connect: { id: dto.sourceId } };
     else if (dto.sourceId === null) data.source = { disconnect: true };
+
+    if (dto.unitId) data.unit = { connect: { id: dto.unitId } };
+    else if (dto.unitId === null) data.unit = { disconnect: true };
 
     if (dto.actorId) data.actor = { connect: { id: dto.actorId } };
     else if (dto.actorId === null) data.actor = { disconnect: true };

@@ -48,7 +48,12 @@ const FormTextarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         rules={validation}
         render={({ field }) => (
           <div className="w-full">
-            {label && <LabelText className={labelClassname}>{label}</LabelText>}
+            {label && (
+              <LabelText className={labelClassname}>
+                {label}
+                {props.required && <span className="ml-1 text-destructive">*</span>}
+              </LabelText>
+            )}
             <textarea
               {...field}
               className={cn(

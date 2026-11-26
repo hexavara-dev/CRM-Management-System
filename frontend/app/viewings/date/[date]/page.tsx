@@ -1,6 +1,7 @@
 "use client";
 
 import { AppSidebar } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
 import Typography from "@/components/Typography";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,15 +67,11 @@ export default function ViewingDateDetailPage() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <div className="flex flex-1 items-center justify-between">
-            <h1 className="text-lg font-semibold">Detail Visit</h1>
-            <Button asChild variant="outline">
-              <Link href="/viewings">Kembali ke Calendar</Link>
-            </Button>
-          </div>
-        </header>
+        <PageHeader
+          title="Detail Visit"
+          breadcrumbs={["Leads Management", "Visit Schedule Leads", "Detail Visit"]}
+          actions={<Button asChild variant="outline"><Link href="/viewings">Kembali ke Calendar</Link></Button>}
+        />
 
         <div className="p-4">
           <Card>
@@ -97,12 +94,11 @@ export default function ViewingDateDetailPage() {
                     >
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-1">
-                          <Link
-                            href={`/leads/${item.leadId}`}
-                            className="font-medium text-blue-700 hover:underline"
-                          >
-                            {item.name || "Unnamed Lead"}
-                          </Link>
+                          <p className="font-medium text-slate-900">
+                            {item.customer
+                              ? `${item.customer.firstName} ${item.customer.lastName ?? ""}`.trim()
+                              : item.name || "Customer tidak tersedia"}
+                          </p>
                           <div className="flex items-center gap-2 text-sm text-slate-600">
                             <span className="inline-flex items-center gap-1">
                               <Calendar className="h-3.5 w-3.5" />

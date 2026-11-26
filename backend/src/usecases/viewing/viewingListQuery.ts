@@ -14,7 +14,7 @@ type ViewingSortField = (typeof VIEWING_SORT_FIELDS)[number];
 const SORT_ORDERS = ['asc', 'desc'] as const;
 type SortOrder = (typeof SORT_ORDERS)[number];
 
-const DIRECT_FILTERS = ['statusId', 'leadId', 'sourceId', 'locationId', 'actorId'] as const;
+const DIRECT_FILTERS = ['statusId', 'customerId', 'sourceId', 'locationId', 'actorId'] as const;
 const MAX_SEARCH_LENGTH = 100;
 
 function readString(query: Record<string, unknown>, key: string): string | undefined {
@@ -51,11 +51,11 @@ function sortClause(
 ): Prisma.ViewingOrderByWithRelationInput {
   switch (field) {
     case 'customerName':
-      return { lead: { customer: { firstName: order } } };
+      return { customer: { firstName: order } };
     case 'phone':
-      return { lead: { customer: { phoneNumber: order } } };
+      return { customer: { phoneNumber: order } };
     case 'sales':
-      return { lead: { assignedUser: { name: order } } };
+      return { actor: { name: order } };
     case 'status':
       return { status: { name: order } };
     default:
@@ -87,10 +87,10 @@ export function buildViewingListQuery(
   }
 
   const projectId = readString(query, 'projectId');
-  if (projectId !== undefined) and.push({ lead: { projectId } });
+  if (projectId !== undefined) and.push({ unit: { variant: { productId: projectId } } });
 
   const assignedUserId = readString(query, 'assignedUserId');
-  if (assignedUserId !== undefined) and.push({ lead: { assignedUserId } });
+  if (assignedUserId !== undefined) and.push({ actorId: assignedUserId });
 
   const search = readString(query, 'search')?.trim();
   if (search) {
@@ -101,11 +101,11 @@ export function buildViewingListQuery(
     and.push({
       OR: [
         { name: contains },
-        { lead: { customer: { firstName: contains } } },
-        { lead: { customer: { lastName: contains } } },
-        { lead: { customer: { phoneNumber: contains } } },
-        { lead: { assignedUser: { name: contains } } },
-        { lead: { project: { name: contains } } },
+        { customer: { firstName: contains } },
+        { customer: { lastName: contains } },
+        { customer: { phoneNumber: contains } },
+        { actor: { name: contains } },
+        { unit: { variant: { product: { name: contains } } } },
       ],
     });
   }
@@ -124,7 +124,7 @@ export function buildViewingListQuery(
 
   if (actor && actor.role !== 'owner') {
     // An empty id must never widen access: Prisma ignores an undefined filter value.
-    and.push(actor.userId ? { lead: { assignedUserId: actor.userId } } : { id: { in: [] } });
+    and.push(actor.userId ? { actorId: actor.userId } : { id: { in: [] } });
   }
 
   if (and.length > 0) where.AND = and;

@@ -1,9 +1,10 @@
 export interface CreateViewingDTO {
   tenantId: string;
   slotId?: string;
-  leadId?: string;
+  customerId: string;
   locationId?: string;
   sourceId?: string;
+  unitId?: string;
   statusId?: string;
   name?: string;
   email?: string;
@@ -15,9 +16,10 @@ export interface CreateViewingDTO {
 
 export interface UpdateViewingDTO {
   slotId?: string;
-  leadId?: string;
+  customerId?: string;
   locationId?: string;
   sourceId?: string;
+  unitId?: string;
   statusId?: string;
   name?: string;
   email?: string;

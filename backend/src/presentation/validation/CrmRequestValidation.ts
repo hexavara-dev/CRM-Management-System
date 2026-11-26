@@ -74,7 +74,7 @@ const leadUpdateRules: Record<string, FieldRule> = {
 };
 
 const dealRules: Record<string, FieldRule> = {
-  leadId: id(true),
+  customerId: id(),
   assignedUserId: id(true),
   stageId: id(true),
   statusId: id(true),
@@ -96,9 +96,10 @@ const dealRules: Record<string, FieldRule> = {
 
 const viewingRules: Record<string, FieldRule> = {
   slotId: id(true),
-  leadId: id(true),
+  customerId: { ...id(), required: true, allowEmpty: false },
   locationId: id(true),
   sourceId: id(true),
+  unitId: id(true),
   statusId: id(true),
   actorId: id(true),
   name: optionalText(150, true),
