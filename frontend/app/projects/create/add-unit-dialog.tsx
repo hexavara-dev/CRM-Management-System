@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useRef, useState } from "react";
-import { Home, MapPin, Minus, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, Home, MapPin, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -59,12 +59,28 @@ export function AddUnitDialog({
   };
   const [rows, setRows] = useState<UnitRow[]>(() => firstAvailable ? makeRows(1, firstAvailable.type.name, firstAvailable.variant.key, firstAvailable.variant.name) : []);
   const [search, setSearch] = useState("");
+  // Hanya tipe varian aktif yang terbuka di awal agar daftar tidak memanjang.
+  const [openTypes, setOpenTypes] = useState<Set<string>>(
+    () => new Set(options.filter(({ variant }) => variant.key === activeVariant).map(({ type }) => type.name)),
+  );
+  const toggleType = (name: string) =>
+    setOpenTypes((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
   const [error, setError] = useState<ReactNode | null>(null);
   // Jumlah kolom per klik "Add Column Unit"; string supaya kotak boleh kosong sementara diketik.
   const [countInput, setCountInput] = useState("1");
 
   const update = (i: number, patch: Partial<UnitRow>) => setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  const removeRow = (i: number) => setRows((rs) => rs.filter((_, idx) => idx !== i));
+  // Varian baris yang dihapus dipilih lagi, agar slotnya langsung bisa ditambahkan kembali.
+  const removeRow = (i: number) => {
+    const removed = rows[i];
+    if (removed) setActiveVariant(removed.typeVariantKey);
+    setRows((rs) => rs.filter((_, idx) => idx !== i));
+  };
   // Tambah `addCount` baris sekaligus untuk type aktif; addCount sudah dibatasi sisa slot (lihat clampAddCount).
   const addRows = () => {
     if (addCount < 1) return;
@@ -176,15 +192,38 @@ export function AddUnitDialog({
                   />
                 </div>
               </div>
-              <div className="max-h-56 min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4 md:max-h-none">
+              <div className="max-h-56 min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-4 md:max-h-none">
                 {typeGroups.length === 0 && (
                   <p className="py-6 text-center text-sm text-[#6b6b6b]">
                     {options.length === 0 ? "Belum ada unit type. Tambahkan dulu di step 2." : "Tidak ada yang cocok."}
                   </p>
                 )}
-                {typeGroups.map(({ type, variants }) => (
+                {typeGroups.map(({ type, left: typeLeft, variants }) => {
+                  // Saat mencari, semua tipe yang cocok terbuka.
+                  const open = !!query || openTypes.has(type.name);
+                  const typeAdding = type.variants.reduce((sum, variant) => sum + addingOf(variant.key), 0);
+                  const hasActive = variants.some((variant) => variant.key === activeVariant);
+                  return (
                   <div key={type.name} className="space-y-1.5">
-                    <p className="text-xs font-medium text-[#6b6b6b]">{type.name}</p>
+                    <button
+                      type="button"
+                      aria-expanded={open}
+                      onClick={() => toggleType(type.name)}
+                      className={cn(
+                        "flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition hover:bg-[#EEF0F3]",
+                        hasActive && !open && "bg-[#E8F3FA]",
+                      )}
+                    >
+                      <ChevronDown className={cn("size-4 shrink-0 text-[#6b6b6b] transition-transform", !open && "-rotate-90")} />
+                      <span className="min-w-0 flex-1 break-words text-sm font-medium text-[#1f1f1f]">{type.name}</span>
+                      {typeAdding > 0 && <span className="shrink-0 text-xs text-[#1E9E55]">+{typeAdding}</span>}
+                      <span className={cn("shrink-0 text-xs", typeLeft > 0 ? "text-[#1E9E55]" : "text-[#9CA3AF]")}>
+                        {typeLeft > 0 ? `${typeLeft} slot` : "Habis"}
+                      </span>
+                    </button>
+                    {open && (
+                    // Garis dan indentasi menandai varian sebagai isi tipe di atasnya.
+                    <div className="ml-[15px] space-y-1.5 border-l-2 border-[#D9DEE5] pl-5">
                     {variants.map((variant) => {
                       const active = variant.key === activeVariant;
                       const left = leftOf(variant.key);
@@ -194,10 +233,14 @@ export function AddUnitDialog({
                           key={variant.key}
                           type="button"
                           aria-pressed={active}
+                          // Varian habis tanpa unit di daftar tidak dapat dipilih karena tidak ada yang bisa ditambah.
+                          disabled={!left && !adding && !active}
                           onClick={() => setActiveVariant(variant.key)}
                           className={cn(
                             "flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left transition",
-                            active ? "border-[#1980C0] bg-[#E8F3FA]" : "border-[#E4E4E7] bg-white hover:border-[#1980C0]",
+                            active
+                              ? "border-[#1980C0] bg-[#E8F3FA]"
+                              : "border-[#E4E4E7] bg-white enabled:hover:border-[#1980C0] disabled:cursor-not-allowed",
                           )}
                         >
                           <span className="min-w-0">
@@ -217,8 +260,11 @@ export function AddUnitDialog({
                         </button>
                       );
                     })}
+                    </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </aside>
 
