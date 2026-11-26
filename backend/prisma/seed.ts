@@ -5,7 +5,7 @@ import { AuthUseCases } from '../src/usecases/auth/AuthUseCases.js';
 import { seedReservationData } from './seed/reservationSeed.js';
 import { seedAttributeCatalog } from './seed/attributeCatalog.js';
 import { seedViewingSchedule } from './seed/viewingScheduleSeed.js';
-import { seedDealsData } from './seed/dealsSeed.js';
+import { seedDealForm, seedDealsData } from './seed/dealsSeed.js';
 import { seedCompleteLeadData } from './seed/completeLeadData.js';
 import { seedDashboardDemo } from './seed/dashboardDemoSeed.js';
 
@@ -85,7 +85,8 @@ async function main() {
   await seedAttributeCatalog(prisma, owner!.tenantId);
   await seedReservationData(prisma, owner!.tenantId, salesUsers);
   await seedViewingSchedule(prisma, owner!.tenantId, salesUsers);
-  await seedDealsData(prisma, owner!.tenantId, salesUsers);
+  const dealFormSeed = await seedDealForm(prisma, owner!.tenantId);
+  await seedDealsData(prisma, owner!.tenantId, salesUsers, dealFormSeed);
   await seedCompleteLeadData(prisma, owner!.tenantId, salesUsers);
   await seedDashboardDemo(prisma, owner!.tenantId, salesUsers);
 }

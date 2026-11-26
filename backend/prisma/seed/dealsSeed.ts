@@ -113,21 +113,46 @@ async function seedDealStatuses(prisma: PrismaClient, tenantId: string) {
   return statuses;
 }
 
-/** Seed demo Deal yang terhubung ke Customer, Lead, Unit, Project, Sales, dan aktivitas terakhir. */
-export async function seedDealsData(prisma: PrismaClient, tenantId: string, salesUsers: SeedSalesUser[]) {
-  if (salesUsers.length === 0) throw new Error('At least one sales user is required for Deal seed data.');
+export type DealFormSeed = {
+  financingBanks: Map<string, string>;
+  stages: Awaited<ReturnType<typeof seedDefaultDealPipeline>>;
+  statuses: Map<string, { id: string }>;
+};
 
-  const financingBanks = await seedFinancingBanks(prisma, tenantId);
-  const [stages, units, statuses] = await Promise.all([
+/**
+ * Seed dependency yang dibaca form Tambah Deal.
+ *
+ * Field form-nya sendiri masih hard-coded di frontend. Evidence/dokumen tidak
+ * dibuat di sini agar konfigurasi owner yang sudah ada tidak tertimpa.
+ */
+export async function seedDealForm(prisma: PrismaClient, tenantId: string): Promise<DealFormSeed> {
+  const [financingBanks, stages, statuses] = await Promise.all([
+    seedFinancingBanks(prisma, tenantId),
     seedDefaultDealPipeline(prisma, tenantId),
-    prisma.productUnit.findMany({
-      where: { tenantId, status: 'AVAILABLE' },
-      orderBy: { code: 'asc' },
-      take: dealDefinitions.length,
-      select: { id: true },
-    }),
     seedDealStatuses(prisma, tenantId),
   ]);
+
+  console.log(`Seeded Add Deal form dependencies for tenant ${tenantId}.`);
+  return { financingBanks, stages, statuses };
+}
+
+/** Seed demo Deal yang terhubung ke Customer, Lead, Unit, Project, Sales, dan aktivitas terakhir. */
+export async function seedDealsData(
+  prisma: PrismaClient,
+  tenantId: string,
+  salesUsers: SeedSalesUser[],
+  formSeed?: DealFormSeed,
+) {
+  if (salesUsers.length === 0) throw new Error('At least one sales user is required for Deal seed data.');
+
+  const seededForm = formSeed ?? await seedDealForm(prisma, tenantId);
+  const { financingBanks, stages, statuses } = seededForm;
+  const units = await prisma.productUnit.findMany({
+    where: { tenantId, status: 'AVAILABLE' },
+    orderBy: { code: 'asc' },
+    take: dealDefinitions.length,
+    select: { id: true },
+  });
 
   if (stages.length < defaultDealStages.length) {
     throw new Error('At least four active Deal pipeline stages are required for Deal demo data.');
