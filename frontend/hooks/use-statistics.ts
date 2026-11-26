@@ -35,7 +35,7 @@ export interface Statistics {
     scheduledAt: string;
     durationMinutes: number;
     name: string | null;
-    lead: { customer: { firstName: string; lastName: string | null } };
+    customer: { firstName: string; lastName: string | null };
     location: { name: string } | null;
   }[];
   availability: {

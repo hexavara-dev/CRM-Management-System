@@ -544,7 +544,7 @@ export default function DashboardPage() {
                             </b>
                             <span className="block truncate text-xs text-slate-500">
                               {visit.name ||
-                                `${visit.lead?.customer?.firstName || "Customer"} ${visit.lead?.customer?.lastName || ""}`} {" "}
+                                `${visit.customer?.firstName || "Customer"} ${visit.customer?.lastName || ""}`} {" "}
                               {visit.location ? `• ${visit.location.name}` : ""}
                             </span>
                           </span>

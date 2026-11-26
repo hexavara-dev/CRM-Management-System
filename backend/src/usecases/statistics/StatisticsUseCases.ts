@@ -306,7 +306,7 @@ export class StatisticsUseCases {
             scheduledAt: true,
             durationMinutes: true,
             name: true,
-            lead: { select: { customer: { select: { firstName: true, lastName: true } } } },
+            customer: { select: { firstName: true, lastName: true } },
             location: { select: { name: true } },
           },
         }),
