@@ -197,7 +197,6 @@ model Customer {
   dealActivities   DealActivity[]
   leads            Lead[]
   leadActivities   LeadActivity[]
-  viewings         Viewing[]
 
   @@map("customer")
 }
@@ -234,6 +233,7 @@ model Lead {
   tenant         Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   activities     LeadActivity[]
   items          LeadItem[]
+  viewings       Viewing[]
   attachments    Attachment[]
   locationId     String?        @map("location_id") @db.VarChar(36)
   location       Location?      @relation(fields: [locationId], references: [id])
@@ -665,11 +665,10 @@ model Viewing {
   id          String         @id @default(uuid()) @db.VarChar(36)
   tenantId    String         @map("company_id") @db.VarChar(36)
   slotId      String?        @map("slot_id") @db.VarChar(36)
-  customerId  String         @map("customer_id") @db.VarChar(36)
+  leadId      String?        @map("lead_id") @db.VarChar(36)
   locationId  String?        @map("location_id") @db.VarChar(36)
   statusId    String?        @map("status_id") @db.VarChar(36)
   sourceId    String?        @map("source_id") @db.VarChar(36)
-  unitId      String?        @map("unit_id") @db.VarChar(36)
   name        String?        @db.VarChar(150)
   email       String?        @db.VarChar(255)
   scheduledAt DateTime       @map("scheduled_at") @db.DateTime(6)
@@ -679,13 +678,12 @@ model Viewing {
   notes       String?
   createdAt   DateTime       @default(now()) @map("created_at") @db.DateTime(6)
   actor       User?          @relation("ActorViewings", fields: [actorId], references: [id])
-  customer    Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  lead        Lead?          @relation(fields: [leadId], references: [id])
   slot        InventorySlot? @relation(fields: [slotId], references: [id], onDelete: Cascade)
   tenant      Company        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   status      Status?        @relation(fields: [statusId], references: [id])
   location    Location?      @relation(fields: [locationId], references: [id])
   source      Source?        @relation(fields: [sourceId], references: [id])
-  unit        ProductUnit?   @relation("UnitViewings", fields: [unitId], references: [id], onDelete: SetNull)
   attachments Attachment[]
 
   @@map("viewing")
@@ -1015,7 +1013,6 @@ model ProductUnit {
   priceAdjustments UnitPriceAdjustment[]
   reservations     Reservation[]
   deals            Deal[]
-  viewings         Viewing[]        @relation("UnitViewings")
 
   /// Nomor unit boleh sama di lokasi lain, baik di proyek yang sama maupun berbeda.
   @@unique([categoryId, code])
