@@ -42,6 +42,7 @@ type InputSelectProps = {
   searchValue?: string;
   searchPlaceholder?: string;
   onSearchChange?: (value: string) => void;
+  onValueChange?: (value: string) => void;
 } & React.HTMLAttributes<HTMLSelectElement>;
 
 export default function FormSelect({
@@ -60,6 +61,7 @@ export default function FormSelect({
   searchValue,
   searchPlaceholder = "Search...",
   onSearchChange,
+  onValueChange,
 }: InputSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [internalSearch, setInternalSearch] = useState("");
@@ -147,6 +149,7 @@ export default function FormSelect({
                           className="w-full rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
                           onClick={() => {
                             field.onChange(option.value);
+                            onValueChange?.(option.value);
                             setIsOpen(false);
                             if (filterOptionsBySearch) setInternalSearch("");
                           }}
@@ -165,7 +168,10 @@ export default function FormSelect({
             ) : (
               <Select
                 disabled={disabled || isLoading}
-                onValueChange={field.onChange}
+                onValueChange={(value) => {
+                  field.onChange(value);
+                  onValueChange?.(value);
+                }}
                 value={field.value}
               >
                 <SelectTrigger
