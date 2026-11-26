@@ -521,11 +521,18 @@ export default function DealDetailPage() {
                 }}
               >
                 <option value="">Pilih project</option>
-                {(projects?.data ?? []).map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
+                {(projects?.data ?? [])
+                  // Project nonaktif tidak dijual; project unit Deal saat ini tetap tampil.
+                  .filter(
+                    (project) =>
+                      project.isActive ||
+                      project.id === deal.unit?.variant.product.id,
+                  )
+                  .map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -559,10 +566,11 @@ export default function DealDetailPage() {
                       unit.status === "AVAILABLE" || unit.id === deal.unitId,
                   )
                   .map((unit) => (
-                  <option key={unit.id} value={unit.id}>
-                    {unit.code} — {unit.variant.name} / {unit.typeVariant.name}
-                  </option>
-                ))}
+                    <option key={unit.id} value={unit.id}>
+                      {unit.code} — {unit.variant.name} /{" "}
+                      {unit.typeVariant.name}
+                    </option>
+                  ))}
               </select>
             </div>
             <div className="space-y-1.5">

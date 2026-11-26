@@ -63,6 +63,18 @@ export async function syncDealUnit(tx: Tx, tenantId: string, before: DealUnitSta
   }
 }
 
+/** Unit dari project nonaktif tidak dijual, jadi tidak boleh dipilih untuk Deal. */
+export async function assertUnitSellable(tx: Tx, tenantId: string, unitId: string) {
+  const unit = await tx.productUnit.findFirst({
+    where: { id: unitId, tenantId },
+    select: { code: true, variant: { select: { product: { select: { name: true, isActive: true } } } } },
+  });
+  if (!unit) throw new Error('Unit not found');
+  if (!unit.variant.product.isActive) {
+    throw new Error(`Invalid unit: project ${unit.variant.product.name} sedang nonaktif, unit ${unit.code} tidak dapat dipilih untuk deal.`);
+  }
+}
+
 /** Harga Deal minimal harga jual resmi unit hari ini. */
 export async function assertDealPrice(tx: Tx, tenantId: string, unitId: string, amount: number) {
   const unit = await tx.productUnit.findFirst({

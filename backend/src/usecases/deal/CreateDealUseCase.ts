@@ -4,7 +4,7 @@ import { localStorage } from '../../infrastructure/storage/localStorage.js';
 import { toDateValue, todayInPriceZone } from '../pricing/priceRules.js';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 import { checkDealDocuments, type DealDocumentInput } from './dealDocuments.js';
-import { assertDealPrice } from './dealUnit.js';
+import { assertDealPrice, assertUnitSellable } from './dealUnit.js';
 
 export type CreateDealInput = {
   leadId: string;
@@ -139,6 +139,7 @@ export class CreateDealUseCase {
         });
         if (claimedLead.count !== 1 || (await tx.deal.count({ where: { tenantId, leadId: lead.id } })) > 0) throw new Error('Lead already converted or archived (conflict)');
 
+        await assertUnitSellable(tx, tenantId, input.unitId);
         await assertDealPrice(tx, tenantId, input.unitId, input.amount);
         const claimedUnit = await tx.productUnit.updateMany({
           where: { id: input.unitId, tenantId, status: 'AVAILABLE' },

@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
-import { assertDealPrice, lockDeal, syncDealUnit } from './dealUnit.js';
+import { assertDealPrice, assertUnitSellable, lockDeal, syncDealUnit } from './dealUnit.js';
 import type { IRepository } from '../../domain/repositories/IRepository.js';
 import type { CreateDealDTO, UpdateDealDTO } from '../../presentation/dtos/DealDTO.js';
 
@@ -88,6 +88,8 @@ export class DealUseCases {
     return this.prisma.$transaction(async (tx) => {
       const current = await lockDeal(tx, id, tenantId);
       const updated = await tx.deal.update({ where: { id }, data, include: DEAL_INCLUDE });
+      // Unit yang sudah terpasang tetap sah meski project-nya kemudian dinonaktifkan; hanya unit baru yang dicek.
+      if (updated.unitId && updated.unitId !== current.unitId) await assertUnitSellable(tx, tenantId, updated.unitId);
       // Harga yang sudah disepakati tetap berlaku; diperiksa hanya bila harga atau unit berubah.
       if (current.unitClaimed && updated.unitId &&
         (updated.unitId !== current.unitId || Number(updated.amount ?? 0) !== Number(current.amount ?? 0))) {

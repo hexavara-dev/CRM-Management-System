@@ -58,7 +58,7 @@ function setup(over: Record<string, unknown> = {}) {
     lead: { updateMany: fn({ count: 1 }) },
     productUnit: {
       updateMany: fn({ count: 1 }),
-      findFirst: fn({ id: 'u', code: 'A-01', categoryId: 'c', typeVariantId: 'tv', typeVariant: { basePrice: 500n } }),
+      findFirst: fn({ id: 'u', code: 'A-01', categoryId: 'c', typeVariantId: 'tv', typeVariant: { basePrice: 500n }, variant: { product: { name: 'Griya', isActive: over.projectActive ?? true } } }),
     },
     productCategory: { findMany: fn([]) },
     productVariantPriceLog: { findMany: fn([]) },
@@ -82,6 +82,12 @@ describe('deal updates', () => {
     expect(tx.productUnit.updateMany).toHaveBeenCalledTimes(2);
     const low = setup({ amount: 400 });
     await expect(low.useCases.updateDeal('d-1', { unitId: 'u-2' }, 't-1')).rejects.toThrow(/tidak boleh lebih rendah/);
+  });
+
+  it('rejects moving to a unit of an inactive project', async () => {
+    const { tx, useCases } = setup({ projectActive: false });
+    await expect(useCases.updateDeal('d-1', { unitId: 'u-2' }, 't-1')).rejects.toThrow(/Invalid unit: project Griya sedang nonaktif/);
+    expect(tx.productUnit.updateMany).not.toHaveBeenCalled();
   });
 
   it('keeps an agreed price but checks a new one', async () => {

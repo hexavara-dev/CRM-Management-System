@@ -19,7 +19,7 @@ function setup(over: { lead?: unknown; stage?: unknown; leadClaim?: number; deal
   const tx = {
     lead: { updateMany: fn({ count: over.leadClaim ?? 1 }) },
     productUnit: {
-      findFirst: fn('unit' in over ? over.unit : { id: 'u-1', code: 'A-01', categoryId: 'c', typeVariantId: 'tv', typeVariant: { basePrice: 500n } }),
+      findFirst: fn('unit' in over ? over.unit : { id: 'u-1', code: 'A-01', categoryId: 'c', typeVariantId: 'tv', typeVariant: { basePrice: 500n }, variant: { product: { name: 'Griya', isActive: true } } }),
       updateMany: fn({ count: over.unitClaim ?? 1 }),
     },
     productCategory: { findMany: fn([]) },
@@ -72,6 +72,7 @@ describe('CreateDealUseCase', () => {
     ['lead with an older deal', { deals: 1 }, {}, /already converted/],
     ['unit already taken', { unitClaim: 0 }, {}, /Unit is not available/],
     ['unit of another tenant', { unit: null }, {}, /Unit not found/],
+    ['unit of an inactive project', { unit: { code: 'A-01', variant: { product: { name: 'Griya', isActive: false } } } }, {}, /Invalid unit: project Griya sedang nonaktif/],
     ['price below the official price', {}, { amount: 499 }, /tidak boleh lebih rendah/],
   ])('removes uploaded files when the transaction fails: %s', async (_name, over, change, message) => {
     const { tx, storage, useCase } = setup(over);
