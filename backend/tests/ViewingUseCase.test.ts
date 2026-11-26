@@ -55,12 +55,19 @@ describe('ViewingUseCase getAllViewings', () => {
     expect(args.take).toBe(10);
     expect(args.where.tenantId).toBe('t1');
     expect(args.where.AND).toEqual(
-      expect.arrayContaining([{ lead: { projectId: 'p1' } }, { lead: { assignedUserId: 'u1' } }])
+      expect.arrayContaining([{ unit: { variant: { productId: 'p1' } } }, { actorId: 'u1' }])
     );
-    expect(args.orderBy[0]).toEqual({ lead: { customer: { phoneNumber: 'asc' } } });
-    expect(args.include.lead.include.assignedUser).toEqual({ select: { id: true, name: true } });
-    expect(args.include.lead.include.project).toEqual({
-      select: { id: true, name: true, code: true },
+    expect(args.orderBy[0]).toEqual({ customer: { phoneNumber: 'asc' } });
+    expect(args.include.actor).toEqual({
+      select: { id: true, name: true, email: true, role: true, createdAt: true },
+    });
+    expect(args.include.unit).toEqual({
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        variant: { select: { product: { select: { id: true, name: true, code: true } } } },
+      },
     });
     expect(viewingRepository.count).toHaveBeenCalledWith(args.where);
     expect(result.meta).toEqual({ total: 25, page: 2, limit: 10, totalPages: 3 });

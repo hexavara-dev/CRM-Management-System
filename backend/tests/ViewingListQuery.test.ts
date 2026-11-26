@@ -14,24 +14,24 @@ describe('buildViewingListQuery', () => {
     expect(JSON.stringify(where)).not.toContain('other');
   });
 
-  it('keeps project and sales filters as separate lead conditions', () => {
+  it('keeps project and sales filters as separate viewing conditions', () => {
     const { where } = buildViewingListQuery('t1', { projectId: 'p1', assignedUserId: 'u1' });
     expect(where.AND).toEqual(
-      expect.arrayContaining([{ lead: { projectId: 'p1' } }, { lead: { assignedUserId: 'u1' } }])
+      expect.arrayContaining([{ unit: { variant: { productId: 'p1' } } }, { actorId: 'u1' }])
     );
   });
 
-  it('applies direct filters for status and the legacy lead, source, location, actor ids', () => {
+  it('applies direct filters for status, customer, source, location, and actor ids', () => {
     const { where } = buildViewingListQuery('t1', {
       statusId: 's1',
-      leadId: 'l1',
+      customerId: 'c1',
       sourceId: 'so1',
       locationId: 'lo1',
       actorId: 'a1',
     });
     expect(where).toMatchObject({
       statusId: 's1',
-      leadId: 'l1',
+      customerId: 'c1',
       sourceId: 'so1',
       locationId: 'lo1',
       actorId: 'a1',
@@ -53,12 +53,12 @@ describe('buildViewingListQuery', () => {
   it('maps whitelisted sort fields to Prisma ordering with a stable tiebreaker', () => {
     expect(
       buildViewingListQuery('t1', { sortBy: 'customerName', sortOrder: 'asc' }).orderBy
-    ).toEqual([{ lead: { customer: { firstName: 'asc' } } }, { id: 'asc' }]);
+    ).toEqual([{ customer: { firstName: 'asc' } }, { id: 'asc' }]);
     expect(buildViewingListQuery('t1', { sortBy: 'phone' }).orderBy[0]).toEqual({
-      lead: { customer: { phoneNumber: 'desc' } },
+      customer: { phoneNumber: 'desc' },
     });
     expect(buildViewingListQuery('t1', { sortBy: 'sales', sortOrder: 'asc' }).orderBy[0]).toEqual({
-      lead: { assignedUser: { name: 'asc' } },
+      actor: { name: 'asc' },
     });
     expect(buildViewingListQuery('t1', { sortBy: 'status', sortOrder: 'asc' }).orderBy[0]).toEqual({
       status: { name: 'asc' },
@@ -115,10 +115,10 @@ describe('buildViewingListQuery', () => {
     expect(JSON.stringify(where)).not.toContain('undefined');
   });
 
-  it('limits non-owners to visits of their own assigned leads', () => {
+  it('limits non-owners to visits assigned to their actor id', () => {
     const member = buildViewingListQuery('t1', {}, { userId: 'u9', role: 'member' });
     expect(member.where.AND).toEqual(
-      expect.arrayContaining([{ lead: { assignedUserId: 'u9' } }])
+      expect.arrayContaining([{ actorId: 'u9' }])
     );
     const owner = buildViewingListQuery('t1', {}, { userId: 'u1', role: 'owner' });
     expect(JSON.stringify(owner.where)).not.toContain('assignedUserId');

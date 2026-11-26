@@ -41,17 +41,17 @@ describe('request validation', () => {
 
   it('converts valid dates and rejects invalid dates', () => {
     const result = validateViewingCreate({
-      leadId: 'lead-1',
+      customerId: 'customer-1',
       scheduledAt: '2026-10-28T10:00:00.000Z',
     });
     expect(result.scheduledAt).toBeInstanceOf(Date);
     expect(() =>
-      validateViewingCreate({ leadId: 'lead-1', scheduledAt: 'not-a-date' })
+      validateViewingCreate({ customerId: 'customer-1', scheduledAt: 'not-a-date' })
     ).toThrow('scheduledAt must be a valid date');
   });
 
   it('accepts a viewing durationMinutes between 15 and 480 whole minutes', () => {
-    const base = { leadId: 'lead-1', scheduledAt: '2026-11-16T10:00:00.000Z' };
+    const base = { customerId: 'customer-1', scheduledAt: '2026-11-16T10:00:00.000Z' };
     expect(validateViewingCreate({ ...base, durationMinutes: 90 }).durationMinutes).toBe(90);
     expect(validateViewingUpdate({ durationMinutes: 30 }).durationMinutes).toBe(30);
     for (const invalid of [10, 500, 60.5]) {
