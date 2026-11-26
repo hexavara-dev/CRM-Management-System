@@ -12,6 +12,7 @@
     "db:push:dev": "dotenv -e .env -- npx prisma db push",
     "db:push:prod": "dotenv -e .env.prod -- npx prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:deal-form": "node dist/scripts/seed-deal-form.js",
     "db:seed:projects": "tsx prisma/seed-realistic-projects.ts",
     "db:seed:visit-schedule": "tsx prisma/seed-visit-schedule.ts",
     "db:seed:lead-archive": "tsx prisma/seed-lead-archive.ts",
