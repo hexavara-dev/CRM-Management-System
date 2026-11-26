@@ -39,7 +39,7 @@ const GENERIC_UNIQUE = 'A record with the same unique value already exists.';
 function uniqueViolationMessage(meta: { modelName?: unknown } | undefined): string {
   switch (meta?.modelName) {
     case 'ProductUnit':
-      return 'Kode unit sudah dipakai. Kode unit harus unik di semua proyek (termasuk proyek lain), gunakan kode unit yang berbeda.';
+      return 'Kode unit sudah dipakai di lokasi yang sama. Gunakan kode unit yang berbeda di blok atau lantai tersebut.';
     case 'ProductCategory':
     case 'Product':
       return 'Kode proyek sudah dipakai (atau kode lokasi cluster/blok yang dibuat dari kode proyek), termasuk oleh proyek yang sudah dihapus. Gunakan kode proyek yang berbeda.';

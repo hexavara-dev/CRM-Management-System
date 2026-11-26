@@ -74,7 +74,8 @@ export default function PricingPage() {
   const options = usePriceFilterOptions(productId);
 
   /**
-   * Lokasi di bawah project terpilih, dipisah menjadi Cluster/Zona dan Blok.
+   * Lokasi di bawah project terpilih: tingkat teratas (Cluster/Tower) dan tingkat paling bawah
+   * (Blok/Lantai), apa pun nama levelnya.
    * Keterangan berisi jenis lokasi dan jalur induknya di dalam project.
    */
   const { clusterOptions, blockOptions } = useMemo(() => {
@@ -105,15 +106,16 @@ export default function PricingPage() {
 
     const clusters: ComboOption[] = [];
     const blocks: ComboOption[] = [];
+    const hasChildren = new Set(all.map((c) => c.parentId));
     for (const c of all) {
       if (c.id === root || c.type === "CATEGORY") continue;
       const ancestors = ancestorsInProject(c.id);
       if (!ancestors) continue;
-      if (c.type === "BLOCK") {
-        if (!clusterId || ancestors.includes(clusterId)) blocks.push(toOption(c, ancestors));
-      } else {
-        clusters.push(toOption(c, ancestors));
-      }
+      const top = ancestors.length === 0;
+      const leaf = !hasChildren.has(c.id);
+      // Lokasi tanpa sub-lokasi di tingkat teratas cukup muncul sebagai pilihan teratas.
+      if (top) clusters.push(toOption(c, ancestors));
+      else if (leaf && (!clusterId || ancestors.includes(clusterId))) blocks.push(toOption(c, ancestors));
     }
     return { clusterOptions: clusters.sort(byHint), blockOptions: blocks.sort(byHint) };
   }, [options.locations.data, options.project.data, clusterId]);
@@ -244,7 +246,7 @@ export default function PricingPage() {
                   <SearchableSelect
                     className="lg:flex-1"
                     value={clusterId}
-                    placeholder="Semua cluster"
+                    placeholder="Semua cluster / tower"
                     disabled={!productId || (!locationLoading && clusterOptions.length === 0)}
                     disabledHint={productId ? "Tidak ada cluster" : "Pilih project dulu"}
                     loading={locationLoading}
@@ -258,7 +260,7 @@ export default function PricingPage() {
                   <SearchableSelect
                     className="lg:flex-1"
                     value={blockId}
-                    placeholder="Semua blok"
+                    placeholder="Semua blok / lantai"
                     disabled={!productId}
                     disabledHint="Pilih project dulu"
                     loading={locationLoading}
@@ -393,7 +395,7 @@ export default function PricingPage() {
                               )}
                             </div>
                             <p className="mt-0.5 whitespace-nowrap text-xs text-[#6b6b6b]">
-                              {row.product.name} · {row.variant.name} · {row.location.name}
+                              {row.product.name} · {row.variant.name} · {row.location.path || row.location.name}
                             </p>
                           </TableCell>
                           <TableCell>

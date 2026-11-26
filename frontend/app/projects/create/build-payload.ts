@@ -67,7 +67,6 @@ export function buildProjectPayload(input: {
       // Unit yang menempel di akar (tanpa node) memakai akar proyek di backend.
       ...(nodes.some((n) => n.id === u.locationId) ? { locationKey: u.locationId } : {}),
       // Status tidak dikirim: unit baru selalu Available dan status tersimpan berubah lewat reservasi.
-      isHook: u.hook === "Ya",
     };
   });
 
@@ -78,7 +77,6 @@ export function buildProjectPayload(input: {
     ...Object.fromEntries(
       LOCATION_FIELDS.filter((k) => input.includeEmpty || info[k].trim()).map((k) => [k, info[k].trim()]),
     ),
-    // "In Development" belum punya kolom; hanya Inactive yang dibedakan.
     isActive: info.status !== "Inactive",
     facilityAttributeIds: input.facilityAttributeIds ?? [],
     variants,

@@ -58,11 +58,11 @@ describe('mapHttpError', () => {
       },
     });
 
-    it('tells the user a unit code is already used, and that codes are unique across projects', () => {
-      const mapped = mapHttpError(duplicate('ProductUnit', 'product_units_company_id_code_key'));
+    it('tells the user a unit code is already used, in the same location', () => {
+      const mapped = mapHttpError(duplicate('ProductUnit', 'product_units_category_id_code_key'));
       expect(mapped.status).toBe(409);
       expect(mapped.message).toMatch(/kode unit/i);
-      expect(mapped.message).toMatch(/proyek lain|semua proyek/i);
+      expect(mapped.message).toMatch(/lokasi yang sama/i);
     });
 
     it('tells the user the project/location code is already used', () => {
@@ -72,7 +72,7 @@ describe('mapHttpError', () => {
     });
 
     it('never leaks the duplicated value or tenant id', () => {
-      const text = JSON.stringify(mapHttpError(duplicate('ProductUnit', 'product_units_company_id_code_key')));
+      const text = JSON.stringify(mapHttpError(duplicate('ProductUnit', 'product_units_category_id_code_key')));
       expect(text).not.toMatch(/tenant-secret-id|CODE-1/);
     });
 

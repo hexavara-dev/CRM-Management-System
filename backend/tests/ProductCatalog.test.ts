@@ -57,7 +57,7 @@ describe('ProductUseCase', () => {
     expect(tx.productTypeVariant.create).toHaveBeenCalledWith({ data: expect.objectContaining({ basePrice: 350000000, currentPrice: 350000000, stock: 0 }) });
   });
 
-  it('adds a numeric suffix when the requested project code already exists', async () => {
+  it('rejects a project code that already exists', async () => {
     const tx = {
       product: {
         findFirst: jest.fn<(...args: any[]) => any>().mockImplementation(async ({ where }) =>
@@ -69,8 +69,8 @@ describe('ProductUseCase', () => {
       productTypeVariant: { create: fn({ id: 'tv-1' }) },
     };
     const prisma = productPrisma({ tx, product: { findFirst: fn({ id: 'p-1', media: [] }) } });
-    await new ProductUseCase(prisma as never).create('t-1', baseProduct);
-    expect(tx.product.create.mock.calls[0][0].data.code).toBe('GREEN-1');
+    await expect(new ProductUseCase(prisma as never).create('t-1', baseProduct)).rejects.toThrow(/Conflict: kode proyek "GREEN" sudah dipakai/);
+    expect(tx.product.create).not.toHaveBeenCalled();
   });
 
   it('keeps at least one variant', async () => {
@@ -105,9 +105,9 @@ describe('attribute request validation', () => {
     expect(validateAttribute(attribute)).toEqual(attribute);
   });
 
-  it('rejects a non-integer value and definition fields on the pivot', () => {
+  it('accepts decimals but rejects other values and definition fields on the pivot', () => {
     expect(() => validateAttribute({ ...attribute, value: 'abc' })).toThrow(/value must be a finite number/);
-    expect(() => validateAttribute({ ...attribute, value: 1.5 })).toThrow(/integer/);
+    expect(validateAttribute({ ...attribute, value: 1.5 }).value).toBe(1.5);
     expect(() => validateAttribute({ ...attribute, code: 'LT' })).toThrow(/Unsupported field/);
   });
 

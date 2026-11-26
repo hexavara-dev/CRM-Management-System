@@ -16,7 +16,7 @@ export function ClusterUnitCard({
   const sold = unit.status === "sold";
   return (
     <Link
-      href={unitPath(availabilityId, clusterId, unit.code)}
+      href={unitPath(availabilityId, clusterId, unit.id)}
       className={`relative overflow-hidden rounded-2xl border border-[#e6eaf0] text-left transition hover:-translate-y-0.5 hover:shadow-sm ${sold ? "unit-sold-pattern" : "bg-white"}`}
     >
       <div className="relative z-10 p-4">

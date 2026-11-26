@@ -199,6 +199,7 @@ export function VariantEditor({
                         type="number"
                         required
                         min={0}
+                        step={"unit" in field ? 0.01 : 1}
                         value={variant.specs[field.code]}
                         placeholder="0"
                         className={INPUT}

@@ -898,7 +898,9 @@ model ProductTypeVariant {
   media            ProductMedia[]
 
   @@unique([productVariantId, name])
-  @@unique([tenantId, code])
+  /// Kode varian unik per tipe.
+  @@unique([productVariantId, code])
+  @@index([tenantId])
   @@index([productVariantId])
   @@map("product_type_variants")
 }
@@ -911,7 +913,7 @@ model ProductAttribute {
   /// Varian pemilik spesifikasi; null untuk fasilitas proyek.
   typeVariantId String?      @map("type_variant_id") @db.VarChar(36)
   attributeId String          @map("attribute_id") @db.VarChar(36)
-  value     Int
+  value     Decimal            @db.Decimal(12, 2)
   createdAt DateTime          @default(now()) @map("created_at") @db.DateTime(6)
   updatedAt DateTime          @updatedAt @map("updated_at") @db.DateTime(6)
   tenant    Company           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1019,10 +1021,11 @@ model ProductUnit {
   reservations     Reservation[]
   deals            Deal[]
 
-  @@unique([tenantId, code])
+  /// Nomor unit boleh sama di lokasi lain, baik di proyek yang sama maupun berbeda.
+  @@unique([categoryId, code])
+  @@index([tenantId, code])
   @@index([variantId])
   @@index([typeVariantId])
-  @@index([categoryId])
   @@index([characteristicId])
   @@map("product_units")
 }

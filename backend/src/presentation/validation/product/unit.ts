@@ -10,7 +10,6 @@ export const unitRules: Record<string, FieldRule> = {
   typeVariantIndex: { type: 'number', integer: true, min: 0 },
   locationKey: { type: 'string', max: 64 },
   status: { type: 'string', values: UNIT_STATUSES },
-  isHook: { type: 'boolean' },
 };
 
 export function parseUnitPhotoFilters(query: Record<string, unknown>) {

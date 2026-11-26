@@ -426,7 +426,7 @@ export async function seedReservationData(
           const price = BigInt(450_000_000 + (index % 9) * 75_000_000);
           const reservationStatus = getReservationStatus(index);
           const unit = await prisma.productUnit.upsert({
-            where: { tenantId_code: { tenantId, code: unitCode } },
+            where: { categoryId_code: { categoryId: blockCategory.id, code: unitCode } },
             update: { variantId: variant.id, typeVariantId: variant.typeVariantId, categoryId: blockCategory.id },
             create: {
               tenantId,
@@ -449,7 +449,7 @@ export async function seedReservationData(
     for (let offset = 0; offset < additionalAvailableUnitsPerBlock; offset += 1) {
       const unitCode = `${block.code}-AV-${String(blockIndex * additionalAvailableUnitsPerBlock + offset + 1).padStart(3, '0')}`;
       const unit = await prisma.productUnit.upsert({
-        where: { tenantId_code: { tenantId, code: unitCode } },
+        where: { categoryId_code: { categoryId: block.categoryId, code: unitCode } },
         update: { variantId: block.variantId, typeVariantId: block.typeVariantId, categoryId: block.categoryId },
         create: {
           tenantId,

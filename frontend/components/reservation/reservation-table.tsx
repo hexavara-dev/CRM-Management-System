@@ -203,7 +203,8 @@ export function ReservationTable({
                   {reservation.project}
                 </TableCell>
                 <TableCell className="whitespace-nowrap px-3 py-2.5">
-                  {reservation.cluster}
+                  {/* Tanpa cluster (mis. tower), tampilkan lokasi teratas agar nomor unit kembar bisa dibedakan. */}
+                  {reservation.cluster || (reservation.hierarchy.length > 1 ? reservation.hierarchy[0].name : "")}
                 </TableCell>
                 <TableCell className="px-3 py-2.5">
                   {reservation.block}

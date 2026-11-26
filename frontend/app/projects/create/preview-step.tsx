@@ -10,6 +10,7 @@ import {
   Layers,
   MapPin,
 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LocationNode, UnitItem } from "./hierarchy-step";
 import type { UnitType } from "./unit-type-step";
@@ -59,7 +60,6 @@ const COLORS = [
 ];
 const STATUS_STYLE: Record<string, string> = {
   Active: "bg-[#E7F6EC] text-[#1E9E55]",
-  "In Development": "bg-[#FFF4DB] text-[#B58900]",
   Inactive: "bg-[#F1F1F3] text-[#6b6b6b]",
 };
 
@@ -149,6 +149,20 @@ export function PreviewStep({
       total: units.filter((u) => u.locationId === leaf.id).length,
     };
   });
+
+  // Satu grup per lokasi teratas; hanya grup pertama yang terbuka agar tabel tidak memanjang.
+  const blokGroups = [...new Set(blokRows.map((row) => row.cluster))].map((cluster) => {
+    const rows = blokRows.filter((row) => row.cluster === cluster);
+    return { cluster, rows, total: rows.reduce((sum, row) => sum + row.total, 0) };
+  });
+  const [closedGroups, setClosedGroups] = useState<Set<string> | null>(null);
+  const closed = closedGroups ?? new Set(blokGroups.slice(1).map((group) => group.cluster));
+  const toggleGroup = (cluster: string) => {
+    const next = new Set(closed);
+    if (next.has(cluster)) next.delete(cluster);
+    else next.add(cluster);
+    setClosedGroups(next);
+  };
 
   const typeStats = unitTypes
     .map((t, i) => ({
@@ -375,27 +389,38 @@ export function PreviewStep({
                   </td>
                 </tr>
               ) : (
-                blokRows.map((r, i) => (
-                  <tr
-                    key={i}
-                    className={cn(
-                      "transition-colors hover:bg-[#F8FAFC]",
-                      i > 0 && blokRows[i - 1].cluster !== r.cluster ? "border-t border-[#E4E4E7]" : i > 0 && "border-t border-[#F1F1F3]",
-                    )}
-                  >
-                    <td className="px-4 py-2.5 font-medium text-[#1f1f1f]">
-                      {i === 0 || blokRows[i - 1].cluster !== r.cluster
-                        ? r.cluster
-                        : ""}
-                    </td>
-                    <td className="px-4 py-2.5 text-[#475467]">{r.blok}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      <span className="inline-flex rounded-full bg-[#E8F3FA] px-2 py-0.5 font-medium text-[#1980C0]">
-                        {r.total} Unit
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                blokGroups.flatMap(({ cluster, rows, total }) => {
+                  const open = !closed.has(cluster);
+                  return [
+                    <tr
+                      key={`group-${cluster}`}
+                      onClick={() => toggleGroup(cluster)}
+                      className="cursor-pointer border-t border-[#E4E4E7] bg-white transition-colors first:border-t-0 hover:bg-[#F8FAFC]"
+                    >
+                      <td className="px-4 py-2.5 font-medium text-[#1f1f1f]">
+                        <button type="button" aria-expanded={open} className="flex cursor-pointer items-center gap-2 text-left">
+                          <ChevronDown className={cn("size-4 shrink-0 text-[#6b6b6b] transition-transform", !open && "-rotate-90")} />
+                          {cluster}
+                        </button>
+                      </td>
+                      <td className="px-4 py-2.5 text-[#6b6b6b]">{rows.length} lokasi</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <span className="inline-flex rounded-full bg-[#E8F3FA] px-2 py-0.5 font-semibold text-[#1980C0]">{total} Unit</span>
+                      </td>
+                    </tr>,
+                    ...(open
+                      ? rows.map((r) => (
+                          <tr key={`${cluster}-${r.blok}`} className="border-t border-[#F1F1F3] bg-[#FCFCFD] transition-colors hover:bg-[#F8FAFC]">
+                            <td className="px-4 py-2" />
+                            <td className="py-2 pl-4 pr-4 text-[#475467]">
+                              <span className="border-l-2 border-[#D9DEE5] pl-3">{r.blok}</span>
+                            </td>
+                            <td className="px-4 py-2 text-right text-[#475467]">{r.total} Unit</td>
+                          </tr>
+                        ))
+                      : []),
+                  ];
+                })
               )}
             </tbody>
           </table>

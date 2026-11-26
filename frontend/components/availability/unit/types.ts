@@ -5,6 +5,8 @@ export type UnitDetail = {
   code: string;
   projectId: string;
   projectCode: string;
+  /** Unit project nonaktif tidak dapat direservasi. */
+  projectActive: boolean;
   clusterCode: string;
   number: string;
   status: string;

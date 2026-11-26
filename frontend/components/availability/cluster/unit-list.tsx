@@ -51,7 +51,7 @@ export function ClusterUnitList({
   return (
     <section className="mt-4 overflow-hidden rounded-xl border border-[#e5e9ef] bg-white">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] text-left text-[11px]">
+        <table className="w-full min-w-[920px] text-left text-[11px]">
           <thead className="bg-[#f7f9fb] text-[#475467]">
             <tr className="border-b border-[#e5e9ef]">
               <th className="px-4 py-3 font-semibold">Unit</th>
@@ -59,7 +59,6 @@ export function ClusterUnitList({
               <th className="px-3 py-3 font-semibold">Tipe</th>
               <th className="px-3 py-3 font-semibold">Varian</th>
               <th className="px-3 py-3 font-semibold">Lokasi</th>
-              <th className="px-3 py-3 font-semibold">Hook</th>
               <th className="px-3 py-3 font-semibold">Customer</th>
               <th className="px-4 py-3 text-right font-semibold">Harga</th>
             </tr>
@@ -72,7 +71,7 @@ export function ClusterUnitList({
               >
                 <td className="px-4 py-3">
                   <Link
-                    href={unitPath(availabilityId, clusterId, unit.code)}
+                    href={unitPath(availabilityId, clusterId, unit.id)}
                     className="flex w-fit items-center gap-3 font-semibold text-[#101828] hover:text-[#1684ff]"
                   >
                     {unit.image ? (
@@ -104,9 +103,6 @@ export function ClusterUnitList({
                     block={unit.location}
                     level={unit.locationLevel}
                   />
-                </td>
-                <td className="px-3 py-3 text-[#344054]">
-                  {unit.isHook ? "Ya" : "Tidak"}
                 </td>
                 <td className="px-3 py-3 text-[#667085]">
                   {unit.customer ?? "—"}

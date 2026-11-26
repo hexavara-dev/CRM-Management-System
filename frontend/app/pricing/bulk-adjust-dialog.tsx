@@ -74,6 +74,9 @@ function BulkAdjustForm({ units, onSaved }: { units: UnitPriceRow[]; onSaved: ()
   }));
   const changedCount = preview.filter((p) => p.change !== 0).length;
   const belowMinCount = preview.filter((p) => p.belowMin).length;
+  // Harga dasar varian adalah batas bawah; yang tertinggi menentukan harga terendah yang boleh.
+  const minimum = Math.max(...units.map((unit) => unit.basePrice));
+  const belowBase = filled && price < minimum;
   const totalChange = preview.reduce((sum, p) => sum + p.change, 0);
 
   return (
@@ -96,7 +99,12 @@ function BulkAdjustForm({ units, onSaved }: { units: UnitPriceRow[]; onSaved: ()
       >
         <Section title="Harga baru">
           <div className="space-y-5">
-            <PriceField helper="Semua unit terpilih akan memakai harga jual ini." />
+            <PriceField helper={`Semua unit terpilih akan memakai harga jual ini. Minimal ${formatPrice(minimum)} (harga dasar tertinggi).`} />
+            {belowBase && (
+              <p role="alert" className="-mt-3 text-xs text-[#D64545]">
+                Di bawah harga dasar sebagian unit, tidak dapat disimpan.
+              </p>
+            )}
             <div>
               <FormInput
                 name="effectiveDate"
@@ -116,7 +124,7 @@ function BulkAdjustForm({ units, onSaved }: { units: UnitPriceRow[]; onSaved: ()
             />
             <Button
               type="submit"
-              disabled={bulk.isPending || (filled && changedCount === 0)}
+              disabled={bulk.isPending || (filled && changedCount === 0) || belowBase}
               className="h-10 w-full rounded-lg bg-[#1980C0] text-white hover:bg-[#166ea6]"
             >
               {bulk.isPending ? "Menyimpan..." : `Simpan untuk ${filled ? changedCount : units.length} unit`}
@@ -152,7 +160,7 @@ function BulkAdjustForm({ units, onSaved }: { units: UnitPriceRow[]; onSaved: ()
                 <div className="min-w-0">
                   <p className="font-medium text-[#1f1f1f]">{unit.code}</p>
                   <p className="truncate text-xs text-[#6b6b6b]">
-                    {unit.variant.name} · {unit.location.name}
+                    {unit.variant.name} · {unit.location.path || unit.location.name}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">

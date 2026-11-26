@@ -102,8 +102,8 @@ function Details({ reservation }: { reservation: Reservation }) {
       <Field label="Unit" value={reservation.unit} />
       <Field label="Project" value={reservation.project} />
       <Field
-        label="Cluster / Blok"
-        value={`${reservation.cluster} / ${reservation.block}`}
+        label="Lokasi"
+        value={reservation.hierarchy.map((item) => item.name).join(" / ")}
       />
       <Field label="Pemesan" value={reservation.customer} />
       <Field label="Email" value={reservation.customerEmail} />
@@ -216,6 +216,7 @@ export function ReservationDetailDialog({
         id: reservation.blockId,
         name: reservation.block,
         type: "BLOCK",
+        path: reservation.hierarchy.map((item) => item.name).join(" > "),
       },
     });
   }
@@ -383,11 +384,11 @@ export function ReservationDetailDialog({
                                 ? "Memuat unit..."
                                 : "Pilih unit"
                           }
-                          searchPlaceholder="Cari kode unit atau tipe..."
+                          searchPlaceholder="Cari kode unit atau lokasi..."
                           loading={unitsQuery.isLoading}
                           options={unitOptions.map((unit) => ({
                             value: unit.id,
-                            label: `${unit.code} · ${unit.category.name}`,
+                            label: `${unit.code} · ${unit.category.path || unit.category.name}`,
                           }))}
                           disabled={
                             !canChangeUnit ||

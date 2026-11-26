@@ -50,6 +50,10 @@ function typeVariantsOf(value: unknown): TypeVariantInput[] {
       typeVariant.attributes = arrayOf(typeVariant.attributes, 50, 'attributes', (attribute) =>
         validateBody(attribute, newAttributeRules)
       ) as NonNullable<TypeVariantInput['attributes']>;
+      // Hanya spesifikasi bersatuan (luas) yang boleh desimal; jumlah ruang selalu bulat.
+      for (const { name, unit, value } of typeVariant.attributes) {
+        if (!unit && value !== undefined && !Number.isInteger(value)) throw new Error(`${name} must be an integer`);
+      }
     }
     return typeVariant;
   });
@@ -155,6 +159,7 @@ export function validateProduct(body: unknown, partial = false) {
     result.units = arrayOf(result.units, MAX_UNITS, 'units', (u) =>
       validateBody(u, unitRules)
     ) as NonNullable<ProductInput['units']>;
+    for (const unit of result.units) unit.code = unit.code.trim();
     // Status hanya berubah lewat reservasi; unit tersimpan diperiksa use case terhadap status sekarang.
     const invalid = result.units.find((unit) => (!partial || !unit.id) && unit.status && unit.status !== 'AVAILABLE');
     if (invalid) {
