@@ -1,20 +1,34 @@
 # Hexavara CRM
 
-**Aplikasi CRM multi-tenant** untuk membantu tim sales mengelola prospek, deal, jadwal kunjungan, dan tugas tindak lanjut dalam satu tempat. Dibangun dengan Next.js, Express, Prisma, dan MySQL.
+**Aplikasi CRM multi-tenant untuk developer properti.** Hexavara CRM membantu tim sales mengelola project, stok unit, harga, prospek, kunjungan, reservasi, dan deal dalam satu tempat. Dibangun dengan Next.js, Express, Prisma, dan MySQL.
 
-Hexavara CRM ditujukan untuk perusahaan konstruksi dan bisnis kecil yang masih mencatat hubungan pelanggan di spreadsheet atau alat yang terpisah-pisah. Setiap perusahaan punya data sendiri yang terisolasi dari perusahaan lain.
+Setiap perusahaan punya data sendiri yang terisolasi dari perusahaan lain.
 
 ## Fitur Utama
 
 - **Dashboard:** statistik penjualan dan aktivitas terbaru.
-- **Leads:** pengelolaan prospek, pipeline kanban, dan konversi lead menjadi deal.
-- **Deals:** pengelolaan nilai, tahap, status, dan target penutupan deal.
-- **Organisasi:** data perusahaan pelanggan.
-- **Kunjungan:** penjadwalan kunjungan ke prospek.
-- **Notes dan Tasks:** catatan serta tugas tindak lanjut.
+- **Product Management:**
+  - Project dengan hierarki lokasi bebas (cluster, zona, blok, tower, lantai).
+  - Tipe unit beserta varian, spesifikasi, dan foto.
+  - Siteplan dan fasilitas project.
+  - Unit per lokasi, termasuk tanda "sudah terjual" untuk data awal project yang sudah berjalan.
+- **Availability & Reservation:** ketersediaan unit per lokasi, reservasi dengan batas waktu, dan status unit yang mengikuti reservasi atau deal.
+- **Pricing Management:** harga jual per unit dengan riwayat perubahan. Harga dasar varian menjadi batas bawah.
+- **Leads Management:** daftar dan pipeline lead, label, sumber, aktivitas, jadwal kunjungan (viewing), serta arsip lead.
+- **Deals Management:** buat deal dari lead dengan dokumen persyaratan per jenis pembayaran (Tunai, KPR, KPR Syariah), bank pembiayaan, pipeline deal, dan detail transaksi.
+- **CRM Configuration:** label, form template, pipeline leads dan deals, sumber, serta jenis aktivitas lead.
+- **Tim:** undangan anggota tim dengan peran owner, admin, atau member.
 - **Lampiran:** unggah PDF, JPEG, PNG, atau WebP hingga 10 MB.
-- **Tim dan pengaturan:** undangan anggota tim serta pengaturan tahap dan status.
-- **Multi-tenant:** login berbasis JWT, dan data setiap perusahaan dibatasi pada tenant-nya.
+- **Multi-tenant:** login berbasis JWT, dan semua data dibatasi pada tenant pengguna.
+
+## Environment
+
+| Environment | URL | Deploy |
+| --- | --- | --- |
+| Staging | https://crm.hexavara.com | Manual dari branch mana pun |
+| Production | https://ampro.hexavara.com | Manual, hanya dari `main` |
+
+Detail deploy, konfigurasi server, dan langkah transisi ada di [CI dan Deploy](docs/CI_CD.md).
 
 ## Teknologi
 

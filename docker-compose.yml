@@ -1,7 +1,6 @@
 services:
   db:
     image: mysql:8.0
-    container_name: crm_db
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD di file .env root}
@@ -22,10 +21,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: crm_api
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3000:3000"
+      # Port host dibedakan per environment agar staging dan production bisa satu server.
+      - "127.0.0.1:${API_PORT:-3000}:3000"
     environment:
       DATABASE_URL: mysql://root:${DB_PASSWORD:?Set DB_PASSWORD di file .env root}@db:3306/crm_engine
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET di file .env root}
@@ -45,10 +44,9 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL_DEV: ${API_URL:?Set API_URL di file .env root}
-    container_name: crm_frontend
     restart: unless-stopped
     ports:
-      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:${WEB_PORT:-3001}:3000"
     depends_on:
       - backend
 

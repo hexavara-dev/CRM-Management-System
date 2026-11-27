@@ -188,6 +188,7 @@ chmod 600 .env
 | `ALLOW_PUBLIC_REGISTRATION` | Set `true` hanya saat membuat akun pertama |
 | `CORS_ORIGINS` | Alamat frontend, misalnya `https://crm.example.com` |
 | `API_URL` | URL publik API, sama dengan alamat frontend jika memakai satu subdomain. Dipakai saat build frontend. |
+| `API_PORT`, `WEB_PORT`, `DB_PORT` | Port host untuk API, frontend, dan MySQL. Default `3000`, `3001`, `3307`. Bedakan per environment jika satu server dipakai staging dan production. |
 
 Jalankan semua service:
 
@@ -197,7 +198,7 @@ docker compose up --build -d
 
 Backend menerapkan migrasi otomatis saat start. Seeder tidak dijalankan otomatis.
 
-Frontend, API, dan MySQL hanya terbuka di `127.0.0.1`, masing-masing di port 3001, 3000, dan 3307, sehingga tidak bisa diakses langsung dari internet. Arahkan reverse proxy HTTPS ke port frontend dan API. Contoh Nginx untuk satu subdomain ada di [CI_CD.md](CI_CD.md#reverse-proxy). HTTPS wajib karena cookie login memakai atribut `Secure` di production.
+Frontend, API, dan MySQL hanya terbuka di `127.0.0.1`, secara bawaan di port 3001, 3000, dan 3307, sehingga tidak bisa diakses langsung dari internet. Arahkan reverse proxy HTTPS ke port frontend dan API. Contoh Nginx untuk satu subdomain ada di [CI_CD.md](CI_CD.md#reverse-proxy). HTTPS wajib karena cookie login memakai atribut `Secure` di production.
 
 Untuk membuat akun pertama, set `ALLOW_PUBLIC_REGISTRATION=true`, jalankan `docker compose up -d backend`, daftar di `/register`, lalu kembalikan ke `false` dan jalankan perintah yang sama.
 
