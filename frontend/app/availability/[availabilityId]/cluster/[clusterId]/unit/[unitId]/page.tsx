@@ -18,7 +18,7 @@ import { SpecificationCard } from "@/components/availability/unit/specification-
 import { UnitGallery } from "@/components/availability/unit/unit-gallery";
 import { UnitInfoCard } from "@/components/availability/unit/unit-info-card";
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAvailabilityUnit } from "@/hooks/use-availability";
 import { errorMessage } from "@/hooks/use-projects";
 

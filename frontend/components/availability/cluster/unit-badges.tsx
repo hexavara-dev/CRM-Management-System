@@ -34,7 +34,7 @@ export function UnitStatusBadge({ status }: { status: UnitStatus }) {
 
   return (
     <span
-      className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold ${item.className}`}
+      className={`inline-flex min-h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${item.className}`}
     >
       {item.icon}
       {item.label}
@@ -68,7 +68,8 @@ export function UnitBlockBadge({
   const levelLabel = level ? formatHierarchyLevel(level) : "Lokasi";
   return (
     <span
-      className={`inline-flex h-7 items-center whitespace-nowrap rounded-full px-2.5 text-xs font-semibold ${className}`}
+      title={block}
+      className={`inline-flex min-h-7 min-w-0 max-w-full items-center rounded-full px-2.5 py-1 text-xs font-semibold whitespace-normal break-words ${className}`}
     >
       {block.toLowerCase().startsWith(`${levelLabel.toLowerCase()} `) ? block : `${levelLabel} ${block}`}
     </span>

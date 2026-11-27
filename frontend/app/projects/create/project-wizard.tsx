@@ -12,7 +12,7 @@ import { AppSidebar } from "@/components/Sidebar";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { compressImage } from "@/lib/compress-image";
 import { newPhotoFiles } from "@/lib/photos";
 import { cn } from "@/lib/utils";

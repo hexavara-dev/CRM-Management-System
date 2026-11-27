@@ -28,13 +28,13 @@ export function ClusterToolbar({
 }: ClusterToolbarProps) {
   return (
     <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         {[...(showAll ? ["all"] : []), ...blocks].map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => onBlockChange(value)}
-            className={`h-10 rounded-full px-5 text-sm font-semibold transition ${
+            className={`min-h-10 max-w-full rounded-full px-5 py-2 text-left text-sm font-semibold whitespace-normal break-words transition ${
               block === value
                 ? "bg-[#1684ff] text-white shadow-sm"
                 : "border border-[#e1e5ea] bg-white text-[#344054] hover:bg-muted"
@@ -45,8 +45,8 @@ export function ClusterToolbar({
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="relative w-full lg:w-72">
+      <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
+        <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
           <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#98a2b3]" />
           <Input
             value={search}
