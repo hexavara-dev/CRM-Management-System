@@ -61,6 +61,7 @@ function toWizardInitial(project: ProjectEditData): WizardInitial {
       typeVariantKey: unit.typeVariantId,
       typeVariantName: typeVariantById.get(unit.typeVariantId)?.name ?? "",
       status: unit.status.charAt(0) + unit.status.slice(1).toLowerCase(),
+      locked: unit.hasTransactions,
     })),
     facilityAttributeIds: project.attributes
       .filter((item) => item.variantId === null && item.attribute.source === "PROJECT" && item.value > 0)

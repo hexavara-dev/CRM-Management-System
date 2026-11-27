@@ -35,6 +35,7 @@ function fixture(unitStatus = 'AVAILABLE') {
       deleteMany: fn(),
     },
     reservation: { count: fn(0) },
+    deal: { count: fn(0) },
     unitPriceAdjustment: { count: fn(0) },
     productMedia: { findMany: fn([]), create: fn(), count: fn(0), createMany: fn(), deleteMany: fn(), updateMany: fn(), update: fn(), findFirst: fn(null) },
   };
@@ -66,12 +67,35 @@ describe('project edit wizard persistence', () => {
     expect(tx.productUnit.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('rejects a status change of a stored unit instead of ignoring it', async () => {
-    const { tx, prisma } = fixture();
-    await expect(new ProductUseCase(prisma as never).update('p-1', 't-1', {
+  it('marks a unit without transactions as sold and back', async () => {
+    const sold = fixture();
+    await new ProductUseCase(sold.prisma as never).update('p-1', 't-1', {
       ...baseInput, units: [{ ...baseInput.units[0]!, status: 'SOLD' }],
+    });
+    expect(sold.tx.productUnit.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'SOLD' }) }));
+
+    const undo = fixture('SOLD');
+    await new ProductUseCase(undo.prisma as never).update('p-1', 't-1', baseInput);
+    expect(undo.tx.productUnit.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'AVAILABLE' }) }));
+  });
+
+  it.each([
+    ['a reserved unit', 'RESERVED', 'reservation'],
+    ['a unit with a reservation', 'AVAILABLE', 'reservation'],
+    ['a unit with a deal', 'SOLD', 'deal'],
+  ] as const)('rejects a manual status change of %s', async (_name, stored, model) => {
+    const { tx, prisma } = fixture(stored);
+    if (stored === 'AVAILABLE' || stored === 'SOLD') tx[model].count.mockResolvedValue(1);
+    await expect(new ProductUseCase(prisma as never).update('p-1', 't-1', {
+      ...baseInput, units: [{ ...baseInput.units[0]!, status: stored === 'SOLD' ? 'AVAILABLE' : 'SOLD' }],
     })).rejects.toThrow(/Conflict: the status of unit/);
     expect(tx.productUnit.update).not.toHaveBeenCalled();
+  });
+
+  it('removes a unit that was only marked sold manually', async () => {
+    const { tx, prisma } = fixture('SOLD');
+    await new ProductUseCase(prisma as never).update('p-1', 't-1', { ...baseInput, units: [] });
+    expect(tx.productUnit.deleteMany).toHaveBeenCalled();
   });
 
   it('keeps the stored status when none is sent', async () => {

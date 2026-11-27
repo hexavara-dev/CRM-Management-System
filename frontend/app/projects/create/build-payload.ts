@@ -66,7 +66,8 @@ export function buildProjectPayload(input: {
       typeVariantIndex,
       // Unit yang menempel di akar (tanpa node) memakai akar proyek di backend.
       ...(nodes.some((n) => n.id === u.locationId) ? { locationKey: u.locationId } : {}),
-      // Status tidak dikirim: unit baru selalu Available dan status tersimpan berubah lewat reservasi.
+      // Hanya tanda "sudah terjual" manual yang dikirim; status lain berubah lewat reservasi/deal.
+      ...(u.status === "Available" || u.status === "Sold" ? { status: u.status === "Sold" ? ("SOLD" as const) : ("AVAILABLE" as const) } : {}),
     };
   });
 

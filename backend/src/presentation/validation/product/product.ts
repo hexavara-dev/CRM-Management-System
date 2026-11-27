@@ -160,10 +160,13 @@ export function validateProduct(body: unknown, partial = false) {
       validateBody(u, unitRules)
     ) as NonNullable<ProductInput['units']>;
     for (const unit of result.units) unit.code = unit.code.trim();
-    // Status hanya berubah lewat reservasi; unit tersimpan diperiksa use case terhadap status sekarang.
-    const invalid = result.units.find((unit) => (!partial || !unit.id) && unit.status && unit.status !== 'AVAILABLE');
+    // Unit baru boleh langsung ditandai terjual (data awal project yang sudah berjalan); status lain
+    // hanya lewat reservasi/deal. Unit tersimpan diperiksa use case terhadap status sekarang.
+    const invalid = result.units.find(
+      (unit) => (!partial || !unit.id) && unit.status && unit.status !== 'AVAILABLE' && unit.status !== 'SOLD'
+    );
     if (invalid) {
-      throw new Error(`Invalid unit status: new unit ${invalid.code} must be AVAILABLE. Use a reservation to change it.`);
+      throw new Error(`Invalid unit status: new unit ${invalid.code} must be AVAILABLE or SOLD. Use a reservation to change it.`);
     }
   }
   return result;

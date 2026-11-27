@@ -31,7 +31,12 @@ assert.deepEqual(payload.locations, [
   { key: "n1", parentKey: null, name: "Cluster A", type: "CLUSTER" },
   { key: "n2", parentKey: "n1", name: "Block A", type: "BLOCK" },
 ]);
-assert.deepEqual(payload.units, [{ code: "A-01", variantIndex: 0, typeVariantIndex: 0, locationKey: "n2" }]);
+assert.deepEqual(payload.units, [{ code: "A-01", variantIndex: 0, typeVariantIndex: 0, locationKey: "n2" }]); // Reserved tidak dikirim
+// Tanda "sudah terjual" manual dikirim, termasuk pembatalannya.
+assert.deepEqual(
+  buildProjectPayload({ info, unitTypes: [type36], nodes, units: [{ ...units[0], status: "Sold" }, { ...units[0], id: "u2", code: "A-02", status: "Available" }] }).units.map((u) => u.status),
+  ["SOLD", "AVAILABLE"],
+);
 
 assert.throws(() => buildProjectPayload({ info, unitTypes: [type36], nodes: [{ ...nodes[0], level: "Room" }], units: [] }), /belum didukung/);
 assert.throws(() => buildProjectPayload({ info, unitTypes: [type36, type36], nodes, units }), /tidak boleh sama/);
