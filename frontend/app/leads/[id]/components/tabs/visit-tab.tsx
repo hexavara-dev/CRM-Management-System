@@ -58,7 +58,7 @@ interface VisitTabProps {
   leadId: string;
 }
 
-export function VisitTab({ leadId }: VisitTabProps) {
+export function VisitTab({ leadId: _leadId }: VisitTabProps) {
   const { uploadEvidence, failViewing, isUploadingEvidence, isFailing } =
     useViewings();
   const isLoading = false;

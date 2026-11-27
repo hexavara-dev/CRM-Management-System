@@ -17,7 +17,7 @@ import { ClusterUnitList } from "@/components/availability/cluster/unit-list";
 import { ClusterAvailabilityOverview } from "@/components/availability/detail/cluster-overview";
 import { ProjectAvailabilityHeader } from "@/components/availability/detail/project-header";
 import { ProjectAvailabilitySummary } from "@/components/availability/detail/project-summary";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useProjectAvailability } from "@/hooks/use-availability";
 import { errorMessage } from "@/hooks/use-projects";
 

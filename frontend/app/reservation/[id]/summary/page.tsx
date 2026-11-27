@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { AvailabilityState } from "@/components/availability/availability-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { reservationErrorMessage, useReservationDetail } from "@/hooks/use-reservations";
 
 const rupiah = new Intl.NumberFormat("id-ID", {

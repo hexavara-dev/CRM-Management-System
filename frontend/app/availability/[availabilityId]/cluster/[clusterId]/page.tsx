@@ -29,7 +29,7 @@ import { ClusterAvailabilityOverview } from "@/components/availability/detail/cl
 import { availabilityPath, clusterPath } from "@/components/availability/routes";
 import { SimplePagination } from "@/components/availability/simple-pagination";
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useClusterAvailability } from "@/hooks/use-availability";
 import { errorMessage } from "@/hooks/use-projects";
 
