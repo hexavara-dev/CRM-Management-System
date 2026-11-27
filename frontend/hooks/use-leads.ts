@@ -160,6 +160,21 @@ export function useLeads(options: UseLeadsOptions = {}) {
     },
   });
 
+  const transitionLeadStageMutation = useMutation({
+    mutationFn: async ({ id, targetStageId, expectedSourceStageId, documents = [] }: { id: string; targetStageId: string; expectedSourceStageId: string; documents?: { name: string; file: File }[] }) => {
+      const form = new FormData();
+      form.append("payload", JSON.stringify({ targetStageId, expectedSourceStageId, documents: documents.map(({ name }, fileIndex) => ({ name, fileIndex })) }));
+      for (const { file } of documents) form.append("documents", file);
+      return (await api.post<{ id: string; stageId: string }>(`/api/lead/${id}/transition-stage`, form)).data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["lead", variables.id] });
+      toast.success("Fase Lead berhasil diperbarui.");
+    },
+    onError: (error: unknown) => toast.error(apiErrorMessage(error, "Gagal memindahkan fase Lead.")),
+  });
+
   const convertToDealMutation = useMutation({
     mutationFn: async ({ id, dealData }: { id: string; dealData: unknown }) => {
       const response = await api.post(`/api/lead/${id}/convert`, dealData);
@@ -188,10 +203,12 @@ export function useLeads(options: UseLeadsOptions = {}) {
     createLead: createLeadMutation.mutateAsync,
     updateLead: updateLeadMutation.mutateAsync,
     setLeadStage: setLeadStageMutation.mutateAsync,
+    transitionLeadStage: transitionLeadStageMutation.mutateAsync,
     convertToDeal: convertToDealMutation.mutateAsync,
     isCreating: createLeadMutation.isPending,
     isUpdating: updateLeadMutation.isPending,
     isConverting: convertToDealMutation.isPending,
+    isTransitioningStage: transitionLeadStageMutation.isPending,
   };
 }
 

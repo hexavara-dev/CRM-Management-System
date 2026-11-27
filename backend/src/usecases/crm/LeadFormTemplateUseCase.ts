@@ -138,6 +138,7 @@ export type FormTemplateInput = {
   color?: string;
   isActive?: boolean;
   isDefault?: boolean;
+  showDealCreationOption?: boolean;
   fields?: FormFieldInput[];
 };
 
@@ -295,6 +296,7 @@ export class LeadFormTemplateUseCase {
         color: row.color,
         isDefault: row.isDefault,
         isActive: row.isActive,
+        showDealCreationOption: row.showDealCreationOption,
         version: current?.version ?? 1,
         // Termasuk field standar/sistem; section tidak dihitung.
         fieldCount: (current?.fields ?? withStandardFields([])).filter(isDataField).length,
@@ -328,6 +330,7 @@ export class LeadFormTemplateUseCase {
       color: template.color,
       isDefault: template.isDefault,
       isActive: template.isActive,
+      showDealCreationOption: template.showDealCreationOption,
       version: current?.version ?? 1,
       versionLocked: current?.isLocked ?? false,
       fields: current?.fields ?? [],
@@ -371,6 +374,7 @@ export class LeadFormTemplateUseCase {
           color: (input.color as string).toUpperCase(),
           isActive: isDefault ? true : (input.isActive ?? true),
           isDefault,
+          showDealCreationOption: input.showDealCreationOption ?? false,
           defaultGuard: isDefault ? DEFAULT_GUARD : null,
           updatedById: actor.userId,
         },
@@ -408,6 +412,7 @@ export class LeadFormTemplateUseCase {
     if (input.icon !== undefined) data.icon = input.icon;
     if (input.color !== undefined) data.color = input.color.toUpperCase();
     if (input.isActive !== undefined) data.isActive = input.isActive;
+    if (input.showDealCreationOption !== undefined) data.showDealCreationOption = input.showDealCreationOption;
     if (input.isDefault && !template.isDefault) {
       data.isDefault = true;
       data.defaultGuard = DEFAULT_GUARD;

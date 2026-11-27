@@ -223,6 +223,9 @@ model Lead {
   converted      Boolean        @default(false)
   convertedDate  DateTime?      @map("converted_date") @db.DateTime(6)
   createdAt      DateTime       @default(now()) @map("created_at") @db.DateTime(6)
+  /// Fase Lead yang telah pernah dicapai sebelum evidence pada pipeline diubah.
+  /// Evidence baru tidak diberlakukan surut untuk fase-fase ini.
+  evidenceGrandfatheredStageIds Json? @map("evidence_grandfathered_stage_ids")
   deals          Deal[]
   assignedUser   User?          @relation("UserAssignedLeads", fields: [assignedUserId], references: [id])
   customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -273,6 +276,7 @@ enum LeadArchiveCategory {
   NOT_RESPOND
   INVALID
   NOT_QUALIFIED
+  DEAL_LOST
 }
 
 model LeadItem {
@@ -310,6 +314,9 @@ model Deal {
   unitId              String?        @map("unit_id") @db.VarChar(36)
   /// Deal memegang status unit; Deal lama bernilai false dan tidak mengubah status unit.
   unitClaimed         Boolean        @default(false) @map("unit_claimed")
+  /// Fase Deal yang telah pernah dicapai sebelum evidence pada pipeline diubah.
+  /// Evidence baru tidak diberlakukan surut untuk fase-fase ini.
+  evidenceGrandfatheredStageIds Json? @map("evidence_grandfathered_stage_ids")
   paymentMethod       DealPaymentMethod @default(CASH) @map("payment_method")
   bankName            String?        @map("bank_name") @db.VarChar(150)
   notes               String?        @db.Text
@@ -1199,6 +1206,7 @@ model LeadFormTemplate {
   /// 'default' bila template default; unik per company sehingga hanya satu default.
   defaultGuard     String?                   @map("default_guard") @db.VarChar(10)
   isActive         Boolean                   @default(true) @map("is_active")
+  showDealCreationOption Boolean              @default(false) @map("show_deal_creation_option")
   currentVersionId String?                   @map("current_version_id") @db.VarChar(36)
   updatedById      String?                   @map("updated_by_id") @db.VarChar(36)
   createdAt        DateTime                  @default(now()) @map("created_at") @db.DateTime(6)

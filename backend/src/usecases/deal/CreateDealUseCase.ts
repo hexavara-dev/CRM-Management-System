@@ -5,6 +5,7 @@ import { toDateValue, todayInPriceZone } from '../pricing/priceRules.js';
 import { expireOverdueReservations } from '../reservation/reservationStatus.js';
 import { checkDealDocuments, type DealDocumentInput } from './dealDocuments.js';
 import { assertDealPrice, assertUnitSellable } from './dealUnit.js';
+import { LeadFormSubmissionUseCase, type LeadFormSubmission } from '../crm/LeadFormSubmissionUseCase.js';
 
 export type CreateDealInput = {
   leadId: string;
@@ -19,6 +20,8 @@ export type CreateDealInput = {
 };
 
 export type DealCreator = { tenantId: string; userId: string; role: string };
+type DealLead = { id: string; customerId: string; assignedUserId: string | null; sourceId: string | null; type: string | null };
+type CreateInTransaction = { transaction?: Prisma.TransactionClient; lead?: DealLead; skipReservationExpiry?: boolean };
 
 /** Lead yang boleh dibuatkan Deal oleh user: belum converted, tidak diarsipkan, dan dapat diakses. */
 function openLead({ tenantId, userId, role }: DealCreator): Prisma.LeadWhereInput {
@@ -104,13 +107,13 @@ export class CreateDealUseCase {
     return bank;
   }
 
-  async create(creator: DealCreator, input: CreateDealInput, files: Express.Multer.File[] = []) {
+  async create(creator: DealCreator, input: CreateDealInput, files: Express.Multer.File[] = [], options: CreateInTransaction = {}) {
     const { tenantId, userId, role } = creator;
     if (input.expectedClosingDate < todayInPriceZone()) {
       throw new Error('Invalid expectedClosingDate: target closing tidak boleh sebelum hari ini');
     }
-    const [lead, bank, stage] = await Promise.all([
-      this.prisma.lead.findFirst({
+    const [lead, bank, stage, status] = await Promise.all([
+      options.lead ?? this.prisma.lead.findFirst({
         where: { id: input.leadId, tenantId, isDeleted: false, ...(role === 'owner' ? {} : { assignedUserId: userId }) },
         select: { id: true, customerId: true, assignedUserId: true, sourceId: true, type: true },
       }),
@@ -119,11 +122,16 @@ export class CreateDealUseCase {
         where: { tenantId, entityType: 'deal', isDefaultStage: true, isActive: true },
         select: { id: true, evidences: { orderBy: { sortOrder: 'asc' } } },
       }),
+      this.prisma.status.findFirst({
+        where: { tenantId, type: 'deal', isDefaultStatus: true },
+        select: { id: true },
+      }),
     ]);
     if (!lead) throw new Error('Lead not found');
     if (!stage) throw new Error('No default Deal stage configured');
+    if (!status) throw new Error('No default Deal status configured');
     const documents = checkDealDocuments(stage.evidences, input.paymentMethod, input.documents, files);
-    await expireOverdueReservations(this.prisma, tenantId);
+    if (!options.skipReservationExpiry) await expireOverdueReservations(this.prisma, tenantId);
 
     const dealId = randomUUID();
     const refCode = `DEAL-${dealId.slice(0, 8).toUpperCase()}`;
@@ -131,7 +139,7 @@ export class CreateDealUseCase {
     try {
       for (const item of stored) await this.storage.upload(item.path, item.file.buffer);
 
-      return await this.prisma.$transaction(async (tx) => {
+      const persist = async (tx: Prisma.TransactionClient) => {
         // Filter kolom saja agar klaim menjadi satu UPDATE; Deal lama diperiksa terpisah.
         const claimedLead = await tx.lead.updateMany({
           where: { ...openLead(creator), id: lead.id },
@@ -155,6 +163,7 @@ export class CreateDealUseCase {
             assignedUserId: lead.assignedUserId,
             sourceId: lead.sourceId,
             stageId: stage.id,
+            statusId: status.id,
             unitId: input.unitId,
             unitClaimed: true,
             refCode,
@@ -214,11 +223,30 @@ export class CreateDealUseCase {
           },
         });
         return deal;
+      };
       // Klaim bersyarat sudah menjaga konflik; snapshot REPEATABLE READ justru menggagalkan yang kalah dengan error database.
-      }, { isolationLevel: 'ReadCommitted' });
+      return options.transaction ? await persist(options.transaction) : await this.prisma.$transaction(persist, { isolationLevel: 'ReadCommitted' });
     } catch (error) {
       await this.storage.remove(stored.map((item) => item.path));
       throw error;
     }
+  }
+
+  /** Menyimpan Lead baru dan Deal pertamanya secara atomik; pembatalan dialog tidak menulis apa pun. */
+  async createFromLeadForm(creator: DealCreator, leadInput: LeadFormSubmission, dealInput: Omit<CreateDealInput, 'leadId'>, files: Express.Multer.File[] = []) {
+    await expireOverdueReservations(this.prisma, creator.tenantId);
+    return this.prisma.$transaction(async (tx) => {
+      const lead = await new LeadFormSubmissionUseCase(this.prisma).submitInTransaction(creator, leadInput, tx);
+      const persistedLead = await tx.lead.findFirst({
+        where: { id: lead.id, tenantId: creator.tenantId },
+        select: { id: true, customerId: true, assignedUserId: true, sourceId: true, type: true },
+      });
+      if (!persistedLead) throw new Error('Lead could not be created');
+      return this.create(creator, { ...dealInput, leadId: persistedLead.id }, files, {
+        transaction: tx,
+        lead: persistedLead,
+        skipReservationExpiry: true,
+      });
+    }, { isolationLevel: 'ReadCommitted' });
   }
 }

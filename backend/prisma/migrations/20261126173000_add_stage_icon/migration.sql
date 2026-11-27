@@ -1,0 +1,2 @@
+-- No-op: folder migrasi ini sudah ada di repositori, tetapi schema final tidak menyimpan kolom icon pada tabel stage.
+-- File dipertahankan agar histori Prisma dapat diterapkan dari database kosong.

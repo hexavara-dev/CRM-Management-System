@@ -5,13 +5,6 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { getBreadcrumbTrail } from "@/components/PageHeading";
 import { PageHeader } from "@/components/PageHeader";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 
 /** Judul halaman CRM Configuration: breadcrumb, kotak ikon, judul, dan deskripsi. */
 export function ConfigHeader({

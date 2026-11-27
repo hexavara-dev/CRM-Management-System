@@ -8,6 +8,7 @@ import { seedViewingSchedule } from './seed/viewingScheduleSeed.js';
 import { seedDealForm, seedDealsData } from './seed/dealsSeed.js';
 import { seedCompleteLeadData } from './seed/completeLeadData.js';
 import { seedDashboardDemo } from './seed/dashboardDemoSeed.js';
+import { LeadFormSubmissionUseCase } from '../src/usecases/crm/LeadFormSubmissionUseCase.js';
 
 const TENANT_NAME = 'Demo Organization';
 // Hanya untuk akun demo lokal. Jangan dipakai di server yang bisa diakses orang lain.
@@ -83,6 +84,9 @@ async function main() {
   }
 
   await seedAttributeCatalog(prisma, owner!.tenantId);
+  // Form default biasanya dibuat lazy saat Add Lead pertama dibuka. Buat saat seed agar
+  // konfigurasi Form Template sudah tersedia di database demo baru.
+  await new LeadFormSubmissionUseCase(prisma).defaultForm(owner!.tenantId, owner!.id);
   await seedReservationData(prisma, owner!.tenantId, salesUsers);
   await seedViewingSchedule(prisma, owner!.tenantId, salesUsers);
   const dealFormSeed = await seedDealForm(prisma, owner!.tenantId);

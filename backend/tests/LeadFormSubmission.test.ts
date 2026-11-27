@@ -39,9 +39,9 @@ const defaultFields = () => [
 ];
 
 const LABELS = [
-  { id: 'hot', type: 'TEMPERATURE' },
-  { id: 'warm', type: 'TEMPERATURE' },
-  { id: 'tag-1', type: 'TAG' },
+  { id: 'hot', type: 'TEMPERATURE', name: 'Hot', color: '#EF4444', icon: 'flame' },
+  { id: 'warm', type: 'TEMPERATURE', name: 'Warm', color: '#F59E0B', icon: 'sun' },
+  { id: 'tag-1', type: 'TAG', name: 'KPR', color: '#3B82F6', icon: 'landmark' },
 ];
 
 function prisma(over: Record<string, unknown> = {}) {
@@ -63,7 +63,7 @@ function prisma(over: Record<string, unknown> = {}) {
     leadLabel: {
       findMany: jest.fn(async (args: { where: { id: { in: string[] } } }) => labels.filter((l) => args.where.id.in.includes(l.id))),
     },
-    product: { findFirst: fn('project' in over ? over.project : { id: 'p-1' }) },
+    product: { findFirst: fn('project' in over ? over.project : { id: 'p-1', name: 'Royal' }) },
     productVariant: { findFirst: fn('type' in over ? over.type : { id: 'v36', productId: 'p-1' }) },
     stage: {
       findFirst: jest.fn(async (args: { where: { id?: string } }) =>
@@ -147,7 +147,14 @@ describe('LeadFormSubmissionUseCase', () => {
 
   it('creates the customer, lead, interest, and registration activity like the legacy form, and locks the version', async () => {
     const db = prisma();
-    await expect(submit(db)).resolves.toEqual({ id: 'l-1' });
+    await expect(submit(db)).resolves.toEqual({
+      id: 'l-1',
+      name: 'Siti Rahmawati',
+      email: 'siti@example.com',
+      phone: '812 3456 7890',
+      project: { id: 'p-1', name: 'Royal' },
+      labels: [LABELS[0], LABELS[2]],
+    });
     expect(db.tx.customer.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: {

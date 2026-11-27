@@ -39,7 +39,7 @@ export interface Lead {
   campaign?: { id: string; name: string };
   budget?: string | number;
   priority: "LOW" | "MEDIUM" | "HIGH";
-  archiveCategory?: "NOT_RESPOND" | "INVALID" | "NOT_QUALIFIED" | null;
+  archiveCategory?: "NOT_RESPOND" | "INVALID" | "NOT_QUALIFIED" | "DEAL_LOST" | null;
   archiveReason?: string | null;
   archivedAt?: string | null;
   archivedBy?: User | null;
@@ -47,6 +47,8 @@ export interface Lead {
   converted: boolean;
   convertedDate?: string;
   createdAt: string;
+  /** Fase yang telah dicapai sebelum evidence pipeline terbaru diberlakukan. */
+  evidenceGrandfatheredStageIds?: string[] | null;
   activities?: LeadActivity[];
   attachments?: AttachmentRecord[];
   locationId?: string;

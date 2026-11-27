@@ -12,6 +12,7 @@ import { LEAD_LABEL_ICONS } from "@/app/crm-configuration/leads-label/label-icon
 import { LeadLabelMultiSelect } from "@/app/leads/components/lead-label-multi-select";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DialogFooter } from "@/components/ui/dialog";
 import { ErrorText } from "@/components/ui/error-text";
 import { FormInput } from "@/components/ui/form-input";
@@ -20,7 +21,8 @@ import { FormTextarea } from "@/components/ui/form-textarea";
 import { LabelText } from "@/components/ui/label-text";
 import type { FormField } from "@/hooks/use-form-templates";
 import { useLeadCampaigns } from "@/hooks/use-lead-campaigns";
-import { useLeadForm, useSubmitLeadForm, type LeadFormDefinition } from "@/hooks/use-lead-form";
+import { useLeadForm, useSubmitLeadForm, type LeadFormDefinition, type LeadFormSubmission } from "@/hooks/use-lead-form";
+import type { DealLeadOption } from "@/hooks/use-create-deal";
 import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useActiveLeadSources } from "@/hooks/use-lead-sources";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
@@ -48,6 +50,13 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 type Values = Record<string, unknown>;
+
+/** Lead yang masih berada di dialog; belum pernah ditulis ke database. */
+export type PendingLeadDeal = {
+  submission: LeadFormSubmission;
+  preview: DealLeadOption;
+  projectId?: string;
+};
 
 /** Gaya kartu, input, dan judul sama dengan dialog Add Lead sebelumnya. */
 const CARD = "rounded-xl border border-[#D9E6FA] bg-white p-4 shadow-[0_2px_8px_rgba(44,95,180,0.04)]";
@@ -438,7 +447,6 @@ function FormFrame({ children, footer }: { children: ReactNode; footer: ReactNod
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">{children}</div>
       <DialogFooter className="mt-auto shrink-0 -mx-0 -mb-0 rounded-none border-[#DCE7F8] bg-white px-5 py-3 sm:px-6">
-        <p className="mr-auto text-xs text-[#667085]">Deal dapat dibuat setelah Lead tersimpan melalui halaman Detail Lead.</p>
         {footer}
       </DialogFooter>
     </div>
@@ -478,11 +486,13 @@ function DynamicLeadForm({
   previous,
   onDone,
   onConflict,
+  onDealRequested,
 }: {
   form: LeadFormDefinition;
   previous: Values | null;
   onDone: () => void;
   onConflict: (values: Values) => void;
+  onDealRequested: (lead: PendingLeadDeal) => void;
 }) {
   const { user } = useAuth();
   const isOwner = user?.role === "owner";
@@ -492,14 +502,31 @@ function DynamicLeadForm({
     defaultValues: defaultsOf(form.fields, user?.id, previous),
   });
   const submitMutation = useSubmitLeadForm();
+  const [createDealAfterSave, setCreateDealAfterSave] = useState(false);
   const groups = groupBySection(form.fields).filter((group) => group.fields.length > 0);
 
   const onSubmit = async (values: Values) => {
-    try {
-      await submitMutation.mutateAsync({
-        templateVersionId: form.versionId,
-        values: toPayload(form.fields, values, isOwner),
+    const submission = {
+      templateVersionId: form.versionId,
+      values: toPayload(form.fields, values, isOwner),
+    };
+    if (createDealAfterSave) {
+      onDealRequested({
+        submission,
+        preview: {
+          id: "__new_lead__",
+          name: String(submission.values.name ?? "Lead baru"),
+          email: typeof submission.values.email === "string" ? submission.values.email : null,
+          phone: typeof submission.values.phone === "string" ? submission.values.phone : null,
+          project: null,
+          labels: [],
+        },
+        projectId: typeof submission.values.interest_projects === "string" ? submission.values.interest_projects : undefined,
       });
+      return;
+    }
+    try {
+      await submitMutation.mutateAsync(submission);
       onDone();
     } catch (error) {
       const message = errorMessage(error, "Gagal menyimpan Lead.");
@@ -518,6 +545,21 @@ function DynamicLeadForm({
         <FormFrame
           footer={
             <>
+              {form.showDealCreationOption ? (
+                <label className="mr-auto flex cursor-pointer items-start gap-3 text-left">
+                  <Checkbox
+                    checked={createDealAfterSave}
+                    onCheckedChange={(checked) => setCreateDealAfterSave(checked === true)}
+                    aria-label="Buat Deal Sekaligus"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-[#142047]">Buat Deal Sekaligus</span>
+                    <span className="block text-xs text-[#667085]">Langsung buat peluang penjualan (Deal) dari Lead ini.</span>
+                  </span>
+                </label>
+              ) : (
+                <p className="mr-auto text-xs text-[#667085]">Deal dapat dibuat setelah Lead tersimpan melalui halaman Detail Lead.</p>
+              )}
               <CancelButton onClick={onDone} />
               <Button type="submit" className="bg-[#0B63F6] px-5 hover:bg-[#0755D6]" disabled={submitMutation.isPending}>
                 {submitMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
@@ -560,7 +602,7 @@ function DynamicLeadForm({
 }
 
 /** Isi dialog Add Lead dari template default (CRM Configuration → Form Template). */
-export function AddLeadForm({ onDone }: { onDone: () => void }) {
+export function AddLeadForm({ onDone, onDealRequested }: { onDone: () => void; onDealRequested: (lead: PendingLeadDeal) => void }) {
   const formQuery = useLeadForm(true);
   // Isian yang dipertahankan saat form dimuat ulang karena template berubah.
   const [previous, setPrevious] = useState<Values | null>(null);
@@ -614,6 +656,7 @@ export function AddLeadForm({ onDone }: { onDone: () => void }) {
       form={formQuery.data}
       previous={previous}
       onDone={onDone}
+      onDealRequested={onDealRequested}
       onConflict={(values) => {
         setPrevious(values);
         void formQuery.refetch();

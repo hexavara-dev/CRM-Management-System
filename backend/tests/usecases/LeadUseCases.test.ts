@@ -124,6 +124,7 @@ describe('LeadUseCases', () => {
             fileType: 'application/pdf',
           },
         ],
+        updateMany: jest.fn(async () => ({ count: 1 })),
       },
       auditLog: {
         findMany: async () => [],
@@ -153,6 +154,10 @@ describe('LeadUseCases', () => {
       'sales-1'
     );
     expect(updated.stageId).toBe('stage-qualified');
+    expect(prisma.attachment.updateMany).toHaveBeenCalledWith({
+      where: { id: '11111111-1111-1111-1111-111111111111', tenantId: 'tenant-1', leadId: created.id },
+      data: { documentStageId: 'stage-qualified', documentName: 'Bukti KTP' },
+    });
   });
 
   it('creates only a Lead from Add Lead even when a legacy createDeal flag is sent', async () => {

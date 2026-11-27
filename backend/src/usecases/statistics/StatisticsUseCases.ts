@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 export interface StatisticsResult {
   totalProjectActive: number;
@@ -61,6 +61,15 @@ export class StatisticsUseCases {
     currentMonthStart.setHours(0, 0, 0, 0);
     const percentageChange = (current: number, previous: number) =>
       previous === 0 ? (current === 0 ? 0 : null) : Math.round(((current - previous) / previous) * 100);
+    const openDealStatus: Prisma.DealWhereInput = {
+      OR: [
+        { statusId: null },
+        { status: { is: { isClosingStatus: false, isFailedStatus: false } } },
+      ],
+    };
+    const nonLostDealStatus: Prisma.DealWhereInput = {
+      OR: [{ statusId: null }, { status: { is: { isFailedStatus: false } } }],
+    };
 
     // 1. Total Leads
     const totalLeads = await this.prisma.lead.count({
@@ -72,9 +81,7 @@ export class StatisticsUseCases {
       where: {
         tenantId,
         ...dateFilter,
-        stage: {
-          isTerminalStage: false,
-        },
+        ...openDealStatus,
       },
     });
 
@@ -83,7 +90,7 @@ export class StatisticsUseCases {
       where: {
         tenantId,
         ...dateFilter,
-        stage: { isWonStage: true },
+        status: { is: { isClosingStatus: true } },
       },
     });
 
@@ -165,7 +172,7 @@ export class StatisticsUseCases {
       where: {
         tenantId,
         ...dateFilter,
-        stage: { isWonStage: true },
+        status: { is: { isClosingStatus: true } },
       },
       _avg: { amount: true },
     });
@@ -177,7 +184,7 @@ export class StatisticsUseCases {
     const wonDealsForTrend = await this.prisma.deal.findMany({
       where: {
         tenantId,
-        stage: { isWonStage: true },
+        status: { is: { isClosingStatus: true } },
         closingDate: { not: null },
         ...dateFilter,
       },
@@ -228,7 +235,7 @@ export class StatisticsUseCases {
 
     // 11. Recent Deals
     const recentDeals = await this.prisma.deal.findMany({
-      where: { tenantId, ...dateFilter },
+      where: { tenantId, ...dateFilter, ...nonLostDealStatus },
       orderBy: { createdAt: 'desc' },
       take: 5,
       include: {
@@ -279,8 +286,8 @@ export class StatisticsUseCases {
         this.prisma.product.count({ where: { tenantId, isActive: true, createdAt: { lt: currentMonthStart } } }),
         this.prisma.productVariant.count({ where: { tenantId, createdAt: { lt: currentMonthStart } } }),
         this.prisma.productUnit.count({ where: { tenantId, createdAt: { lt: currentMonthStart } } }),
-        this.prisma.deal.count({ where: { tenantId, createdAt: { lt: currentMonthStart }, stage: { isTerminalStage: false } } }),
-        this.prisma.deal.count({ where: { tenantId, createdAt: { lt: currentMonthStart }, stage: { isWonStage: true } } }),
+        this.prisma.deal.count({ where: { tenantId, createdAt: { lt: currentMonthStart }, ...openDealStatus } }),
+        this.prisma.deal.count({ where: { tenantId, createdAt: { lt: currentMonthStart }, status: { is: { isClosingStatus: true } } } }),
         this.prisma.deal.count({ where: { tenantId, createdAt: { lt: currentMonthStart }, status: { isFailedStatus: true } } }),
       ]);
 
@@ -294,7 +301,7 @@ export class StatisticsUseCases {
         }),
         this.prisma.deal.groupBy({
           by: ['stageId'],
-          where: { tenantId, stageId: { not: null } },
+          where: { tenantId, stageId: { not: null }, ...nonLostDealStatus },
           _count: { _all: true },
         }),
         this.prisma.viewing.findMany({

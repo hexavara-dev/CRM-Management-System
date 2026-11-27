@@ -32,6 +32,7 @@ export interface AttachmentRecord {
   fileName?: string;
   /** Nama dokumen persyaratan Deal, mis. KTP Customer. */
   documentName?: string | null;
+  documentStageId?: string | null;
   name?: string;
   fileUrl: string;
   fileType?: string;

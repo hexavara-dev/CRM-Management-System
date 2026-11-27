@@ -4,6 +4,8 @@ import { unitSellingPrices } from '../pricing/unitPrices.js';
 type Tx = Prisma.TransactionClient;
 
 export const dealUnitSelect = {
+  stageId: true,
+  statusId: true,
   unitId: true,
   unitClaimed: true,
   amount: true,
@@ -13,6 +15,8 @@ export const dealUnitSelect = {
 } satisfies Prisma.DealSelect;
 
 type DealUnitState = {
+  stageId?: string | null;
+  statusId?: string | null;
   unitId: string | null;
   unitClaimed: boolean;
   stage?: { isWonStage: boolean } | null;

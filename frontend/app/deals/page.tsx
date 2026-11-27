@@ -63,19 +63,35 @@ const paymentLabels: Record<DealPaymentMethod, string> = {
   KPR_SHARIA: "KPR Syariah",
 };
 
-const dealColumnWidths: Record<string, string> = {
-  "No.": "w-9",
-  "Lead/Customer": "w-35",
-  Project: "w-32.5",
-  Unit: "w-20",
-  "Harga Deals": "w-27.5",
-  Pembayaran: "w-25",
-  Bank: "w-25",
-  "Fase Deal": "w-35",
-  "Assigned Sales": "w-28.5",
-  "Last Activity": "w-25",
-  Hari: "w-15",
-  Actions: "w-22.5",
+const dealColumns = [
+  "No.",
+  "Lead/Customer",
+  "Project",
+  "Unit",
+  "Harga Deals",
+  "Pembayaran",
+  "Bank",
+  "Fase Deal",
+  "Assigned Sales",
+  "Last Activity",
+  "Hari",
+  "Actions",
+] as const;
+
+// Lebar eksplisit mencegah teks panjang menggeser atau menutupi data kolom lain.
+const dealColumnWidths: Record<(typeof dealColumns)[number], number> = {
+  "No.": 48,
+  "Lead/Customer": 170,
+  Project: 180,
+  Unit: 135,
+  "Harga Deals": 145,
+  Pembayaran: 120,
+  Bank: 140,
+  "Fase Deal": 170,
+  "Assigned Sales": 160,
+  "Last Activity": 110,
+  Hari: 75,
+  Actions: 105,
 };
 
 const daysSince = (value?: string) =>
@@ -525,26 +541,18 @@ export default function DealsPage() {
             <TabsContent value="list" className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
               <Card className="rounded-xl border border-[#E4E7EC] py-0 shadow-none lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
                 <div className="overflow-auto lg:min-h-0 lg:flex-1">
-                  <table className="w-full min-w-[1160px] table-fixed text-xs">
+                  <table className="w-full min-w-[1558px] table-fixed text-xs">
+                    <colgroup>
+                      {dealColumns.map((title) => (
+                        <col key={title} style={{ width: dealColumnWidths[title] }} />
+                      ))}
+                    </colgroup>
                     <thead className="border-b bg-surface text-left text-xs text-muted-foreground">
                       <tr>
-                        {[
-                          "No.",
-                          "Lead/Customer",
-                          "Project",
-                          "Unit",
-                          "Harga Deals",
-                          "Pembayaran",
-                          "Bank",
-                          "Fase Deal",
-                          "Assigned Sales",
-                          "Last Activity",
-                          "Hari",
-                          "Actions",
-                        ].map((title) => (
+                        {dealColumns.map((title) => (
                           <th
                             key={title}
-                            className={`whitespace-nowrap px-1.5 py-1.5 text-[10px] font-medium ${dealColumnWidths[title]}`}
+                            className="overflow-hidden whitespace-nowrap px-1.5 py-1.5 text-[10px] font-medium"
                           >
                             {title}
                           </th>

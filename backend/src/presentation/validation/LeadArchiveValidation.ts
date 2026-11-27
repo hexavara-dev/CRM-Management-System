@@ -1,16 +1,16 @@
 import { validateBody, type FieldRule } from '../../infrastructure/utils/RequestValidation.js';
 
-export const ARCHIVE_CATEGORIES = ['NOT_RESPOND', 'INVALID', 'NOT_QUALIFIED'] as const;
+export const ARCHIVE_CATEGORIES = ['NOT_RESPOND', 'INVALID', 'NOT_QUALIFIED', 'DEAL_LOST'] as const;
 export type LeadArchiveCategoryInput = (typeof ARCHIVE_CATEGORIES)[number];
 
-const categoryRule: FieldRule = { type: 'string', values: ARCHIVE_CATEGORIES };
+const categoryRule: FieldRule = { type: 'string', values: ['NOT_RESPOND', 'INVALID', 'NOT_QUALIFIED'] };
 const idPattern = /^[0-9a-f-]{36}$/i;
 
 export const validateArchiveLead = (body: unknown) =>
   validateBody(body, {
     category: { ...categoryRule, required: true },
     reason: { type: 'string', max: 500, allowEmpty: true, nullable: true },
-  }) as { category: LeadArchiveCategoryInput; reason?: string | null };
+  }) as { category: Exclude<LeadArchiveCategoryInput, 'DEAL_LOST'>; reason?: string | null };
 
 export const validateArchiveCategoryChange = validateArchiveLead;
 
@@ -27,7 +27,7 @@ export const validateArchiveBulkCategoryChange = (body: unknown) => {
     ids: { type: 'array', required: true },
     category: { ...categoryRule, required: true },
     reason: { type: 'string', max: 500, allowEmpty: true, nullable: true },
-  }) as { ids: unknown[]; category: LeadArchiveCategoryInput; reason?: string | null };
+  }) as { ids: unknown[]; category: Exclude<LeadArchiveCategoryInput, 'DEAL_LOST'>; reason?: string | null };
   const ids = validateArchiveBulkIds({ ids: parsed.ids }).ids;
   return { ...parsed, ids };
 };

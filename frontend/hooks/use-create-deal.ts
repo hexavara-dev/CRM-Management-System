@@ -4,6 +4,7 @@ import api from "@/lib/api";
 import { useAuth } from "@/components/auth/auth-provider";
 import { errorMessage } from "@/hooks/use-projects";
 import type { Deal, DealPaymentMethod } from "@/types/deal";
+import type { LeadFormSubmission } from "@/hooks/use-lead-form";
 
 export interface DealLeadOption {
   id: string;
@@ -90,6 +91,36 @@ export function useCreateDeal() {
         queryClient.invalidateQueries({ queryKey: [key] });
       }
       toast.error(errorMessage(error, "Gagal membuat Deal."));
+    },
+  });
+}
+
+/** Menyimpan Lead dan Deal dalam satu request; kegagalan salah satunya membatalkan keduanya. */
+export function useCreateLeadAndDeal() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ lead, payload, documents }: { lead: LeadFormSubmission; payload: Omit<CreateDealPayload, "leadId">; documents: { name: string; file: File }[] }) => {
+      const form = new FormData();
+      form.append(
+        "payload",
+        JSON.stringify({
+          lead,
+          deal: { ...payload, documents: documents.map(({ name }, fileIndex) => ({ name, fileIndex })) },
+        }),
+      );
+      for (const { file } of documents) form.append("documents", file);
+      return (await api.post<Deal>("/api/deal/from-lead-form", form)).data;
+    },
+    onSuccess: () => {
+      invalidateDealData(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["form-templates"] });
+      toast.success("Lead dan Deal berhasil dibuat.");
+    },
+    onError: (error) => {
+      for (const key of ["deal-lead-options", "reservation-available-units"]) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
+      toast.error(errorMessage(error, "Gagal membuat Lead dan Deal."));
     },
   });
 }

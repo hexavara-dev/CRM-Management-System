@@ -11,6 +11,10 @@ const DEAL_INCLUDE = {
   financingBank: true,
 } satisfies Prisma.DealInclude;
 
+const ACTIVE_DEAL_STATUS: Prisma.DealWhereInput = {
+  OR: [{ statusId: null }, { status: { is: { isFailedStatus: false } } }],
+};
+
 export type DealListFilters = { stageId?: string | undefined; assignedUserId?: string | undefined; paymentMethod?: 'CASH' | 'KPR' | 'KPR_SHARIA' | undefined; bankName?: string | undefined; projectId?: string | undefined; startDate?: Date | undefined; endDate?: Date | undefined };
 
 export class DealUseCases {
@@ -54,10 +58,11 @@ export class DealUseCases {
   async getAllDeals(tenantId: string, page = 1, limit = 10, filters: DealListFilters = {}, search?: string) {
     if (!this.prisma) throw new Error('Database client is required');
     const where: Prisma.DealWhereInput = { tenantId, ...(filters.stageId ? { stageId: filters.stageId } : {}), ...(filters.assignedUserId ? { assignedUserId: filters.assignedUserId } : {}), ...(filters.paymentMethod ? { paymentMethod: filters.paymentMethod } : {}), ...(filters.bankName ? { bankName: filters.bankName } : {}), ...(filters.projectId ? { unit: { is: { variant: { is: { productId: filters.projectId } } } } } : {}), ...((filters.startDate || filters.endDate) ? { createdAt: { ...(filters.startDate ? { gte: filters.startDate } : {}), ...(filters.endDate ? { lte: filters.endDate } : {}) } } : {}), ...(search ? { OR: [{ lead: { is: { customer: { is: { firstName: { contains: search } } } } } }, { lead: { is: { customer: { is: { lastName: { contains: search } } } } } }, { lead: { is: { customer: { is: { phoneNumber: { contains: search } } } } } }] } : {}) };
+    const activeWhere: Prisma.DealWhereInput = { AND: [where, ACTIVE_DEAL_STATUS] };
     const [data, total, summary, lastActivities] = await Promise.all([
-      this.prisma.deal.findMany({ where, skip: (page - 1) * limit, take: limit, include: DEAL_INCLUDE, orderBy: { createdAt: 'desc' } }), this.prisma.deal.count({ where }),
+      this.prisma.deal.findMany({ where: activeWhere, skip: (page - 1) * limit, take: limit, include: { ...DEAL_INCLUDE, attachments: { where: { documentStageId: { not: null } }, select: { id: true, documentName: true, documentStageId: true, fileName: true, fileUrl: true, fileType: true, fileSize: true, createdAt: true } } }, orderBy: { createdAt: 'desc' } }), this.prisma.deal.count({ where: activeWhere }),
       this.prisma.deal.findMany({ where, select: { expectedAmount: true, amount: true, status: { select: { isClosingStatus: true, isFailedStatus: true } } } }),
-      this.prisma.dealActivity.groupBy({ by: ['dealId'], where: { tenantId, deal: where }, _max: { createdAt: true } }),
+      this.prisma.dealActivity.groupBy({ by: ['dealId'], where: { tenantId, deal: activeWhere }, _max: { createdAt: true } }),
     ]);
     const lastByDeal = new Map(lastActivities.map((row) => [row.dealId, row._max.createdAt]));
     const totals = summary.reduce((acc, deal) => { const amount = Number(deal.amount ?? 0); const expected = Number(deal.expectedAmount ?? deal.amount ?? 0); acc.totalDeals++; if (deal.status?.isClosingStatus) { acc.wonDeals++; acc.wonValue += amount; } else if (deal.status?.isFailedStatus) { acc.lostDeals++; acc.lostValue += amount; } else { acc.openDeals++; acc.estimatedValue += expected; } return acc; }, { totalDeals: 0, openDeals: 0, estimatedValue: 0, wonDeals: 0, wonValue: 0, lostDeals: 0, lostValue: 0 });
@@ -67,7 +72,9 @@ export class DealUseCases {
   async updateDeal(id: string, dto: UpdateDealDTO, tenantId?: string, actorId?: string) {
     const before = await this.getDeal(id, tenantId); if (!tenantId) throw new Error('Tenant context missing'); await this.validateRelations(dto, tenantId);
     if (dto.leadId !== undefined && dto.leadId !== (before.leadId ?? null)) throw new Error('Invalid leadId: a Deal cannot move to another Lead');
-    const data: Prisma.DealUncheckedUpdateInput = {}; const fields: (keyof UpdateDealDTO)[] = ['amount', 'leadId', 'assignedUserId', 'stageId', 'statusId', 'dealType', 'expectedAmount', 'currency', 'expectedClosingDate', 'closingDate', 'lostReason', 'lostNotes', 'unitId', 'paymentMethod', 'bankName', 'notes', 'financingBankId'];
+    if (dto.stageId !== undefined && dto.stageId !== before.stageId) throw new Error('Use the Deal stage transition workflow to change stage');
+    if (dto.statusId !== undefined && dto.statusId !== before.statusId) throw new Error('Deal status can only change through its workflow');
+    const data: Prisma.DealUncheckedUpdateInput = {}; const fields: (keyof UpdateDealDTO)[] = ['amount', 'leadId', 'assignedUserId', 'dealType', 'expectedAmount', 'currency', 'expectedClosingDate', 'unitId', 'paymentMethod', 'bankName', 'notes', 'financingBankId'];
     for (const key of fields) if (dto[key] !== undefined) (data as Record<string, unknown>)[key] = dto[key];
     if (dto.paymentMethod === 'CASH') { data.bankName = null; data.financingBankId = null; }
     if (dto.bankName !== undefined && dto.bankName !== null) data.bankName = dto.bankName.trim() || null;
@@ -96,10 +103,7 @@ export class DealUseCases {
         await assertDealPrice(tx, tenantId, updated.unitId, Number(updated.amount ?? 0));
       }
       await syncDealUnit(tx, tenantId, current, updated);
-      if (dto.stageId !== undefined && dto.stageId !== before.stageId) {
-        await tx.dealActivity.create({ data: { tenantId, dealId: id, actorId: actorId ?? null, activityType: 'stage_changed', notes: { create: { content: `Fase Deal diubah dari ${before.stage?.name ?? '-'} ke ${updated.stage?.name ?? '-'}.` } } } });
-      }
-      if (Object.keys(changes).length > 0) await tx.auditLog.create({ data: { tenantId, entityId: id, entityType: 'deal', actorId: actorId ?? null, action: dto.stageId !== undefined && dto.stageId !== before.stageId ? 'stage_changed' : 'update', changes: changes as Prisma.InputJsonValue } });
+      if (Object.keys(changes).length > 0) await tx.auditLog.create({ data: { tenantId, entityId: id, entityType: 'deal', actorId: actorId ?? null, action: 'update', changes: changes as Prisma.InputJsonValue } });
       return updated;
     }, { isolationLevel: 'ReadCommitted' });
   }

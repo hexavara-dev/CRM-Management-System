@@ -133,6 +133,7 @@ export interface FormTemplateSummary {
   color: string;
   isDefault: boolean;
   isActive: boolean;
+  showDealCreationOption: boolean;
   version: number;
   fieldCount: number;
   updatedAt: string;
@@ -159,6 +160,7 @@ export type FormTemplatePayload = {
   color: string;
   isActive: boolean;
   isDefault: boolean;
+  showDealCreationOption: boolean;
   fields: FormField[];
 };
 

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth } from "@/components/auth/auth-provider";
 import type { FormField } from "@/hooks/use-form-templates";
+import type { DealLeadOption } from "@/hooks/use-create-deal";
 
 /** Template default company beserta versi terbarunya (GET /api/lead-form). */
 export interface LeadFormDefinition {
@@ -11,6 +12,7 @@ export interface LeadFormDefinition {
   versionId: string;
   version: number;
   fields: FormField[];
+  showDealCreationOption: boolean;
 }
 
 export type LeadFormSubmission = {
@@ -38,7 +40,7 @@ export function useSubmitLeadForm() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (payload: LeadFormSubmission) =>
-      (await api.post<{ id: string }>("/api/lead-form/submissions", payload)).data,
+      (await api.post<DealLeadOption>("/api/lead-form/submissions", payload)).data,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       // Versi template terkunci setelah dipakai Lead.

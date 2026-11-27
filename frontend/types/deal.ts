@@ -46,6 +46,8 @@ export interface Deal {
   financingBankId?: string | null;
   financingBank?: FinancingBank | null;
   unitId?: string | null;
+  /** Fase yang telah dicapai sebelum evidence pipeline terbaru diberlakukan. */
+  evidenceGrandfatheredStageIds?: string[] | null;
   unit?: DealUnit | null;
   lastActivityAt?: string;
   payments?: DealPayment[];

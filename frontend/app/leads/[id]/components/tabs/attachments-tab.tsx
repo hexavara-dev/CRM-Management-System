@@ -238,7 +238,9 @@ export function AttachmentsTab({
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">Dokumen Lead</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {attachment.activityLabel ? "Dokumen Aktivitas" : "Dokumen Lead"}
+                  </TableCell>
                   <TableCell>
                     <Badge
                       variant="secondary"

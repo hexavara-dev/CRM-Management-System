@@ -16,7 +16,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RupiahInput } from "@/components/ui/rupiah-input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { useCreateDeal, useDealLeadOptions, type DealLeadOption } from "@/hooks/use-create-deal";
+import { useCreateDeal, useCreateLeadAndDeal, useDealLeadOptions, type DealLeadOption } from "@/hooks/use-create-deal";
+import type { PendingLeadDeal } from "@/app/leads/components/add-lead-form";
 import { useFinancingBanks } from "@/hooks/use-financing-banks";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { errorMessage, useProjects } from "@/hooks/use-projects";
@@ -156,15 +157,22 @@ function LeadCard({ lead }: { lead: DealLeadOption }) {
 export function AddDealDialog({
   onClose,
   onCreated,
+  initialLead,
+  pendingLead,
 }: {
   onClose: () => void;
   onCreated: (deal: Deal) => void;
+  /** Dipakai oleh Add Lead agar Deal langsung terhubung ke Lead yang baru disimpan. */
+  initialLead?: DealLeadOption;
+  /** Lead dari Add Lead yang belum disimpan; disimpan bersamaan dengan Deal. */
+  pendingLead?: PendingLeadDeal;
 }) {
   const leads = useDealLeadOptions();
   const projects = useProjects({ page: 1, limit: 100, isActive: true });
   const stages = usePipelineStages("deal");
   const banks = useFinancingBanks(true);
   const create = useCreateDeal();
+  const createWithLead = useCreateLeadAndDeal();
   const [files, setFiles] = useState<Record<string, File>>({});
   const [showMissing, setShowMissing] = useState(false);
   const [closingOpen, setClosingOpen] = useState(false);
@@ -172,8 +180,8 @@ export function AddDealDialog({
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      leadId: "",
-      projectId: "",
+      leadId: pendingLead?.preview.id ?? initialLead?.id ?? "",
+      projectId: pendingLead?.projectId ?? initialLead?.project?.id ?? "",
       unitId: "",
       amount: "",
       paymentMethod: "CASH",
@@ -186,7 +194,8 @@ export function AddDealDialog({
     name: ["leadId", "projectId", "unitId", "paymentMethod", "expectedClosingDate"],
   });
   const errors = form.formState.errors;
-  const lead = leads.data?.find((item) => item.id === selectedLeadId);
+  const lockedLead = pendingLead?.preview ?? initialLead;
+  const lead = lockedLead?.id === selectedLeadId ? lockedLead : leads.data?.find((item) => item.id === selectedLeadId);
   const projectOptions = projects.data?.data ?? [];
   const units = useAvailableReservationUnits(pickedProjectId || undefined);
   const unit = units.data?.find((item) => item.id === unitId);
@@ -221,18 +230,19 @@ export function AddDealDialog({
         return;
       }
       try {
-        const deal = await create.mutateAsync({
-          payload: {
-            leadId: data.leadId,
+        const payload = {
+          ...(pendingLead ? {} : { leadId: data.leadId }),
             unitId: data.unitId,
             amount: Number(data.amount),
             paymentMethod: data.paymentMethod,
             financingBankId: data.paymentMethod === "CASH" ? null : data.financingBankId,
             expectedClosingDate: data.expectedClosingDate,
             notes: null,
-          },
-          documents: documents.flatMap(({ name }) => (files[name] ? [{ name, file: files[name] }] : [])),
-        });
+          };
+        const uploadedDocuments = documents.flatMap(({ name }) => (files[name] ? [{ name, file: files[name] }] : []));
+        const deal = pendingLead
+          ? await createWithLead.mutateAsync({ lead: pendingLead.submission, payload, documents: uploadedDocuments })
+          : await create.mutateAsync({ payload: payload as import("@/hooks/use-create-deal").CreateDealPayload, documents: uploadedDocuments });
         onCreated(deal);
       } catch {
         // Pesan error ditampilkan oleh mutation.
@@ -241,20 +251,20 @@ export function AddDealDialog({
     () => setShowMissing(true),
   );
 
-  const loading = leads.isLoading || stages.isLoading || projects.isLoading;
-  const failed = leads.error ?? stages.error ?? projects.error;
+  const loading = (!lockedLead && leads.isLoading) || stages.isLoading || projects.isLoading;
+  const failed = (lockedLead ? undefined : leads.error) ?? stages.error ?? projects.error;
   const blocked = failed
     ? errorMessage(failed, "Gagal memuat data form Deal.")
     : loading
       ? null
-      : !leads.data?.length
+      : !lockedLead && !leads.data?.length
         ? "Belum ada Lead yang dapat dibuatkan Deal."
         : !stage
           ? "Deals Pipeline belum memiliki tahapan default yang aktif."
           : null;
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !create.isPending && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !create.isPending && !createWithLead.isPending && onClose()}>
       <DialogContent ref={contentRef} className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <DialogHeader className="flex-row items-center gap-4 border-b border-[#EDEDED] p-4 text-left sm:px-6">
           <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-[#E5F1FA] text-[#1980C0]">
@@ -263,7 +273,7 @@ export function AddDealDialog({
           <div>
             <DialogTitle className="text-lg font-bold">Tambah Deal</DialogTitle>
             <DialogDescription>
-              Buat data deal baru dari leads yang sudah ada dan lengkapi informasi serta dokumen persyaratannya.
+              {pendingLead ? "Lead dan Deal akan tersimpan bersamaan setelah informasi Deal lengkap." : "Buat data Deal baru dari Lead yang sudah ada dan lengkapi informasi serta dokumen persyaratannya."}
             </DialogDescription>
           </div>
         </DialogHeader>
@@ -291,13 +301,15 @@ export function AddDealDialog({
                       placeholder="Pilih Lead"
                       icon={UserRound}
                       searchPlaceholder="Cari nama, telepon, atau email"
-                      options={(leads.data ?? []).map((item) => ({
+                       options={(lockedLead ? [lockedLead, ...(leads.data ?? []).filter((item) => item.id !== lockedLead.id)] : leads.data ?? []).map((item) => ({
                         value: item.id,
                         label: item.name,
                         hint: [item.phone, item.email].filter(Boolean).join(" · "),
                       }))}
                       clearable={false}
                       invalid={!!errors.leadId}
+                       disabled={!!lockedLead}
+                       disabledHint={pendingLead ? "Lead ini baru akan disimpan bersama Deal." : "Lead baru ini sudah dipilih untuk Deal."}
                       triggerClassName="h-10 text-sm"
                     />
                   </Field>
@@ -515,12 +527,12 @@ export function AddDealDialog({
               </Section>
             </div>
             <div className="flex flex-col-reverse gap-2 border-t border-[#EDEDED] p-4 sm:flex-row sm:justify-between sm:px-6">
-              <Button type="button" variant="outline" size="lg" className="px-6" onClick={onClose} disabled={create.isPending}>
+               <Button type="button" variant="outline" size="lg" className="px-6" onClick={onClose} disabled={create.isPending || createWithLead.isPending}>
                 Batal
               </Button>
-              <Button type="submit" size="lg" disabled={create.isPending} className="bg-[#1980C0] px-6 text-white hover:bg-[#166ea6]">
+               <Button type="submit" size="lg" disabled={create.isPending || createWithLead.isPending} className="bg-[#1980C0] px-6 text-white hover:bg-[#166ea6]">
                 <Save className="size-4" />
-                {create.isPending ? "Menyimpan..." : "Simpan Deal"}
+                 {create.isPending || createWithLead.isPending ? "Menyimpan..." : "Simpan Deal"}
               </Button>
             </div>
           </form>

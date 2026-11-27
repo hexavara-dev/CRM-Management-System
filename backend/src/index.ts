@@ -68,6 +68,10 @@ import { AvailabilityUseCase } from './usecases/availability/AvailabilityUseCase
 import { AvailabilityController } from './presentation/controllers/AvailabilityController.js';
 import { DealDetailUseCase } from './usecases/deal/DealDetailUseCase.js';
 import { DealDetailController } from './presentation/controllers/DealDetailController.js';
+import { DealStageTransitionUseCase } from './usecases/deal/DealStageTransitionUseCase.js';
+import { DealStageTransitionController } from './presentation/controllers/DealStageTransitionController.js';
+import { LeadStageTransitionUseCase } from './usecases/lead/LeadStageTransitionUseCase.js';
+import { LeadStageTransitionController } from './presentation/controllers/LeadStageTransitionController.js';
 import { CustomerProfileUseCase } from './usecases/customer/CustomerProfileUseCase.js';
 import { CustomerProfileController } from './presentation/controllers/CustomerProfileController.js';
 import { FinancingBankUseCase } from './usecases/deal/FinancingBankUseCase.js';
@@ -235,7 +239,12 @@ app.get('/api/statistics', authMiddleware, (req, res) =>
 const createDeal = new CreateDealController(new CreateDealUseCase(prisma));
 const dealDocumentUploads = upload.array('documents', MAX_DEAL_DOCUMENTS);
 app.get('/api/lead/deal-options', authMiddleware, createDeal.leadOptions);
+app.post('/api/deal/from-lead-form', authMiddleware, dealDocumentUploads, createDeal.createFromLeadForm);
 app.post('/api/deal', authMiddleware, dealDocumentUploads, createDeal.create);
+const dealStageTransition = new DealStageTransitionController(new DealStageTransitionUseCase(prisma));
+app.post('/api/deal/:id/set-stage', authMiddleware, dealDocumentUploads, dealStageTransition.transition);
+const leadStageTransition = new LeadStageTransitionController(new LeadStageTransitionUseCase(prisma));
+app.post('/api/lead/:id/transition-stage', authMiddleware, dealDocumentUploads, leadStageTransition.transition);
 
 // Archive routes are explicit: archive state is not generic Lead CRUD.
 const leadArchiveController = new LeadArchiveController(new LeadArchiveUseCase(prisma));

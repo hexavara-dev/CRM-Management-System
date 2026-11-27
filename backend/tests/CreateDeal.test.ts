@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { parseCreateDeal } from '../src/presentation/validation/crm/createDeal.js';
+import { parseCreateDeal, parseCreateDealFromLeadForm } from '../src/presentation/validation/crm/createDeal.js';
 import { CreateDealUseCase } from '../src/usecases/deal/CreateDealUseCase.js';
 import { checkDealDocuments } from '../src/usecases/deal/dealDocuments.js';
 
@@ -15,7 +15,7 @@ const input = {
 };
 const owner = { tenantId: 't-1', userId: 'o-1', role: 'owner' };
 
-function setup(over: { lead?: unknown; stage?: unknown; leadClaim?: number; deals?: number; unitClaim?: number; bank?: unknown; unit?: unknown } = {}) {
+function setup(over: { lead?: unknown; stage?: unknown; status?: unknown; leadClaim?: number; deals?: number; unitClaim?: number; bank?: unknown; unit?: unknown } = {}) {
   const tx = {
     lead: { updateMany: fn({ count: over.leadClaim ?? 1 }) },
     productUnit: {
@@ -38,6 +38,7 @@ function setup(over: { lead?: unknown; stage?: unknown; leadClaim?: number; deal
       count: fn(0),
     },
     stage: { findFirst: fn('stage' in over ? over.stage : { id: 'st-1', evidences: [requirement('KTP')] }) },
+    status: { findFirst: fn('status' in over ? over.status : { id: 'open-status' }) },
     financingBank: { findFirst: fn(over.bank ?? null) },
     reservation: { findMany: fn([]) },
     $transaction: jest.fn(async (action: any) => action(tx)),
@@ -51,7 +52,7 @@ describe('CreateDealUseCase', () => {
     const { tx, storage, useCase } = setup();
     const deal = (await useCase.create(owner, input, [pdf])) as any;
     expect(deal).toMatchObject({
-      tenantId: 't-1', leadId: 'l-1', unitId: 'u-1', unitClaimed: true, stageId: 'st-1', assignedUserId: 's-1',
+      tenantId: 't-1', leadId: 'l-1', unitId: 'u-1', unitClaimed: true, stageId: 'st-1', statusId: 'open-status', assignedUserId: 's-1',
       amount: 500, currency: 'IDR', bankName: null,
     });
     expect(tx.lead.updateMany.mock.calls[0]![0].where).toEqual({
@@ -84,6 +85,7 @@ describe('CreateDealUseCase', () => {
   it.each([
     ['inaccessible lead', { lead: null }, {}, /Lead not found/],
     ['no default stage', { stage: null }, {}, /^No default Deal stage configured/],
+    ['no default status', { status: null }, {}, /^No default Deal status configured/],
     ['missing document', {}, { documents: [] }, /missing: KTP/],
     ['past closing date', {}, { expectedClosingDate: '2020-01-01' }, /Invalid expectedClosingDate/],
     ['KPR without bank', {}, { paymentMethod: 'KPR' as const }, /Bank is required/],
@@ -143,5 +145,19 @@ describe('parseCreateDeal', () => {
     expect(() => parseCreateDeal({ ...fields, amount: 1.5 })).toThrow(/integer/);
     expect(() => parseCreateDeal({ ...fields, tenantId: 't-2' })).toThrow(/Unsupported field/);
     expect(() => parseCreateDeal({ ...fields, documents: [{ name: 'A', fileIndex: 99 }] })).toThrow(/fileIndex/);
+  });
+});
+
+describe('parseCreateDealFromLeadForm', () => {
+  const { leadId: _leadId, ...deal } = input;
+  const lead = { templateVersionId: 'form-v1', values: { name: 'Siti', phone: '0812345678', lead_source: 'src-1' } };
+
+  it('reads a multipart Lead draft and Deal payload without accepting a browser-provided lead id', () => {
+    expect(parseCreateDealFromLeadForm({ payload: JSON.stringify({ lead, deal }) })).toEqual({ lead, deal });
+  });
+
+  it('requires both payloads', () => {
+    expect(() => parseCreateDealFromLeadForm({ deal })).toThrow(/Lead form payload is required/);
+    expect(() => parseCreateDealFromLeadForm({ lead })).toThrow(/Deal payload is required/);
   });
 });
