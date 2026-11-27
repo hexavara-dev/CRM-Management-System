@@ -1,6 +1,7 @@
 import type { Lead, Deal, LeadActivity, Status, Stage, Prisma, PrismaClient } from '@prisma/client';
 import type { PrismaGenericRepository } from '../../infrastructure/repositories/PrismaGenericRepository.js';
 import type { CreateLeadDTO, UpdateLeadDTO } from '../../presentation/dtos/LeadDTO.js';
+import { grandfatheredStageIds, isEvidenceGrandfathered } from '../crm/evidenceGrandfathering.js';
 
 const USER_PUBLIC_FIELDS = {
   id: true,
@@ -266,6 +267,18 @@ export class LeadUseCases {
         customer: {
           include: {
             organization: true,
+            // Viewing terhubung ke Customer, bukan langsung ke Lead.
+            viewings: {
+              include: {
+                status: true,
+                location: true,
+                source: true,
+                actor: { select: USER_PUBLIC_FIELDS },
+                attachments: true,
+                slot: true,
+              },
+              orderBy: { scheduledAt: 'desc' },
+            },
           },
         },
         // Label custom field dari versi template yang dipakai saat Lead dibuat.
@@ -309,17 +322,6 @@ export class LeadUseCases {
           include: { label: true },
           orderBy: { createdAt: 'asc' },
         },
-        viewings: {
-          include: {
-            status: true,
-            location: true,
-            source: true,
-            actor: { select: USER_PUBLIC_FIELDS },
-            attachments: true,
-            slot: true,
-          },
-          orderBy: { scheduledAt: 'desc' },
-        },
       }
     );
     if (!lead) {
@@ -341,9 +343,12 @@ export class LeadUseCases {
           },
         })
       : [];
-    const { labelAssignments, ...leadData } = lead as any;
+    const { labelAssignments, customer, ...leadData } = lead as any;
+    const { viewings, ...customerData } = customer ?? {};
     return {
       ...leadData,
+      customer: customer ? customerData : customer,
+      viewings: viewings ?? [],
       labels: (labelAssignments ?? []).map((assignment: any) => assignment.label),
       history,
     };
@@ -576,15 +581,9 @@ export class LeadUseCases {
             },
             orderBy: { createdAt: 'desc' },
           },
-          viewings: {
-            select: {
-              id: true,
-              status: true,
-              scheduledAt: true,
-              location: true,
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 1,
+          // Dipakai Kanban untuk menandai evidence fase yang sudah dipenuhi saat Lead kembali maju.
+          attachments: {
+            select: { id: true, documentName: true, documentStageId: true, fileName: true, fileUrl: true, fileType: true, fileSize: true, createdAt: true },
           },
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -593,11 +592,10 @@ export class LeadUseCases {
     ]);
 
     const mappedData = data.map((lead: any) => {
-      const { viewings, labelAssignments, ...leadData } = lead;
+      const { labelAssignments, ...leadData } = lead;
       return {
         ...leadData,
         labels: (labelAssignments ?? []).map((assignment: any) => assignment.label),
-        viewing: viewings && viewings.length > 0 ? viewings[0] : null,
       };
     });
 
@@ -804,7 +802,10 @@ export class LeadUseCases {
 
     const lead: any = await this.getLead(id, tenantId, role, currentUserId);
 
-    const requiredEvidence = (stage.evidences ?? []).filter(
+    const grandfatheredForStage = this.prisma
+      ? await isEvidenceGrandfathered(this.prisma, tenantId, 'lead', lead, stage)
+      : grandfatheredStageIds(lead).includes(stage.id);
+    const requiredEvidence = grandfatheredForStage ? [] : (stage.evidences ?? []).filter(
       (evidence: { isRequired: boolean }) => evidence.isRequired
     );
     if (requiredEvidence.length > 0) {
@@ -850,6 +851,23 @@ export class LeadUseCases {
             throw new Error(`Evidence "${requirement.name}" has an unsupported file type`);
           }
         }
+      );
+    }
+
+    // Jalur lama (Detail Lead) mengunggah attachment lebih dahulu. Tandai attachment
+    // tersebut sebagai evidence fase ini agar saat Lead mundur lalu maju lagi bukti
+    // yang sama dapat dipakai ulang oleh workflow pipeline baru.
+    if (this.prisma && evidenceAttachmentIds.length) {
+      await Promise.all(
+        evidenceAttachmentIds.map((attachmentId, index) =>
+          this.prisma!.attachment.updateMany({
+            where: { id: attachmentId, tenantId, leadId: id },
+            data: {
+              documentStageId: stage.id,
+              documentName: requiredEvidence[index]?.name ?? null,
+            },
+          })
+        )
       );
     }
 

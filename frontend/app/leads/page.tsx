@@ -1,6 +1,7 @@
 "use client";
 import { LabelBadge } from "@/app/crm-configuration/leads-label/label-icons";
-import { AddLeadForm } from "@/app/leads/components/add-lead-form";
+import { AddLeadForm, type PendingLeadDeal } from "@/app/leads/components/add-lead-form";
+import { AddDealDialog } from "@/app/deals/components/add-deal-dialog";
 import { LeadArchiveDialog } from "@/app/leads/components/lead-archive-dialog";
 import {
   type LeadDateRange,
@@ -9,7 +10,6 @@ import {
 import { AppSidebar } from "@/components/Sidebar";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Badge } from "@/components/ui/badge";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +51,7 @@ import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useArchiveLeadAction } from "@/hooks/use-lead-archive";
 import { useActiveLeadSources } from "@/hooks/use-lead-sources";
 import { useLeadsTable } from "@/hooks/use-leads-table";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useLocations } from "@/hooks/use-locations";
 import { usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useProjects } from "@/hooks/use-projects";
@@ -138,17 +139,11 @@ export default function LeadsPage() {
   const [salesFilter, setSalesFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [prospectFilter, setProspectFilter] = useState("all");
-  const [pipelineDateRange, setPipelineDateRange] = useState<LeadDateRange>(
-    () => {
-      const now = new Date();
-      const formatDate = (date: Date) =>
-        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-      return {
-        from: formatDate(new Date(now.getFullYear(), now.getMonth(), 1)),
-        to: formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-      };
-    },
-  );
+  // Pipeline menampilkan seluruh Lead sampai user secara eksplisit memilih periode.
+  const [pipelineDateRange, setPipelineDateRange] = useState<LeadDateRange>({
+    from: "",
+    to: "",
+  });
   const deferredSearch = useDeferredValue(search.trim());
   const pipelinePeriod: DateRange | undefined = pipelineDateRange.from
     ? {
@@ -164,7 +159,7 @@ export default function LeadsPage() {
       : dateLabel(pipelinePeriod.from)
     : "Pilih rentang tanggal";
 
-  const { leads, isLoading, updateLead, serverPagination } =
+  const { leads, isLoading, isError, error, updateLead, serverPagination } =
     useLeadsTable({
       filters: {
         search: deferredSearch || undefined,
@@ -190,6 +185,7 @@ export default function LeadsPage() {
   );
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [leadForNewDeal, setLeadForNewDeal] = useState<PendingLeadDeal | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -506,9 +502,22 @@ export default function LeadsPage() {
                       </div>
                     </div>
                   </DialogHeader>
-                  <AddLeadForm onDone={() => setIsAddDialogOpen(false)} />
+                  <AddLeadForm
+                    onDone={() => setIsAddDialogOpen(false)}
+                    onDealRequested={(lead) => {
+                      setIsAddDialogOpen(false);
+                      setLeadForNewDeal(lead);
+                    }}
+                  />
                 </DialogContent>
               </Dialog>
+              {leadForNewDeal && (
+                <AddDealDialog
+                  pendingLead={leadForNewDeal}
+                  onClose={() => setLeadForNewDeal(null)}
+                  onCreated={() => setLeadForNewDeal(null)}
+                />
+              )}
             </div>
           </div>
         </header>
@@ -687,6 +696,11 @@ export default function LeadsPage() {
                         columns={columns}
                         data={leads}
                         isLoading={isLoading}
+                        errorMessage={
+                          isError
+                            ? apiErrorMessage(error, "Gagal memuat daftar Lead. Coba muat ulang halaman.")
+                            : undefined
+                        }
                         serverPagination={serverPagination}
                         showColumnSelector={false}
                     tableHeaderClassName="text-slate-700"

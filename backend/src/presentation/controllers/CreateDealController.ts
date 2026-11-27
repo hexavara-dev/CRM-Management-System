@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { respondWithError } from '../../infrastructure/utils/HttpErrorMapper.js';
 import { parsePagination, parseSearch } from '../../infrastructure/utils/RequestValidation.js';
 import type { CreateDealUseCase, DealCreator } from '../../usecases/deal/CreateDealUseCase.js';
-import { parseCreateDeal } from '../validation/crm/createDeal.js';
+import { parseCreateDeal, parseCreateDealFromLeadForm } from '../validation/crm/createDeal.js';
 
 function creatorOf(req: Request): DealCreator {
   const user = (req as Request & { user?: Partial<DealCreator> }).user;
@@ -37,5 +37,10 @@ export class CreateDealController {
 
   create = handle(async (req, res, creator) => {
     res.status(201).json(await this.deals.create(creator, parseCreateDeal(req.body), filesOf(req)));
+  });
+
+  createFromLeadForm = handle(async (req, res, creator) => {
+    const input = parseCreateDealFromLeadForm(req.body);
+    res.status(201).json(await this.deals.createFromLeadForm(creator, input.lead, input.deal, filesOf(req)));
   });
 }

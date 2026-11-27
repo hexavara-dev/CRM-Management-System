@@ -25,7 +25,7 @@ export class DealDetailUseCase {
   private async requireDeal(dealId: string, tenantId: string) {
     const deal = await this.prisma.deal.findFirst({
       where: { id: dealId, tenantId },
-      select: { id: true, statusId: true, status: { select: { isFailedStatus: true } } },
+      select: { id: true, leadId: true, statusId: true, status: { select: { isFailedStatus: true } } },
     });
     if (!deal) throw new Error('Deal not found');
     return deal;
@@ -189,7 +189,7 @@ export class DealDetailUseCase {
     decision: Extract<DealLostRequestStatus, 'APPROVED' | 'REJECTED'>,
     reviewNotes?: string
   ) {
-    await this.requireDeal(dealId, actor.tenantId);
+    const deal = await this.requireDeal(dealId, actor.tenantId);
     const request = await this.prisma.dealLostRequest.findFirst({
       where: { id: requestId, dealId, tenantId: actor.tenantId, status: 'PENDING' },
     });
@@ -234,6 +234,44 @@ export class DealDetailUseCase {
             closingDate: new Date(),
           },
         });
+        if (deal.leadId) {
+          const lead = await tx.lead.findFirst({
+            where: { id: deal.leadId, tenantId: actor.tenantId, isDeleted: false },
+            select: { id: true, customerId: true, archivedAt: true },
+          });
+          if (lead) {
+            const archivedAt = lead.archivedAt ?? new Date();
+            await tx.lead.update({
+              where: { id: lead.id },
+              data: {
+                archiveCategory: 'DEAL_LOST',
+                archiveReason: request.reason.slice(0, 500),
+                archivedAt,
+                archivedById: actor.userId,
+              },
+            });
+            await tx.leadActivity.create({
+              data: {
+                tenantId: actor.tenantId,
+                leadId: lead.id,
+                customerId: lead.customerId,
+                actorId: actor.userId,
+                activityType: 'archive',
+                notes: { create: { tenantId: actor.tenantId, content: `Diarsipkan karena Deal Lost: ${request.reason}` } },
+              },
+            });
+            await tx.auditLog.create({
+              data: {
+                tenantId: actor.tenantId,
+                entityId: lead.id,
+                entityType: 'lead',
+                actorId: actor.userId,
+                action: 'archive',
+                changes: { category: 'DEAL_LOST', reason: request.reason, dealId, archivedAt: archivedAt.toISOString() },
+              },
+            });
+          }
+        }
       }
 
       await tx.dealActivity.create({

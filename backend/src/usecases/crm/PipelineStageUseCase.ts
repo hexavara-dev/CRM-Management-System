@@ -87,6 +87,104 @@ const evidenceRows = (tenantId: string, stageId: string, entity: PipelineEntity,
 
 type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
 
+function stageIdsFromAuditChanges(changes: Prisma.JsonValue | null): string[] {
+  if (!changes || typeof changes !== 'object' || Array.isArray(changes)) return [];
+  const stageId = (changes as Prisma.JsonObject).stageId;
+  if (!stageId || typeof stageId !== 'object' || Array.isArray(stageId)) return [];
+  const values = Object.values(stageId as Prisma.JsonObject);
+  return values.filter((value): value is string => typeof value === 'string');
+}
+
+/**
+ * Saat admin mengubah evidence Deal, simpan fase yang telah dicapai oleh Deal
+ * yang sudah ada. Ini mencegah konfigurasi baru berlaku surut pada data lama.
+ */
+async function snapshotDealEvidenceGrandfathering(tx: Tx, tenantId: string) {
+  const [deals, auditLogs] = await Promise.all([
+    tx.deal.findMany({
+      where: { tenantId },
+      select: { id: true, stageId: true, evidenceGrandfatheredStageIds: true },
+    }),
+    tx.auditLog.findMany({
+      where: { tenantId, entityType: 'deal', action: 'stage_changed' },
+      select: { entityId: true, changes: true },
+    }),
+  ]);
+  const history = new Map<string, Set<string>>();
+  for (const log of auditLogs) {
+    const ids = history.get(log.entityId) ?? new Set<string>();
+    for (const id of stageIdsFromAuditChanges(log.changes)) ids.add(id);
+    history.set(log.entityId, ids);
+  }
+  for (const deal of deals) {
+    const ids = new Set(
+      Array.isArray(deal.evidenceGrandfatheredStageIds)
+        ? deal.evidenceGrandfatheredStageIds.filter((id): id is string => typeof id === 'string')
+        : [],
+    );
+    if (deal.stageId) ids.add(deal.stageId);
+    for (const id of history.get(deal.id) ?? []) ids.add(id);
+    const next = [...ids];
+    const previous = Array.isArray(deal.evidenceGrandfatheredStageIds)
+      ? deal.evidenceGrandfatheredStageIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    if (next.length !== previous.length || next.some((id) => !previous.includes(id))) {
+      await tx.deal.update({ where: { id: deal.id }, data: { evidenceGrandfatheredStageIds: next } });
+    }
+  }
+}
+
+/** Padanan Lead dari snapshot Deal: konfigurasi evidence tidak berlaku surut. */
+async function snapshotLeadEvidenceGrandfathering(tx: Tx, tenantId: string) {
+  const [leads, auditLogs] = await Promise.all([
+    tx.lead.findMany({
+      where: { tenantId },
+      select: { id: true, stageId: true, evidenceGrandfatheredStageIds: true },
+    }),
+    tx.auditLog.findMany({
+      where: { tenantId, entityType: 'lead', action: { in: ['stage_changed', 'stage-change'] } },
+      select: { entityId: true, changes: true },
+    }),
+  ]);
+  const history = new Map<string, Set<string>>();
+  for (const log of auditLogs) {
+    const ids = history.get(log.entityId) ?? new Set<string>();
+    for (const id of stageIdsFromAuditChanges(log.changes)) ids.add(id);
+    history.set(log.entityId, ids);
+  }
+  for (const lead of leads) {
+    const ids = new Set(
+      Array.isArray(lead.evidenceGrandfatheredStageIds)
+        ? lead.evidenceGrandfatheredStageIds.filter((id): id is string => typeof id === 'string')
+        : [],
+    );
+    if (lead.stageId) ids.add(lead.stageId);
+    for (const id of history.get(lead.id) ?? []) ids.add(id);
+    const next = [...ids];
+    const previous = Array.isArray(lead.evidenceGrandfatheredStageIds)
+      ? lead.evidenceGrandfatheredStageIds.filter((id): id is string => typeof id === 'string')
+      : [];
+    if (next.length !== previous.length || next.some((id) => !previous.includes(id))) {
+      await tx.lead.update({ where: { id: lead.id }, data: { evidenceGrandfatheredStageIds: next } });
+    }
+  }
+}
+
+function evidenceConfigurationChanged(stage: StageRow, evidences: EvidenceInput[]) {
+  const normalize = (evidence: EvidenceInput | StageRow['evidences'][number]) => ({
+    name: evidence.name,
+    fileTypes: Array.isArray(evidence.fileTypes)
+      ? evidence.fileTypes.filter((type): type is string => typeof type === 'string').sort()
+      : [],
+    isRequired: evidence.isRequired,
+    description: evidence.description ?? null,
+    paymentMethods: 'paymentMethods' in evidence && Array.isArray(evidence.paymentMethods)
+      ? evidence.paymentMethods.filter((method): method is string => typeof method === 'string').sort()
+      : null,
+  });
+  return JSON.stringify(stage.evidences.map(normalize)) !== JSON.stringify(evidences.map(normalize));
+}
+
 type Positioned = { id: string; isDefaultStage: boolean; isTerminalStage: boolean };
 
 /** Tahapan default selalu pertama dan tahapan akhir selalu terakhir; sisanya mempertahankan urutan. */
@@ -272,6 +370,10 @@ export class PipelineStageUseCase {
       if (Object.keys(data).length > 0) await tx.stage.update({ where: { id }, data });
       if (flagsChanged) await normalizePositions(tx, tenantId, entity);
       if (input.evidences !== undefined) {
+        if (evidenceConfigurationChanged(stage, input.evidences)) {
+          if (entity === 'deal') await snapshotDealEvidenceGrandfathering(tx, tenantId);
+          if (entity === 'lead') await snapshotLeadEvidenceGrandfathering(tx, tenantId);
+        }
         await tx.stageEvidenceRequirement.deleteMany({ where: { tenantId, stageId: id } });
         if (input.evidences.length) {
           await tx.stageEvidenceRequirement.createMany({ data: evidenceRows(tenantId, id, entity, input.evidences) });

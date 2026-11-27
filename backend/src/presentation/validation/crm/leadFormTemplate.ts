@@ -21,6 +21,7 @@ const templateRules: Record<string, FieldRule> = {
   color: { type: 'string', required: true, max: 7 },
   isActive: { type: 'boolean' },
   isDefault: { type: 'boolean' },
+  showDealCreationOption: { type: 'boolean' },
   fields: { type: 'array' },
 };
 

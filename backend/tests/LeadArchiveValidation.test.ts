@@ -14,6 +14,11 @@ describe('Lead archive request validation', () => {
     expect(validateArchiveLead({ category: 'NOT_RESPOND', reason: null })).toEqual({ category: 'NOT_RESPOND', reason: null });
   });
 
+  it('reserves Deal Lost for the automatic workflow but accepts it as a list filter', () => {
+    expect(() => validateArchiveLead({ category: 'DEAL_LOST' })).toThrow(/must be one of/i);
+    expect(parseArchiveListQuery({ category: 'DEAL_LOST' })).toEqual(expect.objectContaining({ category: 'DEAL_LOST' }));
+  });
+
   it.each([
     [null, /object/i],
     [{}, /category is required/i],

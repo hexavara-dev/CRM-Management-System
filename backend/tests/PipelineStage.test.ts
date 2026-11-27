@@ -39,6 +39,9 @@ function prisma(over: { stage?: unknown; duplicate?: unknown; all?: unknown[]; o
       findMany: fn(over.ordered ?? over.all ?? [row()]),
     },
     stageEvidenceRequirement: { createMany: fn({}), deleteMany: fn({}) },
+    deal: { findMany: fn([]), update: fn({}) },
+    lead: { findMany: fn([]), update: fn({}) },
+    auditLog: { findMany: fn([]) },
   };
   const db = {
     tx,
@@ -103,6 +106,23 @@ describe('PipelineStageUseCase', () => {
     expect(db.tx.stage.update).toHaveBeenCalledWith({ where: { id: 's-1' }, data: { probability: 70 } });
     expect(db.tx.stageEvidenceRequirement.deleteMany).toHaveBeenCalledWith({ where: { tenantId: 't-1', stageId: 's-1' } });
     expect(db.tx.stageEvidenceRequirement.createMany).not.toHaveBeenCalled();
+  });
+
+  it('snapshots reached lead stages before an evidence configuration changes', async () => {
+    const db = prisma();
+    db.tx.lead.findMany.mockResolvedValue([
+      { id: 'l-1', stageId: 's-1', evidenceGrandfatheredStageIds: null },
+    ]);
+    db.tx.auditLog.findMany.mockResolvedValue([
+      { entityId: 'l-1', changes: { stageId: { old: 's-0', new: 's-1' } } },
+    ]);
+    await new PipelineStageUseCase(db as never).update('s-1', 't-1', {
+      evidences: [{ name: 'KTP', fileTypes: ['PDF'], isRequired: true }],
+    });
+    expect(db.tx.lead.update).toHaveBeenCalledWith({
+      where: { id: 'l-1' },
+      data: { evidenceGrandfatheredStageIds: expect.arrayContaining(['s-0', 's-1']) },
+    });
   });
 
   it('protects default and final stages', async () => {
@@ -201,6 +221,23 @@ describe('PipelineStageUseCase for deals', () => {
     );
     expect(db.tx.stage.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ tenantId: 't-1', entityType: 'deal', name: 'ITJ', probability: 25 }),
+    });
+  });
+
+  it('snapshots reached deal stages before an evidence configuration changes', async () => {
+    const db = prisma({ stage: deal() });
+    db.tx.deal.findMany.mockResolvedValue([
+      { id: 'd-1', stageId: 's-1', evidenceGrandfatheredStageIds: null },
+    ]);
+    db.tx.auditLog.findMany.mockResolvedValue([
+      { entityId: 'd-1', changes: { stageId: { old: 's-0', new: 's-1' } } },
+    ]);
+    await new PipelineStageUseCase(db as never).update('s-1', 't-1', {
+      evidences: [{ name: 'Kontrak', fileTypes: ['PDF'], isRequired: true }],
+    });
+    expect(db.tx.deal.update).toHaveBeenCalledWith({
+      where: { id: 'd-1' },
+      data: { evidenceGrandfatheredStageIds: expect.arrayContaining(['s-0', 's-1']) },
     });
   });
 

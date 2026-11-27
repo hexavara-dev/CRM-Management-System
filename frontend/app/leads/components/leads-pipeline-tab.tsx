@@ -1,29 +1,46 @@
 "use client";
 
-import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, type DragEndEvent, type DragStartEvent, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, KeyboardSensor, MeasuringStrategy, PointerSensor, closestCorners, defaultDropAnimationSideEffects, pointerWithin, type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent, type DropAnimation, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Loader2, Paperclip, Phone, Search } from "lucide-react";
+import { Phone, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { useAuth } from "@/components/auth/auth-provider";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useLeadLabels } from "@/hooks/use-lead-labels";
 import { useLeads } from "@/hooks/use-leads";
+import { isLeadEvidenceGrandfathered, LeadStageEvidenceDialog } from "@/app/leads/components/lead-stage-evidence-dialog";
 import { type PipelineStage, usePipelineStages } from "@/hooks/use-pipeline-stages";
 import { useProjects } from "@/hooks/use-projects";
 import { useActiveLeadSources } from "@/hooks/use-lead-sources";
 import { useUsers } from "@/hooks/use-users";
-import api from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { pipelineTextColor, resolvePipelineColor } from "@/lib/pipeline-color";
 import type { Lead } from "@/types/lead";
-import { toast } from "sonner";
+
+const dropAnimation: DropAnimation = {
+  duration: 180,
+  easing: "cubic-bezier(0.2, 0, 0, 1)",
+  sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.18" } } }),
+};
+/**
+ * Kolom yang berisi pointer selalu menang. `closestCorners` saja membandingkan
+ * keempat sudut overlay, sehingga kolom tinggi atau kosong kalah dari kartu di
+ * kolom sebelah dan drop ke kolom kosong tidak terdeteksi. Sensor keyboard
+ * (tanpa koordinat pointer) tetap memakai `closestCorners`.
+ */
+const laneFirstCollision: CollisionDetection = (args) => {
+  const lanes = pointerWithin({
+    ...args,
+    droppableContainers: args.droppableContainers.filter((container) => container.data.current?.kind === "stage"),
+  });
+  return lanes.length ? lanes : closestCorners(args);
+};
 
 const lastContactAt = (lead: Lead) => lead.activities?.[0]?.createdAt || lead.createdAt;
 
@@ -40,11 +57,11 @@ function PipelineCard({ lead, overlay = false }: { lead: Lead; overlay?: boolean
   return (
     <article
       ref={overlay ? undefined : sortable.setNodeRef}
-      style={overlay ? undefined : { transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }}
+      style={overlay ? undefined : { transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition ?? "transform 180ms cubic-bezier(0.2, 0, 0, 1)", willChange: "transform" }}
       {...(!overlay ? sortable.attributes : {})}
       {...(!overlay ? sortable.listeners : {})}
       onClick={() => !overlay && router.push(`/leads/${lead.id}`)}
-      className={cn("cursor-grab rounded-lg border border-[#E4E7EC] bg-white p-2 shadow-sm active:cursor-grabbing", sortable.isDragging && "opacity-40", overlay && "w-60 rotate-1 shadow-xl")}
+      className={cn("cursor-grab rounded-lg border border-[#E4E7EC] bg-white p-2 shadow-sm transition-[box-shadow,opacity] duration-150 active:cursor-grabbing", sortable.isDragging && "opacity-[0.18]", overlay && "w-60 rotate-[1.5deg] cursor-grabbing border-primary/30 shadow-2xl ring-2 ring-primary/15")}
     >
       <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-[#101828]">{name}</p>
@@ -71,16 +88,17 @@ function PipelineCard({ lead, overlay = false }: { lead: Lead; overlay?: boolean
   );
 }
 
-function StageLane({ stage, leads, expanded, onToggle, fitViewport, visibleColumns, isMobile }: { stage: PipelineStage; leads: Lead[]; expanded: boolean; onToggle: () => void; fitViewport: boolean; visibleColumns: number; isMobile: boolean }) {
+function StageLane({ stage, leads, expanded, onToggle, fitViewport, visibleColumns, isMobile, dropState }: { stage: PipelineStage; leads: Lead[]; expanded: boolean; onToggle: () => void; fitViewport: boolean; visibleColumns: number; isMobile: boolean; dropState?: "allowed" | "blocked" | "evidence" }) {
   const droppable = useDroppable({ id: stage.id, data: { kind: "stage", stage } });
   const shown = expanded ? leads : leads.slice(0, 3);
   const remaining = Math.max(0, leads.length - shown.length);
   const color = resolvePipelineColor(stage.color, "#667085");
   const headerText = pipelineTextColor(color);
   const badgeStyle = headerText === "#111827" ? { backgroundColor: "rgba(17,24,39,0.12)", color: headerText } : { backgroundColor: "rgba(255,255,255,0.22)", color: headerText };
+  const isTarget = dropState !== undefined;
 
   return (
-    <section className={cn("flex flex-col rounded-xl border", fitViewport ? "min-w-0 w-full" : isMobile ? "w-64 min-w-64" : "min-w-0 shrink-0")} style={{ backgroundColor: `${color}14`, borderColor: `${color}40`, ...(!fitViewport && !isMobile ? { width: `calc((100% - ${(visibleColumns - 1) * 0.5}rem) / ${visibleColumns})` } : {}) }}>
+    <section className={cn("flex flex-col rounded-xl border transition-[background-color,border-color,box-shadow,transform] duration-150", fitViewport ? "min-w-0 w-full" : isMobile ? "w-64 min-w-64" : "min-w-0 shrink-0", isTarget && dropState === "allowed" && "bg-primary/[0.06] shadow-sm ring-2 ring-primary/30", isTarget && dropState === "evidence" && "bg-amber-50 shadow-sm ring-2 ring-amber-400/50", isTarget && dropState === "blocked" && "bg-destructive/[0.05] ring-2 ring-destructive/30")} style={{ backgroundColor: isTarget ? undefined : `${color}14`, borderColor: isTarget && dropState === "blocked" ? "rgb(239 68 68)" : `${color}40`, ...(!fitViewport && !isMobile ? { width: `calc((100% - ${(visibleColumns - 1) * 0.5}rem) / ${visibleColumns})` } : {}) }}>
       <header className="rounded-t-xl px-2.5 py-2" style={{ backgroundColor: color, color: pipelineTextColor(color) }}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -89,11 +107,12 @@ function StageLane({ stage, leads, expanded, onToggle, fitViewport, visibleColum
           <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={badgeStyle}>{leads.length}</span>
         </div>
       </header>
-      <div ref={droppable.setNodeRef} className={cn("min-h-52 flex-1 space-y-1.5 p-1.5", droppable.isOver && "bg-blue-50")}>
+      <div ref={droppable.setNodeRef} className="min-h-52 flex-1 space-y-1.5 p-1.5">
         <SortableContext items={shown.map((lead) => lead.id)} strategy={verticalListSortingStrategy}>
+          {isTarget && <div className={cn("grid min-h-24 place-items-center rounded-lg border-2 border-dashed px-2 text-center text-xs font-medium transition-all", dropState === "allowed" ? "border-primary/40 bg-primary/[0.05] text-primary" : dropState === "evidence" ? "border-amber-400/60 bg-amber-50 text-amber-800" : "border-destructive/40 bg-destructive/[0.05] text-destructive")}>{dropState === "allowed" ? "Lepaskan untuk memindahkan Lead" : dropState === "evidence" ? "Lepaskan untuk mengisi evidence fase ini" : "Fase ini tidak dapat dilompati"}</div>}
           {shown.map((lead) => <PipelineCard key={lead.id} lead={lead} />)}
         </SortableContext>
-        {leads.length === 0 && <p className="px-2 py-10 text-center text-xs text-[#98A2B3]">Belum ada Lead</p>}
+        {leads.length === 0 && !isTarget && <p className="px-2 py-10 text-center text-xs text-[#98A2B3]">Belum ada Lead</p>}
         {(remaining > 0 || expanded) && leads.length > 3 && (
           <button type="button" onClick={onToggle} className="px-1 py-1 text-xs font-semibold text-[#0B63F6]">
             {expanded ? "Tampilkan lebih sedikit" : `+ ${remaining} lead lainnya`}
@@ -120,9 +139,8 @@ export function LeadsPipelineTab({
   const [labelId, setLabelId] = useState("all");
   const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
   const [activeLead, setActiveLead] = useState<Lead>();
+  const [overStageId, setOverStageId] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<{ lead: Lead; stage: PipelineStage }>();
-  const [evidenceFiles, setEvidenceFiles] = useState<Record<string, File>>({});
-  const [isMoving, setIsMoving] = useState(false);
 
   const leadsQuery = useLeads({ page: 1, limit: 100, useServerPagination: true, additionalParams: { projectId: projectId === "all" ? undefined : projectId, labelId: labelId === "all" ? undefined : labelId,assignedUserId: user?.role === "owner" ? undefined : user?.id, isDeleted: false }, getAll: true, fetchAllPages: true });
   const stagesQuery = usePipelineStages("lead");
@@ -136,7 +154,7 @@ export function LeadsPipelineTab({
   const projects = projectsQuery.data?.data ?? [];
   const labelsQuery = useLeadLabels(undefined, 1, 100);
   const labels = (labelsQuery.data?.data ?? []).filter((label) => label.isActive);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase("id-ID");
@@ -154,50 +172,55 @@ export function LeadsPipelineTab({
   const handleDragStart = (event: DragStartEvent) => {
     if (event.active.data.current?.kind === "lead") setActiveLead(event.active.data.current.lead as Lead);
   };
+  const stageFromEvent = (event: DragOverEvent | DragEndEvent) => event.over?.data.current?.kind === "stage"
+    ? String(event.over.id)
+    : (event.over?.data.current?.lead as Lead | undefined)?.stageId;
+  const dropState = (stage: PipelineStage) => {
+    if (!activeLead || stage.id === activeLead.stageId) return undefined;
+    const source = sortedStages.find((item) => item.id === activeLead.stageId);
+    if (!source) return "blocked" as const;
+    if (stage.position < source.position) return "allowed" as const;
+    if (stage.position !== source.position + 1) return "blocked" as const;
+    return !isLeadEvidenceGrandfathered(activeLead, stage, sortedStages) && stage.evidences.length > 0
+      ? "evidence" as const
+      : "allowed" as const;
+  };
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveLead(undefined);
+    setOverStageId(null);
     if (!event.over || event.active.data.current?.kind !== "lead") return;
-    const targetStage = event.over.data.current?.kind === "stage" ? (event.over.data.current.stage as PipelineStage) : sortedStages.find((stage) => stage.id === (event.over?.data.current?.lead as Lead | undefined)?.stageId);
+    const targetStage = event.over.data.current?.kind === "stage" ? (event.over.data.current.stage as PipelineStage) : sortedStages.find((stage) => stage.id === stageFromEvent(event));
     const sourceLead = event.active.data.current.lead as Lead;
     if (!targetStage || sourceLead.stageId === targetStage.id) return;
-    if (targetStage.evidences.some((evidence) => evidence.isRequired)) {
-      setEvidenceFiles({});
+    const sourceStage = sortedStages.find((stage) => stage.id === sourceLead.stageId);
+    const forward = !!sourceStage && targetStage.position > sourceStage.position;
+    if (forward && targetStage.position !== sourceStage.position + 1) {
+      toast.error("Lead hanya dapat maju satu fase agar persyaratan setiap fase tidak terlewati.");
+      return;
+    }
+    if (forward && !isLeadEvidenceGrandfathered(sourceLead, targetStage, sortedStages) && targetStage.evidences.length > 0) {
       setPendingMove({ lead: sourceLead, stage: targetStage });
       return;
     }
-    await leadsQuery.setLeadStage({ id: sourceLead.id, stageName: targetStage.name });
+    try {
+      await leadsQuery.transitionLeadStage({ id: sourceLead.id, targetStageId: targetStage.id, expectedSourceStageId: sourceLead.stageId! });
+    } catch {
+      // Mutation already shows an actionable toast; the card remains in its source lane.
+    }
   };
 
-  const requiredEvidence = pendingMove?.stage.evidences.filter((evidence) => evidence.isRequired) ?? [];
-  const confirmMove = async () => {
-    if (!pendingMove || requiredEvidence.some((evidence) => !evidenceFiles[evidence.id ?? evidence.name])) {
-      toast.error("Lengkapi seluruh evidence wajib.");
-      return;
-    }
-    setIsMoving(true);
-    const uploadedIds: string[] = [];
+  const confirmMove = async (documents: { name: string; file: File }[]) => {
+    if (!pendingMove) return;
     try {
-      for (const evidence of requiredEvidence) {
-        const file = evidenceFiles[evidence.id ?? evidence.name];
-        const form = new FormData();
-        form.append("document", file);
-        const response = await api.post<{ attachment: { id: string } }>(`/api/lead/${pendingMove.lead.id}/upload`, form);
-        uploadedIds.push(response.data.attachment.id);
-      }
-      await leadsQuery.setLeadStage({
+      await leadsQuery.transitionLeadStage({
         id: pendingMove.lead.id,
-        stageName: pendingMove.stage.name,
-        evidenceAttachmentIds: uploadedIds,
+        targetStageId: pendingMove.stage.id,
+        expectedSourceStageId: pendingMove.lead.stageId!,
+        documents,
       });
-      toast.success(`Lead dipindahkan ke ${pendingMove.stage.name}.`);
       setPendingMove(undefined);
-      setEvidenceFiles({});
-    } catch (error) {
-      await Promise.all(uploadedIds.map((id) => api.delete(`/api/attachment/${id}`).catch(() => undefined)));
-      const message = (error as { response?: { data?: { error?: string } } }).response?.data?.error;
-      toast.error(message || "Gagal memindahkan Lead.");
-    } finally {
-      setIsMoving(false);
+    } catch {
+      // Keep the dialog and selected files open so the user can correct them.
     }
   };
 
@@ -241,16 +264,18 @@ export function LeadsPipelineTab({
       {leadsQuery.isLoading || stagesQuery.isLoading ? (
         <div className="flex h-64 items-center justify-center rounded-xl border text-sm text-muted-foreground">Memuat pipeline...</div>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleDragStart} onDragCancel={() => setActiveLead(undefined)} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={laneFirstCollision}measuring={{ droppable: { strategy: MeasuringStrategy.Always } }} autoScroll onDragStart={handleDragStart} onDragOver={(event) => setOverStageId(stageFromEvent(event) ?? null)} onDragCancel={() => { setActiveLead(undefined); setOverStageId(null); }} onDragEnd={handleDragEnd}>
           <div className="max-h-[calc(100dvh-260px)] w-full overflow-auto pb-3">
             <div className={cn(fitPipelineViewport ? "grid gap-2" : "flex w-full gap-2")} style={fitPipelineViewport ? { gridTemplateColumns: `repeat(${sortedStages.length}, minmax(0, 1fr))` } : undefined}>
-              {sortedStages.map((stage) => <StageLane key={stage.id} stage={stage} leads={grouped[stage.id] ?? []} expanded={expandedStages.has(stage.id)} fitViewport={fitPipelineViewport} visibleColumns={visibleStageLimit} isMobile={isMobile} onToggle={() => setExpandedStages((current) => { const next = new Set(current); if (next.has(stage.id)) next.delete(stage.id); else next.add(stage.id); return next; })} />)}
+              {sortedStages.map((stage) => <StageLane key={stage.id} stage={stage} leads={grouped[stage.id] ?? []} expanded={expandedStages.has(stage.id)} fitViewport={fitPipelineViewport} visibleColumns={visibleStageLimit} isMobile={isMobile} dropState={overStageId === stage.id ? dropState(stage) : undefined} onToggle={() => setExpandedStages((current) => { const next = new Set(current); if (next.has(stage.id)) next.delete(stage.id); else next.add(stage.id); return next; })} />)}
             </div>
           </div>
-          <DragOverlay>{activeLead ? <PipelineCard lead={activeLead} overlay /> : null}</DragOverlay>
+          <DragOverlay dropAnimation={dropAnimation} adjustScale={false}>{activeLead ? <PipelineCard lead={activeLead} overlay /> : null}</DragOverlay>
         </DndContext>
       )}
 
+      {pendingMove && <LeadStageEvidenceDialog lead={pendingMove.lead} stage={pendingMove.stage} stages={sortedStages} open saving={leadsQuery.isTransitioningStage} onCancel={() => setPendingMove(undefined)} onSave={confirmMove} />}
+      {/* Legacy dialog retained below only temporarily during source transition.
       <Dialog open={!!pendingMove} onOpenChange={(open) => !open && !isMoving && setPendingMove(undefined)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -282,7 +307,7 @@ export function LeadsPipelineTab({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
     </div>
   );
 }

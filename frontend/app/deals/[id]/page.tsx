@@ -19,7 +19,7 @@ import { useActivities } from "@/hooks/use-activities";
 import { useDealDetailWorkflow } from "@/hooks/use-deal-detail-workflow";
 import { useDealDetail, useDealUnits, useDeals } from "@/hooks/use-deals";
 import { useFinancingBanks } from "@/hooks/use-financing-banks";
-import { usePipelineStages } from "@/hooks/use-pipeline-stages";
+import { usePipelineStages, type PipelineStage } from "@/hooks/use-pipeline-stages";
 import { useProjects } from "@/hooks/use-projects";
 import { useUpload } from "@/hooks/use-upload";
 import { useUsers } from "@/hooks/use-users";
@@ -35,11 +35,13 @@ import type {
   DealPaymentType,
 } from "@/types/deal";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { DealHeader } from "./components/deal-header";
 import { DealOverview } from "./components/deal-overview";
 import { DealTabs } from "./components/deal-tabs";
+import { applicableDealEvidences, DealStageEvidenceDialog, isDealEvidenceGrandfathered } from "../components/deal-stage-evidence-dialog";
 
 const inputClass = "h-9";
 const selectClass =
@@ -51,7 +53,7 @@ export default function DealDetailPage() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const { data: deal, isLoading, isError } = useDealDetail(params.id);
-  const { updateDeal, isUpdating } = useDeals({}, false);
+  const { updateDeal, isUpdating, transitionDealStage, isTransitioning } = useDeals({}, false);
   const stagesQuery = usePipelineStages("deal");
   const stages = stagesQuery.data ?? [];
   const { data: projects } = useProjects({ page: 1, limit: 100 });
@@ -79,10 +81,10 @@ export default function DealDetailPage() {
     useState<DealPaymentMethod>("CASH");
   const [editBankId, setEditBankId] = useState("");
   const [editClosingDate, setEditClosingDate] = useState("");
-  const [editStageId, setEditStageId] = useState("");
   const [editAssignedUserId, setEditAssignedUserId] = useState("");
   const [stageOpen, setStageOpen] = useState(false);
   const [selectedStageId, setSelectedStageId] = useState("");
+  const [pendingEvidenceStage, setPendingEvidenceStage] = useState<PipelineStage | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityType, setActivityType] = useState("follow_up");
   const [activityDescription, setActivityDescription] = useState("");
@@ -93,7 +95,6 @@ export default function DealDetailPage() {
   const editIsValid =
     Number(editAmount) >= 0 &&
     !!editUnitId &&
-    !!editStageId &&
     !!editAssignedUserId &&
     (!editNeedsBank || !!editBankId) &&
     (!deal?.expectedClosingDate || !!editClosingDate);
@@ -106,7 +107,6 @@ export default function DealDetailPage() {
     setEditPaymentMethod(deal?.paymentMethod || "CASH");
     setEditBankId(deal?.financingBankId || "");
     setEditClosingDate(deal?.expectedClosingDate?.slice(0, 10) ?? "");
-    setEditStageId(deal?.stageId || "");
     setEditAssignedUserId(deal?.assignedUserId || "");
   };
 
@@ -216,7 +216,6 @@ export default function DealDetailPage() {
         editClosingDate !== deal.expectedClosingDate?.slice(0, 10)
           ? { expectedClosingDate: editClosingDate }
           : {}),
-        stageId: editStageId,
         assignedUserId: editAssignedUserId,
       },
     });
@@ -224,9 +223,29 @@ export default function DealDetailPage() {
   };
 
   const saveStage = async () => {
-    if (!selectedStageId) return;
-    await updateDeal({ id: deal.id, data: { stageId: selectedStageId } });
-    setStageOpen(false);
+    if (!selectedStageId || !deal.stageId) return;
+    const source = stages.find((stage) => stage.id === deal.stageId);
+    const target = stages.find((stage) => stage.id === selectedStageId);
+    if (!source || !target || source.id === target.id) {
+      setStageOpen(false);
+      return;
+    }
+    const forward = target.position > source.position;
+    if (forward && target.position !== source.position + 1) {
+      toast.error("Deal hanya dapat maju satu fase agar persyaratan setiap fase tidak terlewati.");
+      return;
+    }
+    if (forward && !isDealEvidenceGrandfathered(deal, target, stages) && applicableDealEvidences(target, deal).length > 0) {
+      setStageOpen(false);
+      setPendingEvidenceStage(target);
+      return;
+    }
+    try {
+      await transitionDealStage({ id: deal.id, targetStageId: target.id, expectedSourceStageId: deal.stageId });
+      setStageOpen(false);
+    } catch {
+      // Toast ditangani mutation.
+    }
   };
 
   const saveActivity = async () => {
@@ -627,26 +646,6 @@ export default function DealDetailPage() {
               </div>
             )}
             <div className="space-y-1.5">
-              <Label>Fase Deal</Label>
-              <select
-                className={selectClass}
-                value={editStageId}
-                onChange={(event) => setEditStageId(event.target.value)}
-              >
-                <option value="">Pilih fase</option>
-                {[...stages]
-                  .filter(
-                    (stage) => stage.isActive || stage.id === deal.stageId,
-                  )
-                  .sort((a, b) => a.position - b.position)
-                  .map((stage) => (
-                    <option key={stage.id} value={stage.id}>
-                      {stage.name}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div className="space-y-1.5">
               <Label>Assigned Sales</Label>
               <select
                 className={selectClass}
@@ -712,13 +711,39 @@ export default function DealDetailPage() {
             </Button>
             <Button
               onClick={saveStage}
-              disabled={!selectedStageId || isUpdating}
+              disabled={!selectedStageId || isTransitioning}
             >
-              Ubah Fase
+              {isTransitioning ? "Memindahkan..." : "Ubah Fase"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {pendingEvidenceStage && (
+        <DealStageEvidenceDialog
+          key={`${deal.id}:${pendingEvidenceStage.id}`}
+          deal={deal}
+          stage={pendingEvidenceStage}
+          stages={stages}
+          open
+          saving={isTransitioning}
+          onCancel={() => setPendingEvidenceStage(null)}
+          onSave={async (documents) => {
+            if (!deal.stageId) return;
+            try {
+              await transitionDealStage({
+                id: deal.id,
+                targetStageId: pendingEvidenceStage.id,
+                expectedSourceStageId: deal.stageId,
+                documents,
+              });
+              setPendingEvidenceStage(null);
+            } catch {
+              // Toast ditangani mutation; dialog tetap terbuka.
+            }
+          }}
+        />
+      )}
 
       <Dialog open={activityOpen} onOpenChange={setActivityOpen}>
         <DialogContent>

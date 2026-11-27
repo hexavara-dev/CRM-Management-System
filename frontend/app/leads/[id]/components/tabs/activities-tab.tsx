@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { PipelineStage } from "@/hooks/use-pipeline-stages";
 import { pipelineTextColor, resolvePipelineColor } from "@/lib/pipeline-color";
 import { useLeads } from "@/hooks/use-leads";
+import { isLeadEvidenceGrandfathered } from "@/app/leads/components/lead-stage-evidence-dialog";
 import api from "@/lib/api";
 import { apiErrorMessage } from "@/lib/api-error";
 import type { Lead } from "@/types/lead";
@@ -264,6 +265,22 @@ export function ActivitiesTab({
     });
   };
 
+  const previewActivityAttachment = async (attachment: NonNullable<Lead["attachments"]>[number]) => {
+    try {
+      if (previewFile) URL.revokeObjectURL(previewFile.url);
+      const response = await api.get<Blob>(attachment.fileUrl, {
+        responseType: "blob",
+      });
+      setPreviewFile({
+        name: attachment.fileName || attachment.name || "Dokumen aktivitas",
+        type: attachment.fileType || response.data.type || "application/octet-stream",
+        url: URL.createObjectURL(response.data),
+      });
+    } catch (error) {
+      toast.error(apiErrorMessage(error, "File aktivitas tidak dapat dimuat."));
+    }
+  };
+
   const closeFilePreview = () => {
     if (previewFile) URL.revokeObjectURL(previewFile.url);
     setPreviewFile(null);
@@ -274,7 +291,7 @@ export function ActivitiesTab({
     const selectedStage = activityStageId
       ? activeStages.find((item) => item.id === activityStageId)
       : undefined;
-    if (selectedStage?.evidences.some((item) => item.isRequired)) {
+    if (selectedStage?.evidences.some((item) => item.isRequired) && !isLeadEvidenceGrandfathered(lead, selectedStage, activeStages)) {
       toast.error(
         `${selectedStage.name} membutuhkan evidence. Pindahkan fase lewat panel Fase di samping.`,
       );
@@ -356,7 +373,7 @@ export function ActivitiesTab({
   const requestStageChange = () => {
     const stage = activeStages.find((item) => item.id === targetStageId);
     if (!stage || stage.id === lead.stageId) return;
-    if (stage.evidences.some((item) => item.isRequired)) {
+    if (stage.evidences.some((item) => item.isRequired) && !isLeadEvidenceGrandfathered(lead, stage, activeStages)) {
       setEvidenceFiles({});
       setPendingStage(stage);
       return;
@@ -761,7 +778,7 @@ export function ActivitiesTab({
                   </section>
                 </div>
 
-                <DialogFooter className="shrink-0 border-t px-6 py-4 sm:justify-between">
+                <DialogFooter className="mx-0 mb-0 mt-auto shrink-0 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:justify-between sm:px-6">
                   <Button variant="outline" onClick={() => setAddOpen(false)}>
                     Batal
                   </Button>
@@ -830,6 +847,9 @@ export function ActivitiesTab({
                   activity.activityType,
                 );
                 const Icon = presentation.icon;
+                const activityAttachments = (lead.attachments ?? []).filter(
+                  (attachment) => attachment.leadActivityId === activity.id,
+                );
                 return (
                   <div key={activity.id} className="relative">
                     <span className="absolute top-5 -left-[15px] z-10 size-2 rounded-full border-2 border-white bg-[#1769FF]" />
@@ -859,6 +879,30 @@ export function ActivitiesTab({
                             Follow-up: {formatDate(task.dueDate)}
                           </p>
                         ))}
+                        {activityAttachments.length > 0 && (
+                          <div className="mt-2 border-t border-dashed border-[#D9E2F2] pt-2">
+                            <p className="mb-1.5 text-[9px] font-semibold text-[#667085]">
+                              File terlampir ({activityAttachments.length})
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {activityAttachments.map((attachment) => {
+                                const name = attachment.fileName || attachment.name || "Dokumen aktivitas";
+                                return (
+                                  <button
+                                    key={attachment.id}
+                                    type="button"
+                                    title={`Buka ${name}`}
+                                    onClick={() => void previewActivityAttachment(attachment)}
+                                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-[#BFD5FF] bg-[#F5F9FF] px-2 py-1 text-left text-[9px] font-medium text-[#175CD3] transition-colors hover:bg-[#E7F0FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1769FF]/40"
+                                  >
+                                    <Paperclip className="size-3 shrink-0" />
+                                    <span className="max-w-44 truncate">{name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </details>
                   </div>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -52,20 +51,13 @@ import {
 } from "lucide-react";
 import { AppSidebar } from "@/components/Sidebar";
 import { ConfigNavbar } from "../config-header";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ErrorText } from "@/components/ui/error-text";
 import { LabelText } from "@/components/ui/label-text";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import {
   CHOICE_TYPES,
   SYSTEM_FIELD_KEYS,
@@ -140,7 +132,7 @@ type EditorField = {
   icon?: string;
 };
 
-type Info = { name: string; description: string; icon: string; color: string; isActive: boolean; isDefault: boolean };
+type Info = { name: string; description: string; icon: string; color: string; isActive: boolean; isDefault: boolean; showDealCreationOption: boolean };
 type Errors = { name?: string; color?: string; form?: string; fields: Record<string, { label?: string; options?: string }> };
 
 let counter = 0;
@@ -399,6 +391,7 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
       color: template?.color ?? DEFAULT_COLOR,
       isActive: template?.isActive ?? true,
       isDefault: template?.isDefault ?? false,
+      showDealCreationOption: template?.showDealCreationOption ?? false,
     }),
     [template],
   );
@@ -521,6 +514,7 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
           color: info.color.toUpperCase(),
           isActive: info.isActive,
           isDefault: info.isDefault,
+          showDealCreationOption: info.showDealCreationOption,
           fields: fields.map(toField).map(toPayloadField),
         },
       });
@@ -670,6 +664,20 @@ export function TemplateEditor({ template, canWrite }: { template?: FormTemplate
                         </div>
                         <p className="mt-1 text-xs text-[#6b6b6b]">
                           {template?.isDefault ? "Untuk memindahkan, jadikan template lain sebagai default." : "Dipakai otomatis saat menambah Lead."}
+                        </p>
+                      </div>
+                      <div className="border-t border-[#EAECF0] pt-3">
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            label="Aktifkan pembuatan Deal setelah simpan Lead"
+                            checked={info.showDealCreationOption}
+                            disabled={!canWrite}
+                            onChange={(showDealCreationOption) => setInfo({ ...info, showDealCreationOption })}
+                          />
+                          <span className="text-sm text-[#1f1f1f]">Buat Deal Sekaligus</span>
+                        </div>
+                        <p className="mt-1 text-xs text-[#6b6b6b]">
+                          Menampilkan checkbox di footer Add Lead untuk membuka form Deal setelah Lead berhasil disimpan.
                         </p>
                       </div>
                     </div>

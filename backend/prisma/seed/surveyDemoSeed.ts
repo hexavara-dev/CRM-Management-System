@@ -11,14 +11,10 @@ const DEMO_SLOT = 'Tipe 45 (GS-07)';
  * 3 hari ke depan lengkap dengan lokasi + unit. Aktivitas Visit hanyalah catatan terpisah.
  * Sengaja tanpa foto: gambar di kartu berasal dari foto tipe rumah (master produk), jadi tanpa
  * foto tipe kartu menampilkan placeholder.
- * Idempotent: jika customer demo sudah ada, seluruh langkah dilewati.
+ * Idempotent: bila eksekusi sebelumnya terputus, bagian data yang belum ada tetap dilengkapi.
  */
 export async function seedSurveyDemo(prisma: PrismaClient, tenantId: string, salesUsers: SeedSalesUser[]) {
-  const existing = await prisma.customer.findFirst({ where: { tenantId, email: DEMO_EMAIL }, select: { id: true } });
-  if (existing) {
-    console.log('Skipped survey demo: data sudah ada.');
-    return;
-  }
+  const existingCustomer = await prisma.customer.findFirst({ where: { tenantId, email: DEMO_EMAIL }, select: { id: true } });
 
   const sales = salesUsers[0];
   const project = await prisma.product.findFirst({ where: { tenantId, isActive: true }, select: { id: true } });
@@ -41,7 +37,7 @@ export async function seedSurveyDemo(prisma: PrismaClient, tenantId: string, sal
       select: { id: true },
     }));
 
-  const customer = await prisma.customer.create({
+  const customer = existingCustomer ?? await prisma.customer.create({
     data: {
       tenantId,
       firstName: 'Rizal',
@@ -51,7 +47,8 @@ export async function seedSurveyDemo(prisma: PrismaClient, tenantId: string, sal
     },
     select: { id: true },
   });
-  const lead = await prisma.lead.create({
+  const existingLead = await prisma.lead.findFirst({ where: { tenantId, customerId: customer.id }, select: { id: true } });
+  const lead = existingLead ?? await prisma.lead.create({
     data: {
       tenantId,
       customerId: customer.id,
@@ -68,34 +65,46 @@ export async function seedSurveyDemo(prisma: PrismaClient, tenantId: string, sal
   surveyAt.setDate(surveyAt.getDate() + 3);
   surveyAt.setHours(10, 0, 0, 0);
 
-  await prisma.leadActivity.create({
-    data: {
-      tenantId,
-      leadId: lead.id,
-      customerId: customer.id,
-      actorId: sales?.id ?? null,
-      activityType: 'visit',
-      activityDate: surveyAt,
-      notes: {
-        create: { title: 'visit', content: 'Survey lokasi Green Sukun, cek unit Tipe 45 dan bawa denah.' },
+  const existingActivity = await prisma.leadActivity.findFirst({
+    where: { tenantId, leadId: lead.id, activityType: 'visit' },
+    select: { id: true },
+  });
+  if (!existingActivity) {
+    await prisma.leadActivity.create({
+      data: {
+        tenantId,
+        leadId: lead.id,
+        customerId: customer.id,
+        actorId: sales?.id ?? null,
+        activityType: 'visit',
+        activityDate: surveyAt,
+        notes: {
+          create: { title: 'visit', content: 'Survey lokasi Green Sukun, cek unit Tipe 45 dan bawa denah.' },
+        },
       },
-    },
-  });
+    });
+  }
 
-  await prisma.viewing.create({
-    data: {
-      tenantId,
-      leadId: lead.id,
-      actorId: sales?.id ?? null,
-      locationId: location.id,
-      slotId: slot.id,
-      statusId: viewingStatus?.id ?? null,
-      name: 'Rizal Hakim',
-      email: DEMO_EMAIL,
-      scheduledAt: surveyAt,
-      durationMinutes: 60,
-    },
+  const existingViewing = await prisma.viewing.findFirst({
+    where: { tenantId, customerId: customer.id, locationId: location.id, slotId: slot.id },
+    select: { id: true },
   });
+  if (!existingViewing) {
+    await prisma.viewing.create({
+      data: {
+        tenantId,
+        customerId: customer.id,
+        actorId: sales?.id ?? null,
+        locationId: location.id,
+        slotId: slot.id,
+        statusId: viewingStatus?.id ?? null,
+        name: 'Rizal Hakim',
+        email: DEMO_EMAIL,
+        scheduledAt: surveyAt,
+        durationMinutes: 60,
+      },
+    });
+  }
 
-  console.log(`Survey demo dibuat: lead ${lead.id}, survey ${surveyAt.toDateString()} 10:00.`);
+  console.log(`Survey demo siap: lead ${lead.id}, survey ${surveyAt.toDateString()} 10:00.`);
 }

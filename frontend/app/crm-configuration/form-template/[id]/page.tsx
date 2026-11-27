@@ -6,7 +6,7 @@ import { AppSidebar } from "@/components/Sidebar";
 import { ConfigNavbar } from "../../config-header";
 import { useAuth } from "@/components/auth/auth-provider";
 import { Button } from "@/components/ui/button";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFormTemplate } from "@/hooks/use-form-templates";
 import { errorMessage } from "@/hooks/use-projects";

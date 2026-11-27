@@ -4,7 +4,7 @@ import type { ArchivedLead } from "@/types/lead";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export type ArchiveCategory = "NOT_RESPOND" | "INVALID" | "NOT_QUALIFIED";
+export type ArchiveCategory = "NOT_RESPOND" | "INVALID" | "NOT_QUALIFIED" | "DEAL_LOST";
 export type ArchiveLeadInput = {
   id: string;
   category: ArchiveCategory;
@@ -30,6 +30,7 @@ export type ArchiveResponse = {
     notRespond: number;
     invalid: number;
     notQualified: number;
+    dealLost: number;
   };
 };
 

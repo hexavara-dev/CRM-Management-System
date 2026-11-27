@@ -200,7 +200,7 @@ export class LeadFormSubmissionUseCase {
   private findDefaultTemplate(tenantId: string) {
     return this.prisma.leadFormTemplate.findFirst({
       where: { tenantId, isDefault: true, isActive: true },
-      select: { id: true, name: true, currentVersionId: true },
+      select: { id: true, name: true, currentVersionId: true, showDealCreationOption: true },
     });
   }
 
@@ -221,10 +221,26 @@ export class LeadFormSubmissionUseCase {
     const missing = (keys: SystemFieldKey[]) => keys.filter((key) => !stored.some((f) => f.key === key)).map(systemField);
     // Versi lama tanpa field yang selalu ada: ditambahkan seperti saat dibaca di editor.
     const fields = [...missing(['name', 'phone', 'email']), ...stored, ...missing(['lead_source', 'assigned_sales'])];
-    return { templateId: template.id, name: template.name, versionId: version.id, version: version.version, fields };
+    return {
+      templateId: template.id,
+      name: template.name,
+      versionId: version.id,
+      version: version.version,
+      fields,
+      showDealCreationOption: template.showDealCreationOption,
+    };
   }
 
   async submit(actor: Actor, input: LeadFormSubmission) {
+    return this.submitInternal(actor, input);
+  }
+
+  /** Dipakai workflow gabungan Lead + Deal agar keduanya berada dalam transaksi yang sama. */
+  async submitInTransaction(actor: Actor, input: LeadFormSubmission, transaction: Prisma.TransactionClient) {
+    return this.submitInternal(actor, input, transaction);
+  }
+
+  private async submitInternal(actor: Actor, input: LeadFormSubmission, transaction?: Prisma.TransactionClient) {
     const form = await this.defaultForm(actor.tenantId);
     if (form.versionId !== input.templateVersionId) {
       throw new Error('The lead form has changed; reload the form and try again (conflict)');
@@ -311,11 +327,11 @@ export class LeadFormSubmissionUseCase {
       labelIds.length
         ? this.prisma.leadLabel.findMany({
             where: { id: { in: labelIds }, tenantId, isActive: true },
-            select: { id: true, type: true },
+            select: { id: true, type: true, name: true, color: true, icon: true },
           })
         : [],
       projectId
-        ? this.prisma.product.findFirst({ where: { id: projectId, tenantId, isActive: true }, select: { id: true } })
+        ? this.prisma.product.findFirst({ where: { id: projectId, tenantId, isActive: true }, select: { id: true, name: true } })
         : null,
       typeId && projectId
         ? this.prisma.productVariant.findFirst({
@@ -342,7 +358,7 @@ export class LeadFormSubmissionUseCase {
     if (typeId && !type) throw new Error(`${f('interest_types').label} must belong to the selected project`);
     if (stageId && !stage) throw new Error(`${f('lead_stage').label} not found`);
 
-    const lead = await this.prisma.$transaction(async (tx) => {
+    const persist = async (tx: Prisma.TransactionClient) => {
       const customer = await tx.customer.create({
         data: { tenantId, firstName: name, phoneNumber: phone, email, gender, age, location: address },
         select: { id: true },
@@ -392,7 +408,15 @@ export class LeadFormSubmissionUseCase {
         data: { isLocked: true },
       });
       return created;
-    });
-    return { id: lead.id };
+    };
+    const lead = transaction ? await persist(transaction) : await this.prisma.$transaction(persist);
+    return {
+      id: lead.id,
+      name,
+      email,
+      phone,
+      project: project ? { id: project.id, name: project.name } : null,
+      labels,
+    };
   }
 }

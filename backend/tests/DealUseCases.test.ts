@@ -47,7 +47,7 @@ class MockRepository implements IRepository<any> {
 }
 
 describe('DealUseCases.updateDeal', () => {
-  it('moves a deal to another stage without resetting its amount', async () => {
+  it('rejects stage changes that bypass the transition workflow', async () => {
     const dealRepo = new MockRepository([
       { id: 'deal-1', tenantId: 'tenant-1', stageId: 'stage-1', amount: 750000 },
     ]);
@@ -62,14 +62,12 @@ describe('DealUseCases.updateDeal', () => {
       stageRepo
     );
 
-    const result = await useCases.updateDeal(
+    await expect(useCases.updateDeal(
       'deal-1',
       { stageId: 'stage-2' },
       'tenant-1'
-    );
-
-    expect(result.stageId).toBe('stage-2');
-    expect(result.amount).toBe(750000);
+    )).rejects.toThrow(/stage transition workflow/i);
+    expect(dealRepo.items[0]?.amount).toBe(750000);
   });
 
   it('rejects a stage owned by another tenant', async () => {

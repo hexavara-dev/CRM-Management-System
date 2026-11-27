@@ -41,6 +41,7 @@ export function useDealDetailWorkflow(dealId: string) {
     client.invalidateQueries({ queryKey: ["deal-history", dealId] });
     client.invalidateQueries({ queryKey: ["deal-payments", dealId] });
     client.invalidateQueries({ queryKey: ["deal-lost-requests", dealId] });
+    client.invalidateQueries({ queryKey: ["lead-archive"] });
   };
 
   const addPayment = useMutation({

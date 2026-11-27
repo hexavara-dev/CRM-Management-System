@@ -1,5 +1,7 @@
 import { validateBody, type FieldRule } from '../../../infrastructure/utils/RequestValidation.js';
 import type { CreateDealInput } from '../../../usecases/deal/CreateDealUseCase.js';
+import { validateLeadFormSubmission } from './leadFormSubmission.js';
+import type { LeadFormSubmission } from '../../../usecases/crm/LeadFormSubmissionUseCase.js';
 import { MAX_DEAL_DOCUMENTS, type DealDocumentInput } from '../../../usecases/deal/dealDocuments.js';
 
 const rules: Record<string, FieldRule> = {
@@ -42,4 +44,24 @@ export function parseCreateDeal(body: unknown): CreateDealInput {
   const documents = data.documents ?? [];
   if (documents.length > MAX_DEAL_DOCUMENTS) throw new Error('Invalid deal documents');
   return { ...data, documents: documents.map((item) => validateBody(item, documentRules) as DealDocumentInput) };
+}
+
+/** Payload multipart untuk membuat Lead baru dan Deal pertamanya secara atomik. */
+export function parseCreateDealFromLeadForm(body: unknown): { lead: LeadFormSubmission; deal: Omit<CreateDealInput, 'leadId'> } {
+  let source = (body ?? {}) as Record<string, unknown>;
+  if (typeof source.payload === 'string') {
+    try {
+      source = JSON.parse(source.payload) as Record<string, unknown>;
+    } catch {
+      throw new Error('Invalid lead and deal payload');
+    }
+  }
+  if (!source.lead || typeof source.lead !== 'object' || Array.isArray(source.lead)) throw new Error('Lead form payload is required');
+  if (!source.deal || typeof source.deal !== 'object' || Array.isArray(source.deal)) throw new Error('Deal payload is required');
+  const lead = validateLeadFormSubmission(source.lead);
+  // Parser Deal yang sama dipakai agar aturan dokumen/tanggal selalu identik dengan Add Deal biasa.
+  const parsed = parseCreateDeal({ ...(source.deal as Record<string, unknown>), leadId: '__new_lead__' });
+  const { leadId, ...deal } = parsed;
+  if (!leadId) throw new Error('Invalid Deal payload');
+  return { lead, deal };
 }

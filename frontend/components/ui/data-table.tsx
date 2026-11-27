@@ -50,6 +50,7 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   searchKey?: string;
   isLoading?: boolean;
+  errorMessage?: string;
   serverPagination?: ServerPaginationOptions;
   showColumnSelector?: boolean;
   tableHeaderClassName?: string;
@@ -65,6 +66,7 @@ export function DataTable<TData, TValue>({
   data,
   searchKey,
   isLoading,
+  errorMessage,
   serverPagination,
   showColumnSelector = true,
   tableHeaderClassName,
@@ -187,6 +189,15 @@ export function DataTable<TData, TValue>({
                   ))}
                 </TableRow>
               ))
+            ) : errorMessage ? (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center text-destructive"
+                >
+                  {errorMessage}
+                </TableCell>
+              </TableRow>
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow

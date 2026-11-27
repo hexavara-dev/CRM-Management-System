@@ -56,12 +56,13 @@ export class LeadArchiveUseCase {
       this.prisma.lead.count({ where }),
       this.prisma.lead.groupBy({ by: ['archiveCategory'], where: summaryWhere, _count: { _all: true } }),
     ]);
-    const summary = { total: 0, notRespond: 0, invalid: 0, notQualified: 0 };
+    const summary = { total: 0, notRespond: 0, invalid: 0, notQualified: 0, dealLost: 0 };
     for (const group of groups) {
       const count = group._count._all; summary.total += count;
       if (group.archiveCategory === 'NOT_RESPOND') summary.notRespond = count;
       if (group.archiveCategory === 'INVALID') summary.invalid = count;
       if (group.archiveCategory === 'NOT_QUALIFIED') summary.notQualified = count;
+      if (group.archiveCategory === 'DEAL_LOST') summary.dealLost = count;
     }
     return { data: rows.map(({ _count, ...row }) => ({ ...row, name: [row.customer.firstName, row.customer.lastName].filter(Boolean).join(' '), hasDeals: _count.deals > 0 })), meta: { total, page: filters.page, limit: filters.limit, totalPages: Math.ceil(total / filters.limit) }, summary };
   }
@@ -79,6 +80,7 @@ export class LeadArchiveUseCase {
 
   private async reactivateInTransaction(tx: Prisma.TransactionClient, id: string, tenantId: string, actorId?: string, role?: string) {
     const lead = await this.requireArchived(tx, id, tenantId, role, actorId);
+    if (lead.archiveCategory === 'DEAL_LOST') throw new Error('A Lead from a Lost Deal cannot be reactivated directly');
     const updated = await tx.lead.update({ where: { id }, data: { archiveCategory: null, archiveReason: null, archivedAt: null, archivedBy: { disconnect: true } } });
     await this.history(tx, lead, tenantId, actorId, 'reactivation', 'reactivate', { category: lead.archiveCategory, reason: lead.archiveReason });
     return updated;
@@ -90,6 +92,7 @@ export class LeadArchiveUseCase {
 
   private async categoryInTransaction(tx: Prisma.TransactionClient, id: string, tenantId: string, actorId: string | undefined, input: { category: LeadArchiveCategory; reason?: string | null }, role?: string) {
     const lead = await this.requireArchived(tx, id, tenantId, role, actorId); const reason = input.reason?.trim() || null;
+    if (lead.archiveCategory === 'DEAL_LOST' || input.category === 'DEAL_LOST') throw new Error('Deal Lost is managed by the Lost Deal workflow');
     const updated = await tx.lead.update({ where: { id }, data: { archiveCategory: input.category, archiveReason: reason } });
     await this.history(tx, lead, tenantId, actorId, 'archive-category-change', 'archive-category-change', { oldCategory: lead.archiveCategory, newCategory: input.category, oldReason: lead.archiveReason, newReason: reason });
     return updated;

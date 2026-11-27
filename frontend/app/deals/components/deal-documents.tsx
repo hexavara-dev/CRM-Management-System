@@ -88,6 +88,8 @@ export function DealDocumentsTable({
   showMissing,
   stageName,
   paymentLabel,
+  entityLabel = "Deal",
+  fulfilledNames = new Set<string>(),
   onChange,
 }: {
   documents: DealDocument[];
@@ -96,6 +98,10 @@ export function DealDocumentsTable({
   showMissing: boolean;
   stageName?: string;
   paymentLabel?: string;
+  /** Menentukan konteks copy dialog tanpa mengubah daftar evidence. */
+  entityLabel?: "Lead" | "Deal";
+  /** Evidence yang pernah disimpan untuk Deal dan fase ini tidak perlu diunggah ulang. */
+  fulfilledNames?: ReadonlySet<string>;
   onChange: (name: string, file: File | undefined) => void;
 }) {
   return (
@@ -114,7 +120,8 @@ export function DealDocumentsTable({
           <tbody>
             {documents.map((document, index) => {
               const file = files[document.name];
-              const missing = !file && document.isRequired;
+              const fulfilled = fulfilledNames.has(document.name);
+              const missing = !file && !fulfilled && document.isRequired;
               return (
                 <tr key={document.name} className={cn("border-t border-[#EDEDED]", missing && showMissing && "bg-[#FDECEC]")}>
                   <td className="px-3 py-2.5">{index + 1}</td>
@@ -134,11 +141,11 @@ export function DealDocumentsTable({
                     <span
                       className={cn(
                         "inline-flex items-center gap-1.5",
-                        file ? "text-[#1E9E55]" : missing ? "text-[#D64545]" : "text-[#6b6b6b]",
+                        file || fulfilled ? "text-[#1E9E55]" : missing ? "text-[#D64545]" : "text-[#6b6b6b]",
                       )}
                     >
-                      {file ? <CircleCheck className="size-4" /> : missing ? <CircleX className="size-4" /> : <CircleMinus className="size-4" />}
-                      {file ? "Sudah diupload" : missing ? "Belum diupload" : "Belum ada"}
+                      {file || fulfilled ? <CircleCheck className="size-4" /> : missing ? <CircleX className="size-4" /> : <CircleMinus className="size-4" />}
+                      {file ? "Siap diupload" : fulfilled ? "Sudah terpenuhi" : missing ? "Belum diupload" : "Belum ada"}
                     </span>
                   </td>
                   <td className="px-3 py-2">
@@ -162,6 +169,8 @@ export function DealDocumentsTable({
                           <Trash2 className="size-4" />
                         </Button>
                       </div>
+                    ) : fulfilled ? (
+                      <span className="text-xs text-[#1E9E55]">Menggunakan dokumen yang telah tersimpan</span>
                     ) : (
                       <UploadButton document={document} onSelect={(selected) => onChange(document.name, selected)} />
                     )}
@@ -175,9 +184,9 @@ export function DealDocumentsTable({
       <p className="flex items-start gap-2 rounded-lg bg-[#F6FAFD] p-3 text-sm text-[#475467]">
         <Info className="mt-0.5 size-4 shrink-0 text-[#1980C0]" />
         <span>
-          Daftar dokumen mengikuti konfigurasi Form Template untuk Deal (tahap {stageName ?? "-"}, pembayaran {paymentLabel ?? "-"}).
+          Daftar dokumen mengikuti konfigurasi pipeline {entityLabel} (fase {stageName ?? "-"}{paymentLabel ? `, pembayaran ${paymentLabel}` : ""}).
           <br />
-          Dokumen wajib harus diunggah sebelum deal dapat disimpan.
+          Dokumen wajib harus diunggah sebelum {entityLabel.toLowerCase()} dapat disimpan.
         </span>
       </p>
     </>

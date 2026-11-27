@@ -37,6 +37,12 @@ export type DealPayload = {
   notes?: string | null;
   financingBankId?: string | null;
 };
+export type DealStageTransitionPayload = {
+  id: string;
+  targetStageId: string;
+  expectedSourceStageId: string;
+  documents?: { name: string; file: File }[];
+};
 export type DealUnitOption = {
   id: string;
   code: string;
@@ -70,6 +76,28 @@ export function useDeals(filters: DealFilters = {}, enabled = true) {
     onError: (error) =>
       toast.error(apiErrorMessage(error, "Gagal memperbarui Deal.")),
   });
+  const transition = useMutation({
+    mutationFn: async ({ id, targetStageId, expectedSourceStageId, documents = [] }: DealStageTransitionPayload) => {
+      const form = new FormData();
+      form.append(
+        "payload",
+        JSON.stringify({
+          targetStageId,
+          expectedSourceStageId,
+          documents: documents.map(({ name }, fileIndex) => ({ name, fileIndex })),
+        }),
+      );
+      for (const { file } of documents) form.append("documents", file);
+      return (await api.post<{ id: string; stageId: string; statusId?: string | null }>(`/api/deal/${id}/set-stage`, form)).data;
+    },
+    onSuccess: (_, variables) => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["deal", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["deal-history", variables.id] });
+      toast.success("Fase Deal berhasil diperbarui.");
+    },
+    onError: (error) => toast.error(apiErrorMessage(error, "Gagal memindahkan fase Deal.")),
+  });
   const remove = useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/api/deal/${id}`);
@@ -90,8 +118,10 @@ export function useDeals(filters: DealFilters = {}, enabled = true) {
     isSuccess: query.isSuccess,
     isError: query.isError,
     updateDeal: update.mutateAsync,
+    transitionDealStage: transition.mutateAsync,
     deleteDeal: remove.mutateAsync,
     isUpdating: update.isPending,
+    isTransitioning: transition.isPending,
     isDeleting: remove.isPending,
   };
 }

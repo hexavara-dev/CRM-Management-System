@@ -4,7 +4,7 @@ import { DealDetailUseCase } from '../src/usecases/deal/DealDetailUseCase.js';
 function database(overrides: Record<string, unknown> = {}) {
   const db: Record<string, any> = {
     deal: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'deal-1', statusId: 'open', status: null, unitId: 'unit-1', unitClaimed: true }),
+      findFirst: jest.fn().mockResolvedValue({ id: 'deal-1', leadId: 'lead-1', statusId: 'open', status: null, unitId: 'unit-1', unitClaimed: true }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       update: jest.fn().mockResolvedValue({ id: 'deal-1' }),
     },
@@ -28,6 +28,11 @@ function database(overrides: Record<string, unknown> = {}) {
       findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'request-1', status: 'APPROVED' }),
     },
     dealActivity: { create: jest.fn().mockResolvedValue({ id: 'activity-1' }) },
+    lead: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'lead-1', customerId: 'customer-1', archivedAt: null }),
+      update: jest.fn().mockResolvedValue({ id: 'lead-1', archiveCategory: 'DEAL_LOST' }),
+    },
+    leadActivity: { create: jest.fn().mockResolvedValue({ id: 'lead-activity-1' }) },
     auditLog: { create: jest.fn().mockResolvedValue({ id: 'audit-1' }), findMany: jest.fn() },
     status: { findFirst: jest.fn().mockResolvedValue({ id: 'lost-status' }) },
   };
@@ -98,6 +103,10 @@ describe('DealDetailUseCase Lost workflow', () => {
     expect(db.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'lost_approved' }) })
     );
+    expect(db.lead.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'lead-1' },
+      data: expect.objectContaining({ archiveCategory: 'DEAL_LOST', archiveReason: 'Harga' }),
+    }));
   });
 });
 

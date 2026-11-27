@@ -44,6 +44,15 @@ describe('LeadArchiveUseCase', () => {
     expect(prisma.lead.update.mock.calls[0]?.[0].data).not.toHaveProperty('stageId');
   });
 
+  it('does not directly reactivate an archived Lead from a Lost Deal', async () => {
+    const prisma = createPrisma();
+    prisma.lead.findFirst.mockResolvedValue({ id: ID, customerId: 'customer-1', archiveCategory: 'DEAL_LOST', archiveReason: 'Batal' });
+    const useCase = new LeadArchiveUseCase(prisma as any);
+
+    await expect(useCase.reactivate(ID, 'tenant-1', ACTOR, 'owner')).rejects.toThrow(/cannot be reactivated directly/i);
+    expect(prisma.lead.update).not.toHaveBeenCalled();
+  });
+
   it('refuses permanent delete when any selected Lead is active, missing, or from another tenant', async () => {
     const prisma = createPrisma();
     prisma.lead.findMany.mockResolvedValue([{ id: ID }]);
