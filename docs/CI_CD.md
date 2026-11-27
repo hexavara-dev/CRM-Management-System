@@ -27,6 +27,21 @@ Migrasi tidak ikut dibatalkan jika deploy gagal setelahnya. Pastikan migrasi kom
 
 Buka tab **Actions**, pilih **Deploy to VPS**, klik **Run workflow**, lalu pilih branch dan environment. Sebaiknya aktifkan **Required reviewers** pada environment `production`.
 
+Staging boleh di-deploy dari branch mana pun untuk uji coba. Production hanya bisa dari `main`; workflow berhenti jika branch lain dipilih.
+
+### Environment
+
+Staging dan production berjalan di VPS yang sama, masing-masing dengan folder, project Docker Compose, database, dan port sendiri.
+
+| | Staging | Production |
+| --- | --- | --- |
+| Domain | `crm.hexavara.com` | `ampro.hexavara.com` |
+| GitHub Environment | `staging` | `production` |
+| `APP_NAME` | nama yang sudah dipakai `crm.hexavara.com` (lihat [Transisi](#transisi-crmhexavaracom-menjadi-staging)) | `crm-production` |
+| Folder server | `/var/www/<APP_NAME staging>` | `/var/www/crm-production` |
+| `API_PORT` / `WEB_PORT` / `DB_PORT` | `3000` / `3001` / `3307` | `3010` / `3011` / `3317` |
+| `CORS_ORIGINS` dan `API_URL` | `https://crm.hexavara.com` | `https://ampro.hexavara.com` |
+
 ### Konfigurasi GitHub
 
 Buat environment `staging` dan `production` di **Settings > Environments**, lalu isi nilai berikut pada masing-masing environment.
@@ -56,20 +71,22 @@ chmod 600 /var/www/<APP_NAME>/.env
 
 Isi `.env` mengikuti [`.env.example`](../.env.example). Penjelasan tiap variabelnya ada di [panduan instalasi](INSTALLATION.md#deploy-ke-server-dengan-docker).
 
-Satu server hanya bisa menjalankan satu environment, karena nama container dan port di `docker-compose.yml` bernilai tetap.
+Beberapa environment bisa berjalan di satu server. Nama container mengikuti `APP_NAME`, dan port host diatur lewat `API_PORT`, `WEB_PORT`, dan `DB_PORT` di `.env`. Pastikan port tiap environment berbeda (lihat tabel [Environment](#environment)).
 
 Workflow tidak menghapus image Docker lama, karena server bisa dipakai aplikasi lain. Periksa pemakaian disk sesekali dengan `docker system df`, dan hapus image lama project ini secara manual.
 
 ### Reverse proxy
 
-Frontend dan API cukup memakai satu subdomain. Nginx meneruskan `/api` dan `/uploads` ke backend, dan sisanya ke frontend. Isi `CORS_ORIGINS` dan `API_URL` di `.env` server dengan alamat yang sama, misalnya `https://crm.example.com`.
+Frontend dan API cukup memakai satu subdomain. Nginx meneruskan `/api` dan `/uploads` ke backend, dan sisanya ke frontend. Isi `CORS_ORIGINS` dan `API_URL` di `.env` server dengan alamat yang sama.
 
-Buat `/etc/nginx/sites-available/crm.example.com`:
+Setiap environment punya satu site Nginx. Contoh di bawah untuk staging (`crm.hexavara.com`, port `3000`/`3001`). Untuk production, buat `/etc/nginx/sites-available/ampro.hexavara.com` dengan `server_name ampro.hexavara.com` dan port `3010`/`3011`.
+
+Buat `/etc/nginx/sites-available/crm.hexavara.com`:
 
 ```nginx
 server {
     listen 80;
-    server_name crm.example.com;
+    server_name crm.hexavara.com;
     client_max_body_size 20m;
 
     location ~ ^/(api|uploads)/ {
@@ -93,12 +110,27 @@ server {
 Setelah DNS mengarah ke server, aktifkan site dan pasang sertifikat:
 
 ```bash
-ln -s /etc/nginx/sites-available/crm.example.com /etc/nginx/sites-enabled/
+ln -s /etc/nginx/sites-available/crm.hexavara.com /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
-certbot --nginx -d crm.example.com
+certbot --nginx -d crm.hexavara.com
 ```
 
 Sampai deploy pertama selesai, domain ini menampilkan 502.
+
+### Transisi: crm.hexavara.com menjadi staging
+
+Sebelumnya `crm.hexavara.com` adalah production. Datanya dipertahankan sebagai data staging, dan `ampro.hexavara.com` menjadi production baru dengan database kosong.
+
+1. **Catat `APP_NAME` lama.** Lihat variable `APP_NAME` di GitHub Environment `production` yang sekarang (atau nama folder di `/var/www`). Volume database dan upload mengikuti nama ini, jadi staging harus tetap memakainya.
+2. **Atur GitHub Environment `staging`:** `APP_NAME` = nama lama tersebut, `APP_DOMAIN` = `crm.hexavara.com`, serta secret SSH dan VPS yang sama.
+3. **Lengkapi `.env` staging** di `/var/www/<APP_NAME lama>/.env` dengan `API_PORT=3000`, `WEB_PORT=3001`, `DB_PORT=3307`. Nilai lain tetap.
+4. **Deploy staging** dari `main`. Container dibuat ulang dengan nama baru yang mengikuti `APP_NAME`, sedangkan volume dan datanya tetap.
+5. **Siapkan production** mengikuti [Persiapan server](#persiapan-server-sekali-saja) dengan `APP_NAME=crm-production`. Isi `.env`-nya dengan `DB_PASSWORD` dan `JWT_SECRET` baru (jangan sama dengan staging), `CORS_ORIGINS` dan `API_URL` = `https://ampro.hexavara.com`, serta `API_PORT=3010`, `WEB_PORT=3011`, `DB_PORT=3317`.
+6. **Ubah GitHub Environment `production`:** `APP_NAME` = `crm-production`, `APP_DOMAIN` = `ampro.hexavara.com`. Aktifkan **Required reviewers**.
+7. **Pasang Nginx dan sertifikat** untuk `ampro.hexavara.com` (port `3010`/`3011`), lalu deploy production dari `main`.
+8. **Buat akun pertama** production mengikuti [Akun pertama](#akun-pertama).
+
+Lakukan langkah 2 sampai 4 sebelum langkah 6. Jika `production` diubah lebih dulu, deploy berikutnya ke `crm.hexavara.com` akan memakai `APP_NAME` baru dan database kosong.
 
 ### Akun pertama
 

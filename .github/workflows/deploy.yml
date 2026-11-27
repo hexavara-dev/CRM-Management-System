@@ -52,6 +52,9 @@ jobs:
 
     steps:
       - name: Validate configuration
+        env:
+          TARGET_ENV: ${{ github.event.inputs.environment }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           for name in APP_NAME APP_DOMAIN VPS_USER VPS_HOST; do
             if [ -z "${!name}" ]; then
@@ -59,6 +62,11 @@ jobs:
               exit 1
             fi
           done
+          # Production hanya dari main agar yang dirilis sudah melewati review dan CI.
+          if [ "$TARGET_ENV" = "production" ] && [ "$REF_NAME" != "main" ]; then
+            echo "::error::Production hanya boleh di-deploy dari branch main (dipilih: $REF_NAME)"
+            exit 1
+          fi
           # APP_NAME dipakai sebagai nama folder dan nama project Docker Compose.
           if ! [[ "$APP_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
             echo "::error::APP_NAME hanya boleh huruf kecil, angka, dan tanda hubung"
