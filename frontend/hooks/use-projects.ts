@@ -105,6 +105,8 @@ export interface ProjectEditData extends ProjectDetail {
     typeVariantId: string;
     code: string;
     status: string;
+    /** Punya reservasi/deal: status mengikuti transaksi, tidak bisa ditandai terjual manual. */
+    hasTransactions: boolean;
     media: { id: string; fileUrl: string; isPrimary: boolean; sortOrder: number }[];
   }[];
 }
@@ -179,6 +181,8 @@ export interface CreateProjectPayload {
     variantIndex: number;
     typeVariantIndex: number;
     locationKey?: string;
+    /** Hanya status yang boleh diatur dari hierarki. */
+    status?: "AVAILABLE" | "SOLD";
   }[];
 }
 

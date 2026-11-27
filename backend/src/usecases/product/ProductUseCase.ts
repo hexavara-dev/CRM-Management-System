@@ -216,6 +216,9 @@ async function saveSpecifications(
   }
 }
 
+/** Status yang boleh diatur manual dari hierarki (tanda "sudah terjual" untuk data awal). */
+const isManualStatus = (status: string) => status === 'AVAILABLE' || status === 'SOLD';
+
 export class ProductUseCase {
   constructor(private prisma: PrismaClient, private storage: typeof localStorage = localStorage) {}
 
@@ -463,9 +466,15 @@ export class ProductUseCase {
     const units = await this.prisma.productUnit.findMany({
       where: { tenantId, variant: { productId: id, tenantId } },
       orderBy: { code: 'asc' },
-      select: { id: true, categoryId: true, variantId: true, typeVariantId: true, code: true, status: true, media: { select: { id: true, fileUrl: true, isPrimary: true, sortOrder: true } } },
+      select: { id: true, categoryId: true, variantId: true, typeVariantId: true, code: true, status: true, media: { select: { id: true, fileUrl: true, isPrimary: true, sortOrder: true } },
+        _count: { select: { reservations: true, deals: true } } },
     });
-    return { ...product, locations, units };
+    return {
+      ...product,
+      locations,
+      // hasTransactions: status unit mengikuti reservasi/deal dan tidak bisa ditandai terjual manual.
+      units: units.map(({ _count, ...unit }) => ({ ...unit, hasTransactions: _count.reservations + _count.deals > 0 })),
+    };
   }
 
   /**
@@ -989,7 +998,8 @@ export class ProductUseCase {
     const removedUnits = oldUnits.filter((row) => !keptUnitIds.has(row.id));
     if (removedUnits.length) {
       const ids = removedUnits.map((row) => row.id);
-      if (removedUnits.some((row) => row.status !== 'AVAILABLE') ||
+      // Unit yang ditandai terjual manual boleh dihapus; terjual lewat reservasi/deal tertahan oleh hitungan di bawah.
+      if (removedUnits.some((row) => !isManualStatus(row.status)) ||
         await tx.reservation.count({ where: { tenantId, unitId: { in: ids } } }) ||
         await tx.unitPriceAdjustment.count({ where: { tenantId, unitId: { in: ids } } }) ||
         await tx.deal.count({ where: { tenantId, unitId: { in: ids } } })) {
@@ -1121,23 +1131,28 @@ export class ProductUseCase {
       const old = oldUnits.find((row) => row.id === unit.id);
       if (old) {
         unitIds.push(old.id);
-        if (unit.status && unit.status !== old.status) {
-          throw new Error(`Conflict: the status of unit ${old.code} can only change through a reservation. Reload the project.`);
+        // Tanda "sudah terjual" manual (AVAILABLE <-> SOLD) hanya untuk unit tanpa reservasi/deal;
+        // selain itu status mengikuti reservasi atau deal.
+        const status = unit.status && unit.status !== old.status ? unit.status : undefined;
+        if (status && (!isManualStatus(status) || !isManualStatus(old.status) ||
+          await tx.reservation.count({ where: { tenantId, unitId: old.id } }) ||
+          await tx.deal.count({ where: { tenantId, unitId: old.id } }))) {
+          throw new Error(`Conflict: the status of unit ${old.code} can only change through a reservation or deal. Reload the project.`);
         }
         if ((old.variantId !== variantId || old.typeVariantId !== typeVariantId || old.categoryId !== categoryId) &&
           (await tx.reservation.count({ where: { tenantId, unitId: old.id } }) ||
             await tx.deal.count({ where: { tenantId, unitId: old.id } }))) {
           throw new Error(`Conflict: unit ${old.code} with reservations or deals must keep its type and location`);
         }
-        if (old.code !== unit.code || old.variantId !== variantId || old.typeVariantId !== typeVariantId || old.categoryId !== categoryId) {
+        if (status || old.code !== unit.code || old.variantId !== variantId || old.typeVariantId !== typeVariantId || old.categoryId !== categoryId) {
           await tx.productUnit.update({
-            where: { id: old.id }, data: { code: unit.code, variantId, typeVariantId, categoryId },
+            where: { id: old.id }, data: { code: unit.code, variantId, typeVariantId, categoryId, ...(status ? { status } : {}) },
           });
         }
       } else {
         const created = await tx.productUnit.create({
           data: { tenantId, code: unit.code, variantId, typeVariantId, categoryId,
-            status: 'AVAILABLE' },
+            status: unit.status === 'SOLD' ? 'SOLD' : 'AVAILABLE' },
         });
         unitIds.push(created.id);
       }

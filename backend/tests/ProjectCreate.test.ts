@@ -314,8 +314,14 @@ describe('project request validation', () => {
     expect(result.units?.[0]).toMatchObject({ code: 'U1', status: 'AVAILABLE' });
   });
 
-  it('only accepts available new units; a fake id does not bypass it on create', () => {
+  it('accepts new units marked sold for ongoing projects', () => {
     const unit = { code: 'U1', variantIndex: 0, status: 'SOLD' };
+    expect(validateProduct({ ...base, units: [unit] }).units?.[0]).toMatchObject({ status: 'SOLD' });
+    expect(validateProduct({ units: [unit] }, true).units).toHaveLength(1);
+  });
+
+  it('only accepts available or sold new units; a fake id does not bypass it on create', () => {
+    const unit = { code: 'U1', variantIndex: 0, status: 'RESERVED' };
     expect(() => validateProduct({ ...base, units: [unit] })).toThrow(/Invalid unit status/);
     expect(() => validateProduct({ ...base, units: [{ ...unit, id: 'u-1' }] })).toThrow(/Invalid unit status/);
     expect(() => validateProduct({ units: [unit] }, true)).toThrow(/Invalid unit status/);

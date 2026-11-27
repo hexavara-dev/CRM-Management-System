@@ -4,6 +4,7 @@ import { type ReactNode, useRef, useState } from "react";
 import { ChevronDown, Home, MapPin, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -12,7 +13,8 @@ import { INPUT } from "./form-styles";
 import type { LocationNode, UnitItem } from "./hierarchy-step";
 import type { UnitType } from "./unit-type-step";
 
-type UnitRow = { code: string; type: string; typeVariantKey: string; typeVariantName: string };
+/** sold: data awal project berjalan, unit langsung disimpan berstatus Sold. */
+type UnitRow = { code: string; type: string; typeVariantKey: string; typeVariantName: string; sold?: boolean };
 
 export function AddUnitDialog({
   onOpenChange,
@@ -74,6 +76,7 @@ export function AddUnitDialog({
   // Jumlah kolom per klik "Add Column Unit"; string supaya kotak boleh kosong sementara diketik.
   const [countInput, setCountInput] = useState("1");
 
+  const soldCount = rows.filter((row) => row.sold).length;
   const update = (i: number, patch: Partial<UnitRow>) => setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   // Varian baris yang dihapus dipilih lagi, agar slotnya langsung bisa ditambahkan kembali.
   const removeRow = (i: number) => {
@@ -155,7 +158,7 @@ export function AddUnitDialog({
       fail(<>Nomor unit sudah digunakan di lokasi ini: <strong className="font-bold">{usedCodes.join(", ")}</strong>. Ganti dengan nomor lain atau hapus baris tersebut.</>);
       return;
     }
-    onSave(rows.map((r, i) => ({ id: crypto.randomUUID(), locationId: location.id, code: codes[i], type: r.type, typeVariantKey: r.typeVariantKey, typeVariantName: r.typeVariantName, status: "Available" })));
+    onSave(rows.map((r, i) => ({ id: crypto.randomUUID(), locationId: location.id, code: codes[i], type: r.type, typeVariantKey: r.typeVariantKey, typeVariantName: r.typeVariantName, status: r.sold ? "Sold" : "Available" })));
     onOpenChange(false);
   };
 
@@ -325,11 +328,19 @@ export function AddUnitDialog({
                     <p className="text-xs text-[#6b6b6b]">Nomor bisa diubah. Unit berikutnya melanjutkan nomor baris terakhir.</p>
                     <ul className="space-y-2">
                       {rows.map((r, i) => (
-                        <li key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] items-center gap-3 rounded-lg border border-[#E4E4E7] px-3 py-2">
+                        <li key={i} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_36px] items-center gap-3 rounded-lg border border-[#E4E4E7] px-3 py-2">
                           <Input required aria-label={`Nomor unit baris ${i + 1}`} value={r.code} onChange={(e) => update(i, { code: e.target.value })} className={cn(INPUT, "h-9 w-full min-w-0")} />
                           <span className="min-w-0 break-words text-sm text-[#475467]">
                             {r.type} <span className="text-[#6b6b6b]">({r.typeVariantName})</span>
                           </span>
+                          <label className="inline-flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm text-[#475467]">
+                            <Checkbox
+                              checked={!!r.sold}
+                              aria-label={`${r.code || `Baris ${i + 1}`} sudah terjual`}
+                              onCheckedChange={(checked) => update(i, { sold: checked === true })}
+                            />
+                            Sudah terjual
+                          </label>
                           <Button type="button" variant="ghost" size="icon" aria-label={`Hapus ${r.code || "baris"}`} onClick={() => removeRow(i)} className="text-[#D64545] hover:bg-[#FDECEC] hover:text-[#D64545]">
                             <Trash2 className="size-4" />
                           </Button>
@@ -344,7 +355,8 @@ export function AddUnitDialog({
 
           <div className="flex flex-col gap-3 border-t border-[#E4E4E7] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-[#475467]">
-              <strong className="text-[#1f1f1f]">{rows.length} unit</strong> akan ditambahkan dengan status Available
+              <strong className="text-[#1f1f1f]">{rows.length} unit</strong> akan ditambahkan
+              {soldCount > 0 ? ` (${soldCount} Sold, ${rows.length - soldCount} Available)` : " dengan status Available"}
             </p>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none">Batal</Button>

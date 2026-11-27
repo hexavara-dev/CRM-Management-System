@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowUpDown, ChevronRight, Folder, Layers, LayoutGrid, MoreVertical, Pencil, Plus, Trash2, Boxes } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,8 @@ import { toast } from "sonner";
 /** Flat list; parentId "root" = langsung di bawah proyek. */
 export type LocationNode = { id: string; persistedId?: string; parentId: string; name: string; level: string };
 /** Unit fisik; dimiliki oleh lokasi terbawah (block) melalui locationId. */
-export type UnitItem = { id: string; persistedId?: string; locationId: string; code: string; type: string; typeVariantKey: string; typeVariantName: string; status: string };
+/** locked: unit punya reservasi/deal, status mengikuti transaksi dan tidak bisa ditandai terjual manual. */
+export type UnitItem = { id: string; persistedId?: string; locationId: string; code: string; type: string; typeVariantKey: string; typeVariantName: string; status: string; locked?: boolean };
 
 const ROOT = "root";
 const LEVEL_SUGGESTIONS = ["Cluster", "Zone", "Block", "Tower", "Floor"];
@@ -329,7 +331,23 @@ export function HierarchyStep({
                         <TableRow key={u.id}>
                           <TableCell className="whitespace-nowrap">{u.code}</TableCell>
                           <TableCell>{u.type}{u.typeVariantName && ` (${u.typeVariantName})`}</TableCell>
-                          <TableCell>{u.status}</TableCell>
+                          <TableCell>
+                            {/* Data awal project berjalan: unit tanpa reservasi/deal bisa ditandai terjual dan dibatalkan. */}
+                            {!u.locked && (u.status === "Available" || u.status === "Sold") ? (
+                              <label className="inline-flex cursor-pointer items-center gap-2">
+                                <Checkbox
+                                  checked={u.status === "Sold"}
+                                  aria-label={`Unit ${u.code} sudah terjual`}
+                                  onCheckedChange={(checked) =>
+                                    onUnitsChange(units.map((x) => (x.id === u.id ? { ...x, status: checked === true ? "Sold" : "Available" } : x)))
+                                  }
+                                />
+                                <span>{u.status === "Sold" ? "Sold" : "Available"}</span>
+                              </label>
+                            ) : (
+                              <span title={u.locked ? "Status mengikuti reservasi atau deal." : undefined}>{u.status}</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <button type="button" aria-label="Delete unit" onClick={() => onUnitsChange(units.filter((x) => x.id !== u.id))} className="cursor-pointer rounded p-1 text-[#D64545] hover:bg-[#FDECEC]">
                               <Trash2 className="size-3.5" />
